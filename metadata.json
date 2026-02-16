@@ -1,0 +1,8 @@
+{
+  "name": "BUFSD MTSS Pulse",
+  "description": "A modern Multi-Tiered System of Supports dashboard for school administrators to track intervention fidelity and student progress.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

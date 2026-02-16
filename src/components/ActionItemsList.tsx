@@ -1,0 +1,263 @@
+
+import React, { useState, useEffect } from 'react';
+import type { ActionItem } from '../types';
+import { Sparkles, ArrowRight, X, CheckCircle2, AlertTriangle, Loader2, BrainCircuit, Edit, Eye } from 'lucide-react';
+import { generateActionItemPlan } from '../services/geminiService';
+import { RichTextRenderer } from './RichTextRenderer';
+import { DraggableModal } from './DraggableModal';
+
+interface ActionItemsListProps {
+  items: ActionItem[];
+  onStudentClick: (studentName: string) => void;
+}
+
+export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStudentClick }) => {
+  const [localItems, setLocalItems] = useState<ActionItem[]>(items);
+  const [selectedItem, setSelectedItem] = useState<ActionItem | null>(null);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  
+  // Plan Edit State
+  const [planTitle, setPlanTitle] = useState("");
+  const [planNotes, setPlanNotes] = useState("");
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+
+  // Sync props to state when role/data changes
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
+
+  const getBadgeColor = (category: string) => {
+    switch (category) {
+      case 'Academic': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'Attendance': return 'bg-amber-50 text-amber-700 border-amber-200'; // Changed to Amber for warning
+      case 'Behavior': return 'bg-rose-50 text-rose-700 border-rose-200';
+      default: return 'bg-slate-50 text-slate-700 border-slate-200';
+    }
+  };
+
+  const handleDismiss = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocalItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleReviewClick = async (item: ActionItem) => {
+    setSelectedItem(item);
+    setReviewMode(true);
+    setIsGeneratingPlan(true);
+    setIsEditingNotes(false); // Default to preview mode for better readability
+    
+    // Reset fields while loading
+    setPlanTitle("");
+    setPlanNotes("");
+
+    try {
+        const result = await generateActionItemPlan(item.studentName, item.grade, item.category, item.insight);
+        setPlanTitle(result.title);
+        setPlanNotes(result.notes);
+    } catch (error) {
+        console.error(error);
+        setPlanTitle("Draft Intervention Plan");
+        setPlanNotes("Unable to generate AI plan. Please enter details manually.");
+        setIsEditingNotes(true); // Switch to edit mode if error
+    } finally {
+        setIsGeneratingPlan(false);
+    }
+  };
+
+  const handleApprovePlan = () => {
+    if (!selectedItem) return;
+    
+    setProcessingId(selectedItem.id);
+    setReviewMode(false);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setLocalItems(prev => prev.filter(item => item.id !== selectedItem.id));
+      setProcessingId(null);
+      setSelectedItem(null);
+    }, 1500);
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden">
+      
+      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+        <div>
+           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            Priority Action Items
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+             {localItems.length} AI-detected anomalies requiring attention.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
+           <BrainCircuit size={14} />
+           AI Analysis
+        </div>
+      </div>
+      
+      <div className="flex-1 overflow-auto bg-slate-50/30">
+        {localItems.length === 0 ? (
+           <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
+              <CheckCircle2 size={48} className="text-emerald-200 mb-4" />
+              <p className="font-medium text-slate-600">All caught up!</p>
+              <p className="text-sm">No priority items detected.</p>
+           </div>
+        ) : (
+          localItems.map((item) => (
+            <div key={item.id} className="p-6 border-b border-slate-100 last:border-0 hover:bg-white transition-colors group relative">
+              
+              {/* Processing Overlay */}
+              {processingId === item.id && (
+                 <div className="absolute inset-0 bg-white/90 z-20 flex items-center justify-center backdrop-blur-[1px]">
+                    <div className="flex flex-col items-center gap-2 text-emerald-600 animate-in fade-in zoom-in duration-300">
+                        <CheckCircle2 size={32} />
+                        <span className="font-bold text-sm">Plan Created Successfully</span>
+                    </div>
+                 </div>
+              )}
+
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex items-baseline gap-3">
+                  <h3 
+                    onClick={() => onStudentClick(item.studentName)}
+                    className="text-base font-bold text-slate-800 cursor-pointer hover:text-indigo-600 hover:underline decoration-indigo-200 decoration-2 underline-offset-2 transition-all"
+                  >
+                    {item.studentName}
+                  </h3>
+                  <span className="text-xs text-slate-400 font-medium">{item.grade} Grade</span>
+                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${getBadgeColor(item.category)}`}>
+                    {item.category}
+                  </span>
+                </div>
+                <button 
+                    onClick={(e) => handleDismiss(item.id, e)}
+                    className="text-xs font-medium text-slate-400 hover:text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                >
+                  <X size={14} /> Dismiss
+                </button>
+              </div>
+              
+              <div className="flex gap-3 mb-4">
+                  <div className="mt-1 shrink-0">
+                      <div className="p-1.5 bg-amber-50 rounded-full border border-amber-100 text-amber-600">
+                          <AlertTriangle size={14} />
+                      </div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed py-1">
+                    <span className="font-semibold text-slate-700">Observation: </span>
+                    {item.insight}
+                  </p>
+              </div>
+
+              <div className="flex justify-end">
+                 <button 
+                    onClick={() => handleReviewClick(item)}
+                    className="bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 group/btn"
+                 >
+                   <Sparkles size={16} className="text-indigo-500 group-hover/btn:animate-pulse" />
+                   Review AI Suggestion
+                 </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      
+      {localItems.length > 0 && (
+        <div className="p-3 border-t border-slate-100 bg-white text-center">
+            <button className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition-colors">
+            View all {localItems.length + 12} flagged cases in reports
+            </button>
+        </div>
+      )}
+
+      {/* --- Review Modal Overlay --- */}
+      <DraggableModal
+        isOpen={reviewMode}
+        onClose={() => setReviewMode(false)}
+        title={
+            <div className="flex gap-3 items-center">
+                <div className="p-1.5 bg-indigo-100 rounded-lg">
+                    <BrainCircuit size={20} className="text-indigo-600" />
+                </div>
+                <div>
+                    <span className="font-bold text-sm uppercase tracking-wider text-indigo-900 block opacity-70">AI Proposed Plan</span>
+                    <span className="font-bold text-lg text-slate-800 leading-none">For {selectedItem?.studentName}</span>
+                </div>
+            </div>
+        }
+        initialWidth={700}
+        initialHeight={600}
+        footer={
+            <div className="flex gap-3 w-full">
+                <button 
+                    onClick={() => setReviewMode(false)}
+                    className="px-5 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-white transition-colors text-sm"
+                >
+                    Cancel
+                </button>
+                <button 
+                    onClick={handleApprovePlan}
+                    disabled={isGeneratingPlan}
+                    className="flex-1 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all text-sm flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Approve Plan <ArrowRight size={16} />
+                </button>
+            </div>
+        }
+      >
+        <div className="p-6 h-full flex flex-col">
+            {isGeneratingPlan ? (
+                <div className="flex flex-col items-center justify-center gap-4 text-indigo-600 flex-1 h-full">
+                    <Loader2 size={48} className="animate-spin" />
+                    <div className="text-center">
+                        <p className="font-bold text-xl">Drafting Intervention...</p>
+                        <p className="text-sm text-indigo-400 mt-1">Analyzing behavior patterns and academic history</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-5 flex-1">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Proposed Intervention</label>
+                        <input 
+                            type="text" 
+                            value={planTitle}
+                            onChange={(e) => setPlanTitle(e.target.value)}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                    </div>
+                    
+                    <div className="flex-1 flex flex-col min-h-[200px]">
+                        <div className="flex justify-between items-end mb-1.5">
+                            <label className="block text-xs font-bold text-slate-500 uppercase">Reasoning & Notes</label>
+                            <button 
+                                onClick={() => setIsEditingNotes(!isEditingNotes)}
+                                className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
+                            >
+                                {isEditingNotes ? <><Eye size={14} /> Preview</> : <><Edit size={14} /> Edit Content</>}
+                            </button>
+                        </div>
+                        
+                        {isEditingNotes ? (
+                            <textarea 
+                                value={planNotes}
+                                onChange={(e) => setPlanNotes(e.target.value)}
+                                className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                            />
+                        ) : (
+                            <div className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg overflow-y-auto prose prose-sm max-w-none">
+                                <RichTextRenderer content={planNotes} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+      </DraggableModal>
+
+    </div>
+  );
+};

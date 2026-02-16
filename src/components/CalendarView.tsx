@@ -1,0 +1,1444 @@
+
+import React, { useState, useMemo, useRef } from 'react';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Plus, 
+  Clock, 
+  MapPin, 
+  Users, 
+  Check, 
+  X, 
+  AlertCircle, 
+  Menu,
+  Filter,
+  MoreHorizontal,
+  Paperclip,
+  Camera,
+  File as FileIcon,
+  Trash2,
+  Download,
+  Repeat,
+  Sparkles,
+  Loader2,
+  UserPlus,
+  Briefcase,
+  ChevronDown,
+  AlignLeft,
+  Edit
+} from 'lucide-react';
+import type { CalendarEvent, Attachment } from '../types';
+import { EventType, AttendanceStatus, UserRole } from '../types';
+import { MOCK_CALENDAR_EVENTS, STAFF_ROSTER_DATA } from '../constants';
+import { CustomDatePicker } from './CustomDatePicker';
+import { suggestMeetingTimes } from '../services/geminiService';
+import { DraggableModal } from './DraggableModal';
+
+// Initial Mock Groups
+const INITIAL_GROUPS = [
+  { id: 'g1', name: 'MTSS Committee', members: ['Rosa Cortese', 'Dr. Evans', 'Mr. Davis'] },
+  { id: 'g2', name: '4th Grade Team', members: ['Mr. Davis', 'Mrs. Johnson', 'Mr. Thompson'] },
+  { id: 'g3', name: 'Leadership', members: ['Dr. Aris Thorne', 'Rosa Cortese'] }
+];
+
+interface CalendarViewProps {
+  currentUserRole: UserRole;
+  currentUserName: string;
+  onMenuClick: () => void;
+}
+
+type RecurrencePattern = 'None' | 'Daily' | 'Weekly' | 'Monthly';
+
+export const CalendarView: React.FC<CalendarViewProps> = ({ 
+  currentUserRole, 
+  currentUserName,
+  onMenuClick
+}) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [events, setEvents] = useState<CalendarEvent[]>(MOCK_CALENDAR_EVENTS);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Group Management State
+  const [groups, setGroups] = useState(INITIAL_GROUPS);
+  const [isGroupManagerOpen, setIsGroupManagerOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<{id: string, name: string, members: string[]} | null>(null);
+  const [groupMemberSearch, setGroupMemberSearch] = useState('');
+
+  // Attachments State
+  const [newEventAttachments, setNewEventAttachments] = useState<Attachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Camera State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
+  // New Event Form State
+  const [newEventForm, setNewEventForm] = useState({
+    title: '',
+    type: EventType.STAFF,
+    date: new Date().toISOString().split('T')[0],
+    startTime: '09:00',
+     endTime: '10:00',
+     description: '',
+     location: '',
+     recurrencePattern: 'None' as RecurrencePattern,
+     recurrenceEnd: ''
+   });
+
+  // Invitees & Conflict State
+  const [selectedInvitees, setSelectedInvitees] = useState<string[]>([currentUserName]);
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [aiSuggestions, setAiSuggestions] = useState<{start: string, end: string, reason: string}[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestionDuration, setSuggestionDuration] = useState(30);
+  
+  // Filter State
+  const [selectedTypes, setSelectedTypes] = useState<EventType[]>(Object.values(EventType));
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+
+  // --- Calendar Logic ---
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const prevMonthDays = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
+  
+  const calendarDays = useMemo(() => {
+    const days: Array<{ day: number; type: 'prev' | 'current' | 'next'; fullDate: Date }> = [];
+    // Previous month padding
+    for (let i = firstDayOfMonth - 1; i >= 0; i--) {
+        days.push({ day: prevMonthDays - i, type: 'prev', fullDate: new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, prevMonthDays - i) });
+    }
+    // Current month
+    for (let i = 1; i <= daysInMonth; i++) {
+        days.push({ day: i, type: 'current', fullDate: new Date(currentDate.getFullYear(), currentDate.getMonth(), i) });
+    }
+    // Next month padding
+    const remainingCells = 42 - days.length; // 6 rows * 7 days
+    for (let i = 1; i <= remainingCells; i++) {
+        days.push({ day: i, type: 'next', fullDate: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, i) });
+    }
+    return days;
+  }, [currentDate, daysInMonth, firstDayOfMonth, prevMonthDays]);
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // --- Event Filtering (RBAC + Types) ---
+  const filteredEvents = useMemo(() => {
+    return events.filter(evt => {
+        // 1. Filter by Type
+        if (!selectedTypes.includes(evt.type)) return false;
+
+        // 2. Filter by User Access (Is Attendee OR District Public Event)
+        const isAttendee = evt.attendees.some(a => a.name === currentUserName);
+        const isDistrictPublic = evt.type === EventType.DISTRICT; 
+        const isOrganizer = evt.organizer === currentUserName;
+        
+        // Show if user is attendee or if it's a public district event
+        return isAttendee || isDistrictPublic || isOrganizer;
+    });
+  }, [events, selectedTypes, currentUserName]);
+
+  const getEventsForDay = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return filteredEvents.filter(evt => {
+        const evtDate = new Date(evt.start).toISOString().split('T')[0];
+        return evtDate === dateStr;
+    });
+  };
+
+  // --- Conflict Detection Logic ---
+  const detectedConflicts = useMemo(() => {
+    if (!isAddModalOpen) return [];
+
+    const newStart = new Date(`${newEventForm.date}T${newEventForm.startTime}`).getTime();
+    const newEnd = new Date(`${newEventForm.date}T${newEventForm.endTime}`).getTime();
+
+    if (isNaN(newStart) || isNaN(newEnd)) return [];
+
+    // Find overlapping events for ANY selected invitee
+    const conflicts: { user: string, event: string }[] = [];
+
+    // Check existing events in the system (mock DB)
+    events.forEach(evt => {
+        const evtStart = new Date(evt.start).getTime();
+        const evtEnd = new Date(evt.end).getTime();
+
+        // Check Overlap
+        const isOverlapping = (newStart < evtEnd && newEnd > evtStart);
+        
+        if (isOverlapping) {
+            // Check if any selected invitee is attending this overlapping event
+            selectedInvitees.forEach(invitee => {
+                const isAttending = evt.attendees.some(a => a.name === invitee);
+                if (isAttending) {
+                    conflicts.push({ user: invitee, event: evt.title });
+                }
+            });
+        }
+    });
+
+    return conflicts;
+  }, [newEventForm.date, newEventForm.startTime, newEventForm.endTime, selectedInvitees, events, isAddModalOpen]);
+
+  // --- Interaction Handlers ---
+  const handleEventClick = (evt: CalendarEvent) => {
+    setSelectedEvent(evt);
+  };
+
+  const handleInviteUser = (name: string) => {
+      if (!selectedInvitees.includes(name)) {
+          setSelectedInvitees([...selectedInvitees, name]);
+      }
+      setInviteSearch('');
+  };
+
+  const handleInviteGroup = (groupId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (group) {
+        const newInvitees = [...selectedInvitees];
+        group.members.forEach(m => {
+            if (!newInvitees.includes(m)) newInvitees.push(m);
+        });
+        setSelectedInvitees(newInvitees);
+    }
+  };
+
+  const handleInviteAllStaff = () => {
+    const allNames = STAFF_ROSTER_DATA.map(s => s.name);
+    const newInvitees = Array.from(new Set([...selectedInvitees, ...allNames]));
+    setSelectedInvitees(newInvitees);
+  };
+
+  const handleRemoveInvitee = (name: string) => {
+      if (name !== currentUserName) {
+          setSelectedInvitees(selectedInvitees.filter(i => i !== name));
+      }
+  };
+
+  // --- Group Management Handlers ---
+  const handleSaveGroup = () => {
+    if (!editingGroup || !editingGroup.name.trim()) return;
+    
+    if (editingGroup.id) {
+        // Update existing
+        setGroups(prev => prev.map(g => g.id === editingGroup.id ? editingGroup : g));
+    } else {
+        // Create new
+        const newGroup = { ...editingGroup, id: `g-${Date.now()}` };
+        setGroups(prev => [...prev, newGroup]);
+    }
+    setEditingGroup(null);
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+  };
+
+  const toggleGroupMember = (memberName: string) => {
+      if (!editingGroup) return;
+      
+      const isMember = editingGroup.members.includes(memberName);
+      let newMembers;
+      if (isMember) {
+          newMembers = editingGroup.members.filter(m => m !== memberName);
+      } else {
+          newMembers = [...editingGroup.members, memberName];
+      }
+      setEditingGroup({ ...editingGroup, members: newMembers });
+  };
+
+  const handleAiSuggest = async () => {
+      if (selectedInvitees.length === 0) return;
+      setIsSuggesting(true);
+      setAiSuggestions([]);
+      
+      // Filter events relevant to invitees for context
+      const relevantEvents = events.filter(evt => 
+          evt.attendees.some(a => selectedInvitees.includes(a.name))
+      );
+
+      const suggestions = await suggestMeetingTimes(
+          selectedInvitees, 
+          suggestionDuration, 
+          newEventForm.date, 
+          relevantEvents
+      );
+      
+      setAiSuggestions(suggestions);
+      setIsSuggesting(false);
+  };
+
+  const handleApplySuggestion = (s: {start: string, end: string}) => {
+      setNewEventForm(prev => ({ ...prev, startTime: s.start, endTime: s.end }));
+      setAiSuggestions([]); // Clear suggestions after picking
+  };
+
+  const handleCreateEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    const baseStart = new Date(`${newEventForm.date}T${newEventForm.startTime}`);
+    const baseEnd = new Date(`${newEventForm.date}T${newEventForm.endTime}`);
+    const duration = baseEnd.getTime() - baseStart.getTime();
+    
+    const eventsToCreate: CalendarEvent[] = [];
+    const parentId = `evt-${Date.now()}`;
+
+    const attendeesList = selectedInvitees.map(name => ({
+        name,
+        role: STAFF_ROSTER_DATA.find(s => s.name === name)?.role as UserRole || UserRole.TEACHER, // Fallback role logic
+        status: name === currentUserName ? AttendanceStatus.ORGANIZER : AttendanceStatus.PENDING,
+        avatarSeed: name.replace(/\s/g, '')
+    }));
+
+    const recurrencePattern = newEventForm.recurrencePattern;
+    if (recurrencePattern === 'None') {
+        // Single event
+        eventsToCreate.push({
+            id: parentId,
+            title: newEventForm.title || 'New Event',
+            type: newEventForm.type,
+            start: baseStart.toISOString(),
+            end: baseEnd.toISOString(),
+            organizer: currentUserName,
+            location: newEventForm.location,
+            description: newEventForm.description,
+            attendees: attendeesList,
+            attachments: newEventAttachments
+        });
+    } else {
+        // Recurrence generation
+        const currentStart = new Date(baseStart);
+        const endDate = new Date(newEventForm.recurrenceEnd || baseStart); 
+        
+        let count = 0;
+        const limit = 50; // Safety break to prevent infinite loops
+
+        while (currentStart <= endDate && count < limit) {
+            const currentEnd = new Date(currentStart.getTime() + duration);
+            
+            eventsToCreate.push({
+                id: `${parentId}-${count}`,
+                parentId: parentId,
+                title: newEventForm.title || 'New Event',
+                type: newEventForm.type,
+                start: currentStart.toISOString(),
+                end: currentEnd.toISOString(),
+                organizer: currentUserName,
+                location: newEventForm.location,
+                description: newEventForm.description,
+                attendees: attendeesList,
+                attachments: [...newEventAttachments], // Clone array for each instance
+                recurrence: {
+                    pattern: recurrencePattern,
+                    endDate: endDate.toISOString()
+                }
+            });
+
+            // Increment date based on pattern
+            if (recurrencePattern === 'Daily') {
+                currentStart.setDate(currentStart.getDate() + 1);
+            } else if (recurrencePattern === 'Weekly') {
+                currentStart.setDate(currentStart.getDate() + 7);
+            } else if (recurrencePattern === 'Monthly') {
+                currentStart.setMonth(currentStart.getMonth() + 1);
+            }
+            count++;
+        }
+    }
+
+    setEvents([...events, ...eventsToCreate]);
+    setIsAddModalOpen(false);
+    
+    // Reset Form
+    setNewEventForm({
+        title: '',
+        type: EventType.STAFF,
+        date: new Date().toISOString().split('T')[0],
+        startTime: '09:00',
+        endTime: '10:00',
+        description: '',
+        location: '',
+        recurrencePattern: 'None',
+        recurrenceEnd: ''
+    });
+    setNewEventAttachments([]);
+    setSelectedInvitees([currentUserName]);
+    setAiSuggestions([]);
+  };
+
+  const handleRSVP = (status: AttendanceStatus) => {
+    if (!selectedEvent) return;
+    
+    const updatedEvents = events.map(evt => {
+        if (evt.id === selectedEvent.id) {
+            const existingAttendee = evt.attendees.find(a => a.name === currentUserName);
+            let updatedAttendees;
+
+            if (existingAttendee) {
+                updatedAttendees = evt.attendees.map(att => 
+                    att.name === currentUserName ? { ...att, status } : att
+                );
+            } else {
+                updatedAttendees = [...evt.attendees, {
+                    name: currentUserName,
+                    role: currentUserRole,
+                    status,
+                    avatarSeed: currentUserName.replace(/\s/g, '')
+                }];
+            }
+            
+            return { ...evt, attendees: updatedAttendees };
+        }
+        return evt;
+    });
+
+    setEvents(updatedEvents);
+    // Update selected event view
+    const newSelected = updatedEvents.find(e => e.id === selectedEvent.id) || null;
+    setSelectedEvent(newSelected);
+  };
+
+  // --- Attachment Handlers ---
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+        const files = Array.from(e.target.files);
+        files.forEach((file: File) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const isImage = file.type.startsWith('image/');
+                const newAttachment: Attachment = {
+                    id: `att-${Date.now()}-${Math.random()}`,
+                    type: isImage ? 'image' : 'file',
+                    url: reader.result as string,
+                    name: file.name,
+                    size: (file.size / 1024).toFixed(1) + ' KB',
+                    mimeType: file.type
+                };
+                
+                if (selectedEvent) {
+                    // Add to existing event immediately
+                    const updatedEvents = events.map(evt => {
+                        if (evt.id === selectedEvent.id) {
+                            return { ...evt, attachments: [...(evt.attachments || []), newAttachment] };
+                        }
+                        return evt;
+                    });
+                    setEvents(updatedEvents);
+                    setSelectedEvent(updatedEvents.find(e => e.id === selectedEvent.id) || null);
+                } else {
+                    // Add to staging for new event
+                    setNewEventAttachments(prev => [...prev, newAttachment]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (attId: string) => {
+      if (selectedEvent) {
+          const updatedEvents = events.map(evt => {
+              if (evt.id === selectedEvent.id) {
+                  return { ...evt, attachments: (evt.attachments || []).filter(a => a.id !== attId) };
+              }
+              return evt;
+          });
+          setEvents(updatedEvents);
+          setSelectedEvent(updatedEvents.find(e => e.id === selectedEvent.id) || null);
+      } else {
+          setNewEventAttachments(prev => prev.filter(a => a.id !== attId));
+      }
+  };
+
+  // --- Camera Logic ---
+  const startCamera = async () => {
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          setCameraStream(stream);
+          setIsCameraOpen(true);
+          if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+          }
+      } catch (err) {
+          console.error("Camera access error:", err);
+          alert("Camera access denied. Please allow camera access in your browser settings.");
+      }
+  };
+
+  const stopCamera = () => {
+      if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+          setCameraStream(null);
+      }
+      setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+      if (videoRef.current && canvasRef.current) {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext('2d')?.drawImage(video, 0, 0);
+          
+          const dataUrl = canvas.toDataURL('image/jpeg');
+          const newAttachment: Attachment = {
+              id: `photo-${Date.now()}`,
+              type: 'image',
+              url: dataUrl,
+              name: `Photo ${new Date().toLocaleTimeString()}.jpg`,
+              size: 'Photo',
+              mimeType: 'image/jpeg'
+          };
+
+          if (selectedEvent) {
+              const updatedEvents = events.map(evt => {
+                  if (evt.id === selectedEvent.id) {
+                      return { ...evt, attachments: [...(evt.attachments || []), newAttachment] };
+                  }
+                  return evt;
+              });
+              setEvents(updatedEvents);
+              setSelectedEvent(updatedEvents.find(e => e.id === selectedEvent.id) || null);
+          } else {
+              setNewEventAttachments(prev => [...prev, newAttachment]);
+          }
+          
+          stopCamera();
+      }
+  };
+
+  // --- Styles ---
+  const getEventTypeStyles = (type: EventType) => {
+    switch (type) {
+        case EventType.MTSS: return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100', dot: 'bg-rose-500' };
+        case EventType.IEP: return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100', dot: 'bg-orange-500' };
+        case EventType.STAFF: return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', dot: 'bg-blue-500' };
+        case EventType.PARENT: return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', dot: 'bg-emerald-500' };
+        case EventType.DISTRICT: return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100', dot: 'bg-purple-500' };
+        case EventType.DEADLINE: return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', dot: 'bg-slate-500' };
+        default: return { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-100', dot: 'bg-indigo-500' };
+    }
+  };
+
+  const getStatusBadge = (status: AttendanceStatus) => {
+      switch(status) {
+          case AttendanceStatus.ACCEPTED: return <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1 font-bold"><Check size={10} /> Going</span>;
+          case AttendanceStatus.DECLINED: return <span className="text-[10px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-100 flex items-center gap-1 font-bold"><X size={10} /> Declined</span>;
+          case AttendanceStatus.PENDING: return <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100 flex items-center gap-1 font-bold"><AlertCircle size={10} /> Pending</span>;
+          case AttendanceStatus.ORGANIZER: return <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100 font-bold">Organizer</span>;
+          default: return null;
+      }
+  };
+
+  // Get current user's status for the selected event
+  const myStatus = selectedEvent?.attendees.find(a => a.name === currentUserName)?.status || AttendanceStatus.PENDING;
+
+  return (
+    <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        className="hidden" 
+        multiple
+      />
+
+      {/* Camera Modal Overlay */}
+      {isCameraOpen && (
+          <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4">
+              <div className="w-full max-w-2xl aspect-video bg-black rounded-2xl overflow-hidden relative shadow-2xl border border-slate-800">
+                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                  <canvas ref={canvasRef} className="hidden" />
+                  
+                  <div className="absolute bottom-6 inset-x-0 flex justify-center gap-8 items-center">
+                      <button onClick={stopCamera} className="p-4 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-sm transition-all">
+                          <X size={24} />
+                      </button>
+                      <button onClick={capturePhoto} className="w-16 h-16 bg-white rounded-full border-4 border-indigo-600 hover:scale-105 transition-transform shadow-lg flex items-center justify-center">
+                          <div className="w-12 h-12 bg-indigo-600 rounded-full" />
+                      </button>
+                  </div>
+              </div>
+              <p className="text-white/60 mt-4 text-sm font-medium">Make sure your camera is allowed.</p>
+          </div>
+      )}
+
+      {/* Group Manager Modal */}
+      {isGroupManagerOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                  <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+                      <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                          <Users size={20} className="text-indigo-600" /> 
+                          {editingGroup ? (editingGroup.id ? 'Edit Group' : 'Create Group') : 'Manage Groups'}
+                      </h3>
+                      <button onClick={() => { setIsGroupManagerOpen(false); setEditingGroup(null); }} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+                          <X size={18} />
+                      </button>
+                  </div>
+
+                  {editingGroup ? (
+                      // EDIT/CREATE MODE
+                      <>
+                        <div className="p-5 flex-1 overflow-y-auto">
+                            <div className="mb-4">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Group Name</label>
+                                <input 
+                                    type="text" 
+                                    value={editingGroup.name}
+                                    onChange={(e) => setEditingGroup({...editingGroup, name: e.target.value})}
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="e.g. 5th Grade Teachers"
+                                    autoFocus
+                                />
+                            </div>
+                            
+                            <div className="mb-2">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Select Members</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search staff..." 
+                                    value={groupMemberSearch}
+                                    onChange={(e) => setGroupMemberSearch(e.target.value)}
+                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs mb-3 focus:outline-none focus:border-indigo-400"
+                                />
+                                <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                                    {STAFF_ROSTER_DATA.filter(s => s.name.toLowerCase().includes(groupMemberSearch.toLowerCase())).map(staff => {
+                                        const isSelected = editingGroup.members.includes(staff.name);
+                                        return (
+                                            <div 
+                                                key={staff.id} 
+                                                onClick={() => toggleGroupMember(staff.name)}
+                                                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:bg-slate-50'}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${isSelected ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                                                        {staff.name.charAt(0)}
+                                                    </div>
+                                                    <span className={`text-xs ${isSelected ? 'font-bold text-indigo-900' : 'text-slate-700'}`}>{staff.name}</span>
+                                                </div>
+                                                {isSelected && <Check size={14} className="text-indigo-600" />}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                            <button onClick={() => setEditingGroup(null)} className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                            <button onClick={handleSaveGroup} disabled={!editingGroup.name.trim()} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">Save Group</button>
+                        </div>
+                      </>
+                  ) : (
+                      // LIST MODE
+                      <>
+                        <div className="p-5 flex-1 overflow-y-auto space-y-3">
+                            {groups.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400 text-xs">No groups created yet.</div>
+                            ) : (
+                                groups.map(group => (
+                                    <div key={group.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:border-indigo-100 hover:shadow-sm transition-all group">
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 text-sm">{group.name}</h4>
+                                            <p className="text-xs text-slate-500">{group.members.length} members</p>
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => setEditingGroup(group)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                                <Edit size={16} />
+                                            </button>
+                                            <button onClick={() => handleDeleteGroup(group.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-slate-50">
+                            <button 
+                                onClick={() => setEditingGroup({ id: '', name: '', members: [] })}
+                                className="w-full py-2.5 bg-white border border-dashed border-slate-300 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                            >
+                                <Plus size={16} /> Create New Group
+                            </button>
+                        </div>
+                      </>
+                  )}
+              </div>
+          </div>
+      )}
+
+      {/* --- Add Event Modal (Now Draggable) --- */}
+      <DraggableModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Schedule Event"
+        initialWidth={900}
+        initialHeight={800}
+        footer={
+            <div className="flex justify-end gap-4 w-full">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button onClick={handleCreateEvent} className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 hover:shadow-xl transition-all active:scale-95 transform">Create Event</button>
+            </div>
+        }
+      >
+                <form onSubmit={handleCreateEvent} className="flex-1 h-full">
+                    <div className="flex flex-col md:flex-row h-full">
+                        
+                        {/* LEFT COLUMN: Event Details */}
+                        <div className="flex-1 p-6 md:p-8 space-y-6 border-r border-slate-100 bg-white">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Event Title</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    placeholder="e.g. Team Sync, MTSS Review..."
+                                    value={newEventForm.title}
+                                    onChange={e => setNewEventForm({...newEventForm, title: e.target.value})}
+                                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Type</label>
+                                    <select 
+                                        value={newEventForm.type}
+                                        onChange={e => setNewEventForm({...newEventForm, type: e.target.value as EventType})}
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer"
+                                    >
+                                        {Object.values(EventType).map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <CustomDatePicker 
+                                        label="Date"
+                                        value={newEventForm.date}
+                                        onChange={(val) => setNewEventForm({...newEventForm, date: val})}
+                                        className="w-full"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Start Time</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="time" 
+                                            required
+                                            value={newEventForm.startTime}
+                                            onChange={e => setNewEventForm({...newEventForm, startTime: e.target.value})}
+                                            className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                        />
+                                        <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">End Time</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="time" 
+                                            required
+                                            value={newEventForm.endTime}
+                                            onChange={e => setNewEventForm({...newEventForm, endTime: e.target.value})}
+                                            className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                        />
+                                        <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Recurrence */}
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                        <Repeat size={14} className="text-indigo-500" /> Recurrence Pattern
+                                    </label>
+                                    {newEventForm.recurrencePattern !== 'None' && (
+                                         <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                            {newEventForm.recurrencePattern}
+                                         </span>
+                                    )}
+                                </div>
+                                
+                                <div className="grid grid-cols-4 gap-2 mb-4">
+                                    {['None', 'Daily', 'Weekly', 'Monthly'].map((pattern) => (
+                                        <button
+                                            key={pattern}
+                                            type="button"
+                                            onClick={() => setNewEventForm({ ...newEventForm, recurrencePattern: pattern })}
+                                            className={`py-2 text-xs font-bold rounded-lg border transition-all ${
+                                                newEventForm.recurrencePattern === pattern
+                                                    ? 'bg-white border-indigo-600 text-indigo-600 shadow-sm ring-1 ring-indigo-600'
+                                                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            {pattern === 'None' ? 'No Repeat' : pattern}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {newEventForm.recurrencePattern !== 'None' && (
+                                    <div className="animate-in fade-in slide-in-from-top-2 pt-2 border-t border-slate-200">
+                                         <CustomDatePicker 
+                                            label="End Date"
+                                            value={newEventForm.recurrenceEnd}
+                                            onChange={(val) => setNewEventForm({...newEventForm, recurrenceEnd: val})}
+                                            className="w-full"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-2 italic">
+                                            Event will repeat {newEventForm.recurrencePattern.toLowerCase()} starting from {new Date(newEventForm.date).toLocaleDateString()}.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Location</label>
+                                <div className="relative">
+                                    <MapPin size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Room 101 or Zoom Link"
+                                        value={newEventForm.location}
+                                        onChange={e => setNewEventForm({...newEventForm, location: e.target.value})}
+                                        className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Description</label>
+                                <textarea 
+                                    rows={3}
+                                    placeholder="Agenda items, notes..."
+                                    value={newEventForm.description}
+                                    onChange={e => setNewEventForm({...newEventForm, description: e.target.value})}
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none resize-none transition-all"
+                                />
+                            </div>
+
+                            {/* Attachments Section */}
+                            <div>
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Attachments</label>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-transparent hover:border-indigo-100">
+                                            <Paperclip size={14} /> Add File
+                                        </button>
+                                        <button type="button" onClick={startCamera} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-transparent hover:border-indigo-100">
+                                            <Camera size={14} /> Photo
+                                        </button>
+                                    </div>
+                                </div>
+                                {newEventAttachments.length > 0 ? (
+                                    <div className="grid grid-cols-4 gap-3">
+                                        {newEventAttachments.map(att => (
+                                            <div key={att.id} className="relative group aspect-square bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-indigo-300 transition-colors">
+                                                {att.type === 'image' ? (
+                                                    <img src={att.url} className="w-full h-full object-cover" alt="preview" />
+                                                ) : (
+                                                    <div className="text-slate-400 flex flex-col items-center gap-2 p-2 text-center">
+                                                        <FileIcon size={24} />
+                                                        <span className="text-[10px] font-bold uppercase truncate w-full px-1">{att.name.split('.').pop()}</span>
+                                                    </div>
+                                                )}
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => removeAttachment(att.id)}
+                                                    className="absolute top-1 right-1 bg-rose-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-rose-600"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-6 border-2 border-dashed border-slate-200 rounded-xl text-center flex flex-col items-center justify-center gap-2 text-slate-400 bg-slate-50/50">
+                                        <Paperclip size={24} className="opacity-50"/>
+                                        <span className="text-xs">No files attached yet.</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: People & Conflict Check */}
+                        <div className="flex-1 p-6 md:p-8 bg-slate-50/50 flex flex-col border-l border-slate-100/50">
+                            <div className="mb-5">
+                                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-1">
+                                    <Users size={18} className="text-indigo-600" /> Invite Attendees
+                                </h4>
+                                <p className="text-xs text-slate-500">Add participants and check schedule conflicts.</p>
+                            </div>
+
+                            {/* Quick Add Groups */}
+                            <div className="mb-5">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quick Add Groups</span>
+                                    <button type="button" onClick={() => setIsGroupManagerOpen(true)} className="text-[10px] font-bold text-indigo-600 hover:underline">
+                                        Manage Groups
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={handleInviteAllStaff}
+                                        className="text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 px-3 py-2 rounded-lg transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
+                                    >
+                                        <Briefcase size={14} /> All Staff
+                                    </button>
+                                    {groups.map(g => (
+                                        <button 
+                                            key={g.id}
+                                            type="button" 
+                                            onClick={() => handleInviteGroup(g.id)}
+                                            className="text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 px-3 py-2 rounded-lg transition-colors shadow-sm active:scale-95"
+                                        >
+                                            {g.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Search User */}
+                            <div className="relative mb-4">
+                                <input 
+                                    type="text" 
+                                    placeholder="Search name or role..."
+                                    value={inviteSearch}
+                                    onChange={(e) => setInviteSearch(e.target.value)}
+                                    className="w-full p-3 pl-10 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all"
+                                />
+                                <UserPlus size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                {inviteSearch && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-56 overflow-y-auto custom-scrollbar p-1">
+                                        {STAFF_ROSTER_DATA.filter(s => s.name.toLowerCase().includes(inviteSearch.toLowerCase()) && !selectedInvitees.includes(s.name)).map(s => (
+                                            <button 
+                                                key={s.id} 
+                                                type="button"
+                                                onClick={() => handleInviteUser(s.name)}
+                                                className="w-full text-left px-3 py-2.5 text-sm hover:bg-indigo-50 rounded-lg flex justify-between items-center transition-colors group"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                                                        {s.name.charAt(0)}
+                                                    </div>
+                                                    <span className="font-medium text-slate-700 group-hover:text-indigo-700">{s.name}</span>
+                                                </div>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{s.role}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Selected List */}
+                            <div className="flex-1 overflow-y-auto mb-5 pr-1 custom-scrollbar bg-white rounded-xl border border-slate-200 p-2 shadow-inner min-h-[150px]">
+                                <div className="space-y-1">
+                                    {selectedInvitees.map(name => {
+                                        const hasConflict = detectedConflicts.some(c => c.user === name);
+                                        return (
+                                            <div key={name} className={`flex justify-between items-center p-2.5 rounded-lg border transition-all ${hasConflict ? 'bg-rose-50 border-rose-100' : 'bg-white border-transparent hover:border-slate-100 hover:shadow-sm hover:bg-slate-50'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${hasConflict ? 'bg-rose-400' : 'bg-slate-400'}`}>
+                                                        {name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <span className={`text-xs font-bold block ${hasConflict ? 'text-rose-700' : 'text-slate-700'}`}>
+                                                            {name} {name === currentUserName && '(You)'}
+                                                        </span>
+                                                        {hasConflict ? (
+                                                            <span className="text-[10px] text-rose-600 flex items-center gap-1 font-medium mt-0.5">
+                                                                <AlertCircle size={10} /> Busy at this time
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-emerald-600 flex items-center gap-1 font-medium mt-0.5">
+                                                                <Check size={10} /> Available
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {name !== currentUserName && (
+                                                    <button type="button" onClick={() => handleRemoveInvitee(name)} className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors">
+                                                        <X size={14}/>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Conflict & AI Section */}
+                            <div className="mt-auto">
+                                {detectedConflicts.length > 0 ? (
+                                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-4 flex items-start gap-3 shadow-sm">
+                                        <div className="p-2 bg-rose-100 rounded-full text-rose-600 mt-0.5">
+                                            <AlertCircle size={16} />
+                                        </div>
+                                        <div>
+                                            <span className="text-sm font-bold text-rose-800 block mb-1">{detectedConflicts.length} Scheduling Conflict(s)</span>
+                                            <p className="text-xs text-rose-600 leading-relaxed">
+                                                Some required attendees have overlaps. Try adjusting the time or use AI to find a free slot.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-3 text-emerald-700 bg-emerald-50 border border-emerald-100 p-4 rounded-xl mb-4 shadow-sm">
+                                        <div className="p-2 bg-emerald-100 rounded-full text-emerald-600">
+                                            <Check size={16} />
+                                        </div>
+                                        <div>
+                                            <span className="text-sm font-bold block">All clear!</span>
+                                            <span className="text-xs opacity-80">Everyone is free at this time.</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                                            <Sparkles size={14} className="text-indigo-500" /> Smart Scheduling
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        {[15, 30, 45, 60].map(dur => (
+                                            <button
+                                                key={dur}
+                                                type="button"
+                                                onClick={() => setSuggestionDuration(dur)}
+                                                className={`px-3 py-1.5 text-xs rounded-lg border font-medium transition-all ${
+                                                    suggestionDuration === dur 
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {dur}m
+                                            </button>
+                                        ))}
+                                        <div className="relative flex items-center flex-1 min-w-[80px]">
+                                             <input 
+                                                type="number"
+                                                className="w-full p-1.5 pl-2 pr-6 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                value={suggestionDuration}
+                                                onChange={(e) => setSuggestionDuration(Number(e.target.value))}
+                                                placeholder="Custom"
+                                             />
+                                             <span className="absolute right-2 text-[10px] text-slate-400 font-medium">min</span>
+                                        </div>
+                                    </div>
+
+                                    {!isSuggesting && aiSuggestions.length === 0 ? (
+                                        <button 
+                                            type="button" 
+                                            onClick={handleAiSuggest}
+                                            className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow"
+                                        >
+                                            {detectedConflicts.length > 0 ? 'Find Conflict-Free Slots' : 'Suggest Best Times'}
+                                        </button>
+                                    ) : isSuggesting ? (
+                                        <div className="flex flex-col items-center justify-center gap-2 py-3 text-center bg-slate-50 rounded-lg border border-slate-100">
+                                            <Loader2 size={20} className="animate-spin text-indigo-600" /> 
+                                            <span className="text-xs font-medium text-slate-500">Analyzing calendars...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Suggested Slots</span>
+                                                <button onClick={() => setAiSuggestions([])} className="text-[10px] text-slate-400 hover:text-slate-600 font-medium underline">Clear</button>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {aiSuggestions.map((s, i) => (
+                                                    <button
+                                                        key={i}
+                                                        type="button"
+                                                        onClick={() => handleApplySuggestion(s)}
+                                                        className="w-full text-left bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50 p-2.5 rounded-lg transition-all group shadow-sm flex justify-between items-center"
+                                                    >
+                                                        <div>
+                                                            <div className="text-xs font-bold text-indigo-700">{s.start} - {s.end}</div>
+                                                            <p className="text-[10px] text-slate-500 mt-0.5">{s.reason}</p>
+                                                        </div>
+                                                        <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-bold opacity-0 group-hover:opacity-100 transition-opacity">Select</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+      </DraggableModal>
+
+      {/* --- Event Details Modal (Standard centered, not draggable for simplicity but could be wrapped) --- */}
+      {selectedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedEvent(null)}>
+            <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                {/* Header Colored Bar & Title */}
+                <div className={`p-6 pb-4 ${getEventTypeStyles(selectedEvent.type).bg.replace('50', '50')} border-b border-slate-100 relative`}>
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="flex gap-2">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${getEventTypeStyles(selectedEvent.type).text} ${getEventTypeStyles(selectedEvent.type).border} bg-white/60 backdrop-blur-sm`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${getEventTypeStyles(selectedEvent.type).dot}`} />
+                                {selectedEvent.type}
+                            </span>
+                            {selectedEvent.recurrence && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border border-slate-200 text-slate-500 bg-white/60 backdrop-blur-sm flex items-center gap-1">
+                                    <Repeat size={10} /> {selectedEvent.recurrence.pattern}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            <button className="p-2 bg-white/50 hover:bg-white rounded-lg text-slate-500 hover:text-indigo-600 transition-colors backdrop-blur-sm">
+                                <MoreHorizontal size={18} />
+                            </button>
+                            <button onClick={() => setSelectedEvent(null)} className="p-2 bg-white/50 hover:bg-white rounded-lg text-slate-500 hover:text-rose-600 transition-colors backdrop-blur-sm">
+                                <X size={18} />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <h3 className="text-2xl font-bold text-slate-900 mb-1 leading-tight">{selectedEvent.title}</h3>
+                    <p className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                        Organized by <span className="font-bold text-slate-700">{selectedEvent.organizer}</span>
+                    </p>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
+                    {/* Metadata Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-1 group hover:border-indigo-100 transition-colors">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5 mb-1">
+                                <Clock size={12} /> Time
+                            </span>
+                            <p className="text-sm font-bold text-slate-800">
+                                {new Date(selectedEvent.start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </p>
+                            <p className="text-xs font-medium text-slate-500">
+                                {new Date(selectedEvent.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})} - 
+                                {new Date(selectedEvent.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}
+                            </p>
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-1 group hover:border-indigo-100 transition-colors">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5 mb-1">
+                                <MapPin size={12} /> Location
+                            </span>
+                            <p className="text-sm font-bold text-slate-800 truncate">{selectedEvent.location || 'Remote'}</p>
+                            <p className="text-xs font-medium text-slate-500 truncate">
+                                {selectedEvent.location?.includes('Zoom') ? 'Video Conference' : 'On Campus'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Description */}
+                    {selectedEvent.description && (
+                        <div>
+                            <p className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5">
+                                <AlignLeft size={12} /> Description
+                            </p>
+                            <p className="text-sm text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                                {selectedEvent.description}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Attachments Section */}
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <p className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                                <Paperclip size={12} /> Attachments
+                            </p>
+                            <div className="flex gap-2">
+                                <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors">
+                                    + Add File
+                                </button>
+                                <button onClick={startCamera} className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors">
+                                    + Photo
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-3">
+                            {selectedEvent.attachments && selectedEvent.attachments.length > 0 ? (
+                                selectedEvent.attachments.map((att, idx) => (
+                                    <div key={idx} className="relative group aspect-square bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center overflow-hidden shadow-sm hover:border-indigo-300 transition-all hover:shadow-md">
+                                        {att.type === 'image' ? (
+                                            <img src={att.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="attachment" />
+                                        ) : (
+                                            <div className="text-slate-400 flex flex-col items-center gap-1 p-1 text-center">
+                                                <FileIcon size={24} />
+                                                <span className="text-[9px] font-bold uppercase truncate w-full px-1">{att.name.split('.').pop()}</span>
+                                            </div>
+                                        )}
+                                        {/* Overlay Actions */}
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[1px]">
+                                            <button className="text-white hover:text-indigo-200 hover:scale-110 transition-transform"><Download size={16}/></button>
+                                            <button onClick={() => removeAttachment(att.id)} className="text-white hover:text-rose-300 hover:scale-110 transition-transform"><Trash2 size={16}/></button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="col-span-4 p-4 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 bg-slate-50/50">
+                                    No attachments.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Attendees */}
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <p className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                                <Users size={12} /> Participants ({selectedEvent.attendees.length})
+                            </p>
+                        </div>
+                        <div className="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                            {selectedEvent.attendees.map((att, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm p-2.5 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden ring-2 ring-white shadow-sm">
+                                            <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${att.avatarSeed || att.name}&backgroundColor=e0e7ff`} className="w-full h-full object-cover" alt="avatar" />
+                                        </div>
+                                        <span className={`text-sm ${att.name === currentUserName ? 'font-bold text-indigo-700' : 'font-medium text-slate-700'}`}>
+                                            {att.name} {att.name === currentUserName && '(You)'}
+                                        </span>
+                                    </div>
+                                    {getStatusBadge(att.status)}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Actions - RSVP */}
+                <div className="p-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 z-10 shadow-inner">
+                    {myStatus === AttendanceStatus.ORGANIZER ? (
+                        <div className="w-full flex justify-between items-center">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Event Owner</span>
+                            <button className="text-xs font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 px-4 py-2 rounded-lg transition-colors border border-rose-200 bg-rose-50">Cancel Event</button>
+                        </div>
+                    ) : (
+                        <>
+                            <button 
+                                onClick={() => handleRSVP(AttendanceStatus.DECLINED)}
+                                className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${myStatus === AttendanceStatus.DECLINED ? 'bg-rose-100 text-rose-700 border-rose-200 shadow-inner' : 'bg-white text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm'}`}
+                            >
+                                Decline
+                            </button>
+                            <button 
+                                onClick={() => handleRSVP(AttendanceStatus.ACCEPTED)}
+                                className={`flex-[2] px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${myStatus === AttendanceStatus.ACCEPTED ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-inner' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-md hover:shadow-lg'}`}
+                            >
+                                {myStatus === AttendanceStatus.ACCEPTED && <Check size={14} />}
+                                {myStatus === AttendanceStatus.ACCEPTED ? 'Attending' : 'Accept Invite'}
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Main Layout - Full Width Calendar */}
+      <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[600px]">
+            
+            {/* Calendar Header with Integrated Filters */}
+            <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white relative z-10">
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 lg:hidden">
+                        <button onClick={onMenuClick} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+                            <Menu size={24} />
+                        </button>
+                    </div>
+                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+                        {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </h2>
+                    <div className="flex items-center bg-slate-100/80 rounded-lg p-1 border border-slate-200 ml-2">
+                        <button onClick={handlePrevMonth} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all"><ChevronLeft size={18}/></button>
+                        <button onClick={handleToday} className="px-3 py-1 text-xs font-bold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider">Today</button>
+                        <button onClick={handleNextMonth} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all"><ChevronRight size={18}/></button>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+                    {/* Filter Dropdown */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                            className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-bold transition-all shadow-sm ${isFilterDropdownOpen ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                        >
+                            <Filter size={16} />
+                            <span>Filters</span>
+                            {selectedTypes.length < Object.values(EventType).length && (
+                                <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                    {selectedTypes.length}
+                                </span>
+                            )}
+                            <ChevronDown size={14} className={`transition-transform duration-200 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isFilterDropdownOpen && (
+                            <>
+                                <div className="fixed inset-0 z-20" onClick={() => setIsFilterDropdownOpen(false)} />
+                                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 z-30 p-2 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5">
+                                    <div className="px-3 py-2 border-b border-slate-50 mb-2 flex justify-between items-center">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Event Types</span>
+                                        <button 
+                                            onClick={() => setSelectedTypes(Object.values(EventType))}
+                                            className="text-[10px] text-indigo-600 hover:underline font-bold"
+                                        >
+                                            Select All
+                                        </button>
+                                    </div>
+                                    <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar px-1 pb-1">
+                                        {Object.values(EventType).map(type => {
+                                            const styles = getEventTypeStyles(type);
+                                            const isSelected = selectedTypes.includes(type);
+                                            return (
+                                                <label key={type} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
+                                                    <div className={`relative flex items-center justify-center w-5 h-5 rounded border transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                                                        {isSelected && <Check size={12} className="text-white" />}
+                                                        <input 
+                                                            type="checkbox"
+                                                            className="hidden"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                if (isSelected) setSelectedTypes(prev => prev.filter(t => t !== type));
+                                                                else setSelectedTypes(prev => [...prev, type]);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className={`w-2.5 h-2.5 rounded-full ${styles.dot}`} />
+                                                    <span className={`text-sm ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>{type}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Create Event Button */}
+                    <button 
+                        onClick={() => setIsAddModalOpen(true)} 
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-95"
+                    >
+                        <Plus size={18} /> 
+                        <span>New Event</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Days Header */}
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/30">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                        {day}
+                    </div>
+                ))}
+            </div>
+            
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 grid-rows-6 flex-1 bg-white">
+                {calendarDays.map((dateObj, idx) => {
+                    const eventsForDay = getEventsForDay(dateObj.fullDate);
+                    const isToday = dateObj.type === 'current' && 
+                                    dateObj.day === new Date().getDate() && 
+                                    currentDate.getMonth() === new Date().getMonth() && 
+                                    currentDate.getFullYear() === new Date().getFullYear();
+
+                    return (
+                        <div 
+                            key={idx} 
+                            className={`relative min-h-[140px] p-2 transition-all border-b border-r border-slate-100 group ${
+                                dateObj.type === 'current' 
+                                    ? 'bg-white hover:bg-slate-50/30' 
+                                    : 'bg-slate-50/40 text-slate-300'
+                            }`}
+                            onClick={() => {
+                                if (dateObj.type === 'current') {
+                                    setNewEventForm(prev => ({ ...prev, date: dateObj.fullDate.toISOString().split('T')[0] }));
+                                }
+                            }}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <span className={`text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full transition-transform ${
+                                    isToday 
+                                        ? 'bg-indigo-600 text-white shadow-md scale-110 ring-2 ring-indigo-100' 
+                                        : 'text-slate-500'
+                                }`}>
+                                    {dateObj.day}
+                                </span>
+                                
+                                {/* Quick Add Button (Visible on Hover) */}
+                                {dateObj.type === 'current' && (
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setNewEventForm(prev => ({ ...prev, date: dateObj.fullDate.toISOString().split('T')[0] }));
+                                            setIsAddModalOpen(true);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all transform scale-90 group-hover:scale-100 shadow-sm"
+                                        title="Quick Add Event"
+                                    >
+                                        <Plus size={14} strokeWidth={3} />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="space-y-1.5 overflow-y-auto custom-scrollbar max-h-[100px]">
+                                {eventsForDay.map(evt => {
+                                    const styles = getEventTypeStyles(evt.type);
+                                    return (
+                                    <button 
+                                        key={evt.id}
+                                        onClick={(e) => { e.stopPropagation(); handleEventClick(evt); }}
+                                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-bold truncate shadow-sm hover:shadow transition-all hover:-translate-y-0.5 flex items-center gap-2 bg-opacity-90 hover:bg-opacity-100 ${styles.bg} ${styles.text} border border-transparent hover:border-${styles.dot.split('-')[1]}-200 group/evt`}
+                                    >
+                                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${styles.dot}`} />
+                                        
+                                        <div className="flex-1 truncate flex items-center gap-1.5">
+                                            <span className="opacity-70 font-medium text-[10px] tabular-nums">
+                                                {new Date(evt.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'}).replace(' ', '').toLowerCase()}
+                                            </span>
+                                            <span className="truncate">{evt.title}</span>
+                                        </div>
+
+                                        {(evt.recurrence || (evt.attachments && evt.attachments.length > 0)) && (
+                                            <div className="flex items-center gap-0.5 opacity-50">
+                                                {evt.recurrence && <Repeat size={8} />}
+                                                {evt.attachments && evt.attachments.length > 0 && <Paperclip size={8} />}
+                                            </div>
+                                        )}
+                                    </button>
+                                )})}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+      </div>
+    </div>
+  );
+};
