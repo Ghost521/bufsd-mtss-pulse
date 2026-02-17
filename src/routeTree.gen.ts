@@ -16,6 +16,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppPageRouteImport } from './routes/app.$page'
 import { Route as ApiStudentsRouteImport } from './routes/api/students'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiDashboardRouteImport } from './routes/api/dashboard'
+import { Route as ApiDataDomainRouteImport } from './routes/api/data/$domain'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
@@ -56,6 +58,16 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDashboardRoute = ApiDashboardRouteImport.update({
+  id: '/api/dashboard',
+  path: '/api/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDataDomainRoute = ApiDataDomainRouteImport.update({
+  id: '/api/data/$domain',
+  path: '/api/data/$domain',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
   id: '/api/auth/logout',
   path: '/api/auth/logout',
@@ -82,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/query-health': typeof QueryHealthRoute
   '/roster-table': typeof RosterTableRoute
+  '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
   '/app/$page': typeof AppPageRoute
@@ -89,12 +102,14 @@ export interface FileRoutesByFullPath {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/data/$domain': typeof ApiDataDomainRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/query-health': typeof QueryHealthRoute
   '/roster-table': typeof RosterTableRoute
+  '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
   '/app/$page': typeof AppPageRoute
@@ -102,6 +117,7 @@ export interface FileRoutesByTo {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/data/$domain': typeof ApiDataDomainRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,6 +125,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/query-health': typeof QueryHealthRoute
   '/roster-table': typeof RosterTableRoute
+  '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
   '/app/$page': typeof AppPageRoute
@@ -116,6 +133,7 @@ export interface FileRoutesById {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/data/$domain': typeof ApiDataDomainRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -124,6 +142,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/query-health'
     | '/roster-table'
+    | '/api/dashboard'
     | '/api/health'
     | '/api/students'
     | '/app/$page'
@@ -131,12 +150,14 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/api/data/$domain'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/app'
     | '/query-health'
     | '/roster-table'
+    | '/api/dashboard'
     | '/api/health'
     | '/api/students'
     | '/app/$page'
@@ -144,12 +165,14 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/api/data/$domain'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/query-health'
     | '/roster-table'
+    | '/api/dashboard'
     | '/api/health'
     | '/api/students'
     | '/app/$page'
@@ -157,6 +180,7 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/api/data/$domain'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -164,12 +188,14 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   QueryHealthRoute: typeof QueryHealthRoute
   RosterTableRoute: typeof RosterTableRoute
+  ApiDashboardRoute: typeof ApiDashboardRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiStudentsRoute: typeof ApiStudentsRoute
   ApiAiEndpointRoute: typeof ApiAiEndpointRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiDataDomainRoute: typeof ApiDataDomainRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -223,6 +249,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/dashboard': {
+      id: '/api/dashboard'
+      path: '/api/dashboard'
+      fullPath: '/api/dashboard'
+      preLoaderRoute: typeof ApiDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/data/$domain': {
+      id: '/api/data/$domain'
+      path: '/api/data/$domain'
+      fullPath: '/api/data/$domain'
+      preLoaderRoute: typeof ApiDataDomainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/logout': {
       id: '/api/auth/logout'
       path: '/api/auth/logout'
@@ -269,12 +309,14 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   QueryHealthRoute: QueryHealthRoute,
   RosterTableRoute: RosterTableRoute,
+  ApiDashboardRoute: ApiDashboardRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiStudentsRoute: ApiStudentsRoute,
   ApiAiEndpointRoute: ApiAiEndpointRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiDataDomainRoute: ApiDataDomainRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

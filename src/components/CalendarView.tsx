@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -29,10 +29,11 @@ import {
 } from 'lucide-react';
 import type { CalendarEvent, Attachment } from '../types';
 import { EventType, AttendanceStatus, UserRole } from '../types';
-import { MOCK_CALENDAR_EVENTS, STAFF_ROSTER_DATA } from '../constants';
+import { STAFF_ROSTER_DATA } from '../constants';
 import { CustomDatePicker } from './CustomDatePicker';
 import { suggestMeetingTimes } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
+import { useTenantCollection } from '../hooks/useTenantCollection';
 
 // Initial Mock Groups
 const INITIAL_GROUPS = [
@@ -54,8 +55,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   currentUserName,
   onMenuClick
 }) => {
+  const calendarCollection = useTenantCollection<CalendarEvent>('calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [events, setEvents] = useState<CalendarEvent[]>(MOCK_CALENDAR_EVENTS);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
@@ -98,6 +100,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Filter State
   const [selectedTypes, setSelectedTypes] = useState<EventType[]>(Object.values(EventType));
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+
+  const hasHydratedEventsRef = useRef(false);
+  const lastPersistedEventsRef = useRef("");
+
+  useEffect(() => {
+    const rows = calendarCollection.query.data?.rows;
+    if (!rows) return;
+    hasHydratedEventsRef.current = true;
+    const serialized = JSON.stringify(rows);
+    lastPersistedEventsRef.current = serialized;
+    setEvents(rows);
+  }, [calendarCollection.query.data?.requestId, calendarCollection.query.data?.rows]);
+
+  useEffect(() => {
+    if (!hasHydratedEventsRef.current) return;
+    const serialized = JSON.stringify(events);
+    if (serialized === lastPersistedEventsRef.current) return;
+    const timeout = window.setTimeout(() => {
+      lastPersistedEventsRef.current = serialized;
+      calendarCollection.replaceMutation.mutate(events);
+    }, 350);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [calendarCollection.replaceMutation, events]);
 
   // --- Calendar Logic ---
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import type { ImportAnalysisResult} from '../services/geminiService';
 import { analyzeImportedBatch, extractDataFromDocument } from '../services/geminiService';
-import { UserRole } from '../types';
+import { Tier, UserRole } from '../types';
 
 interface DataImporterProps {
   onMenuClick: () => void;
@@ -84,6 +84,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
   // Analysis State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<ImportAnalysisResult | null>(null);
+  const [isCommitting, setIsCommitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -219,7 +220,63 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
     setIsAnalyzing(false);
   };
 
-  const handleFinishImport = () => {
+  const mapPreviewRowsToStudentsPayload = () => {
+      return previewData
+        .map((row) => {
+          const getValue = (targetField: string) => {
+            const mapped = mappings.find((mapping) => mapping.targetField === targetField);
+            if (!mapped) return '';
+            const raw = row[mapped.sourceHeader];
+            return typeof raw === 'string' || typeof raw === 'number' ? String(raw).trim() : '';
+          };
+
+          const tierRaw = getValue('tier').toLowerCase();
+          const tier =
+            tierRaw.includes('3') ? Tier.TIER_3 :
+            tierRaw.includes('2') ? Tier.TIER_2 :
+            Tier.TIER_1;
+
+          const attendanceRaw = Number(getValue('attendance'));
+          const attendance = Number.isFinite(attendanceRaw) ? Math.max(0, Math.min(100, Math.round(attendanceRaw))) : 95;
+
+          return {
+            name: getValue('name'),
+            grade: getValue('grade') || '4th',
+            tier,
+            gpa: getValue('gpa') || '3.0',
+            attendance,
+            readingLevel: getValue('readingLevel') || 'M',
+          };
+        })
+        .filter((row) => row.name.length > 0);
+  };
+
+  const handleFinishImport = async () => {
+      if (dataType === 'STUDENTS') {
+          const payloadRows = mapPreviewRowsToStudentsPayload();
+          if (payloadRows.length > 0) {
+              setIsCommitting(true);
+              try {
+                  for (const payload of payloadRows) {
+                      const response = await fetch('/api/students', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                      });
+                      if (!response.ok) {
+                          const body = await response.json().catch(() => null) as { error?: string } | null;
+                          throw new Error(body?.error || 'Student import commit failed.');
+                      }
+                  }
+              } catch (error) {
+                  alert(error instanceof Error ? error.message : 'Student import commit failed.');
+                  setIsCommitting(false);
+                  return;
+              }
+              setIsCommitting(false);
+          }
+      }
+
       setStep('complete');
       if (onImportComplete) onImportComplete();
   };
@@ -552,8 +609,14 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
 
                     <div className="flex justify-end gap-4 pt-4 border-t border-slate-200">
                         <button onClick={() => setStep('mapping')} className="px-6 py-2.5 text-slate-600 font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50">Back</button>
-                        <button onClick={handleFinishImport} className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center gap-2">
-                            Confirm Import <ChevronRight size={16} />
+                        <button
+                            onClick={() => {
+                                void handleFinishImport();
+                            }}
+                            disabled={isCommitting}
+                            className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {isCommitting ? 'Committing...' : 'Confirm Import'} <ChevronRight size={16} />
                         </button>
                     </div>
                 </div>

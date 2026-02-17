@@ -9,7 +9,18 @@ export type TenantContext = {
 export type RoleKey = "org_admin" | "district_admin" | "principal" | "teacher" | "parent";
 
 export type AppPermissionAction = "read" | "create" | "update" | "delete";
-export type AppResource = "students" | "documents" | "calendar" | "messages" | "interventions" | "reports" | "settings" | "imports" | "ai";
+export type AppResource =
+  | "students"
+  | "documents"
+  | "calendar"
+  | "messages"
+  | "interventions"
+  | "lesson_plans"
+  | "dashboard"
+  | "reports"
+  | "settings"
+  | "imports"
+  | "ai";
 
 export type PermissionGrant = {
   resource: AppResource;

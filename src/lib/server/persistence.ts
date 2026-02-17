@@ -1,9 +1,13 @@
 import type { TenantContext } from "./tenant-types";
 
 type TenantDomain =
+  | "dashboard"
   | "documents"
   | "messages"
   | "calendar"
+  | "interventions"
+  | "lesson_plans"
+  | "imports"
   | "tenant_organizations"
   | "tenant_districts"
   | "tenant_schools"

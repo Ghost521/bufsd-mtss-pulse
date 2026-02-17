@@ -27,7 +27,6 @@ import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
 import { MonitoringPulse } from './MonitoringPulse';
-import { PRINCIPAL_DATA, TEACHER_DATA, DISTRICT_DATA, PARENT_DATA, MOCK_RAG_DOCUMENTS } from '../constants';
 import type { DashboardData, RAGDocument} from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
@@ -39,6 +38,8 @@ import {
   slugToPage,
   type WorkspacePageId,
 } from '../lib/workspaceRoutes';
+import { useDashboardData } from '../hooks/useDashboardData';
+import { useTenantCollection } from '../hooks/useTenantCollection';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -110,6 +111,18 @@ const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | n
   return null;
 };
 
+const createEmptyDashboardData = (role: UserRole): DashboardData => ({
+  role,
+  userName: "",
+  schoolName: "Workspace",
+  metrics: [],
+  actionItems: [],
+  tierDistribution: [],
+  monitoringPulse: [],
+  chartData: [],
+  chartTitle: role === UserRole.TEACHER ? "Class Intervention Effectiveness" : "Intervention Effectiveness",
+});
+
 const App: React.FC = () => {
   const navigate = useNavigate();
   const routeParams = useParams({ strict: false });
@@ -117,7 +130,7 @@ const App: React.FC = () => {
 
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>(ALL_WORKSPACE_ROLES);
-  const [data, setData] = useState<DashboardData>(PRINCIPAL_DATA);
+  const [data, setData] = useState<DashboardData>(createEmptyDashboardData(UserRole.PRINCIPAL));
   const [hasHydrated, setHasHydrated] = useState(false);
   
   // UI State
@@ -172,7 +185,9 @@ const App: React.FC = () => {
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
 
   // RAG Document State
-  const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>(MOCK_RAG_DOCUMENTS);
+  const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>([]);
+  const dashboardQuery = useDashboardData(currentRole);
+  const documentsCollection = useTenantCollection<RAGDocument>("documents");
 
   const roleHeadline = useMemo(
     () =>
@@ -239,12 +254,7 @@ const App: React.FC = () => {
 
   // Update data when role changes
   useEffect(() => {
-    switch (currentRole) {
-      case UserRole.PRINCIPAL: setData(PRINCIPAL_DATA); break;
-      case UserRole.TEACHER: setData(TEACHER_DATA); break;
-      case UserRole.DISTRICT: setData(DISTRICT_DATA); break;
-      case UserRole.PARENT: setData(PARENT_DATA); break;
-    }
+    setData((previous) => ({ ...createEmptyDashboardData(currentRole), userName: previous.userName, schoolName: previous.schoolName }));
     // Reset state on role change
     setBriefing(null);
     setShowBriefing(false);
@@ -263,6 +273,16 @@ const App: React.FC = () => {
     setMessageRecipient(undefined);
     setIsReferralModalOpen(false);
   }, [currentRole]);
+
+  useEffect(() => {
+    if (!dashboardQuery.data?.data) return;
+    setData(dashboardQuery.data.data);
+  }, [dashboardQuery.data]);
+
+  useEffect(() => {
+    if (!documentsCollection.query.data?.rows) return;
+    setRagDocuments(documentsCollection.query.data.rows);
+  }, [documentsCollection.query.data]);
 
   useEffect(() => {
     setHasHydrated(true);
@@ -535,22 +555,27 @@ const App: React.FC = () => {
   // RAG Document Handlers
   const handleUploadDocument = (doc: RAGDocument) => {
     setRagDocuments(prev => [doc, ...prev]);
+    documentsCollection.createMutation.mutate(doc);
   };
 
   const handleApproveDocument = (id: string) => {
     setRagDocuments(prev => prev.map(d => d.id === id ? { ...d, status: ApprovalStatus.APPROVED } : d));
+    documentsCollection.updateMutation.mutate({ id, patch: { status: ApprovalStatus.APPROVED } });
   };
 
   const handleRejectDocument = (id: string) => {
     setRagDocuments(prev => prev.map(d => d.id === id ? { ...d, status: ApprovalStatus.REJECTED } : d));
+    documentsCollection.updateMutation.mutate({ id, patch: { status: ApprovalStatus.REJECTED } });
   };
 
   const handleDeleteDocument = (id: string) => {
       setRagDocuments(prev => prev.filter(d => d.id !== id));
+      documentsCollection.deleteMutation.mutate({ id });
   };
 
   const handleStatusChange = (id: string, status: ApprovalStatus) => {
       setRagDocuments(prev => prev.map(d => d.id === id ? { ...d, status } : d));
+      documentsCollection.updateMutation.mutate({ id, patch: { status } });
   };
 
   const handleScopeChange = (id: string, newScope: DocumentScope) => {
@@ -567,6 +592,17 @@ const App: React.FC = () => {
         }
         return d;
     }));
+    const nextStatus =
+      currentRole !== UserRole.DISTRICT && (newScope === DocumentScope.DISTRICT || newScope === DocumentScope.SCHOOL)
+        ? ApprovalStatus.PENDING
+        : ApprovalStatus.APPROVED;
+    documentsCollection.updateMutation.mutate({
+      id,
+      patch: {
+        scope: newScope,
+        status: nextStatus,
+      },
+    });
   };
 
   const primaryAction: HeaderAction | null = (() => {
@@ -731,7 +767,7 @@ const App: React.FC = () => {
                       : 'text-slate-500'
                 }`}
               >
-                {freshnessLabel} • Local demo dataset
+                {freshnessLabel} • Tenant workspace data
               </p>
             </div>
           </div>
@@ -866,7 +902,7 @@ const App: React.FC = () => {
                 ? new Date(briefingGeneratedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
                 : 'Not generated yet'}
             </p>
-            <p><span className="font-semibold text-slate-700">Source Confidence:</span> AI + local workspace data</p>
+            <p><span className="font-semibold text-slate-700">Source Confidence:</span> AI + tenant workspace data</p>
           </div>
         ) : null}
 

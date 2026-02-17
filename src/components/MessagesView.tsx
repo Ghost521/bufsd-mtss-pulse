@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Conversation, Message, Attachment } from '../types';
 import { UserRole } from '../types';
-import { MOCK_CONVERSATIONS } from '../constants';
 import { 
   Search, 
   Send, 
@@ -29,6 +28,7 @@ import {
   VideoOff,
   PhoneOff,
 } from 'lucide-react';
+import { useTenantCollection } from '../hooks/useTenantCollection';
 
 interface MessagesViewProps {
   currentUserRole: UserRole;
@@ -89,6 +89,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   onMenuClick,
   targetRecipient 
 }) => {
+  const messagesCollection = useTenantCollection<Conversation>('messages');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,18 +130,24 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasHydratedRef = useRef(false);
+  const lastPersistedRef = useRef("");
 
   // Load conversations specific to the current user
   useEffect(() => {
     if (currentUserName) {
-        const userConvos = MOCK_CONVERSATIONS.filter(c => 
+        const source = messagesCollection.query.data?.rows ?? [];
+        if (!messagesCollection.query.data) return;
+        hasHydratedRef.current = true;
+        const userConvos = source.filter(c => 
             c.participants?.includes(currentUserName) || c.isGroup // Include groups for simplicity or filter deeper
         );
+        lastPersistedRef.current = JSON.stringify(userConvos);
         setConversations(userConvos);
         setSelectedConversationId(null); // Reset selection on user switch
         setIsMobileChatOpen(false);
     }
-  }, [currentUserName]);
+  }, [currentUserName, messagesCollection.query.data]);
 
   // Initialize with target if provided
   useEffect(() => {
@@ -178,6 +185,19 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedConversationId, conversations, pendingAttachments]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    const serialized = JSON.stringify(conversations);
+    if (serialized === lastPersistedRef.current) return;
+    const timeout = window.setTimeout(() => {
+      lastPersistedRef.current = serialized;
+      messagesCollection.replaceMutation.mutate(conversations);
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [conversations, messagesCollection.replaceMutation]);
 
   // Call Timer Logic
   useEffect(() => {

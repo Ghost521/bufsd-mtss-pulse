@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   BookCopy, 
   Search, 
@@ -30,6 +30,7 @@ import { generateStructuredIntervention } from '../services/geminiService';
 import { Tier } from '../types';
 import { RichTextRenderer } from './RichTextRenderer';
 import { CLASS_ROSTER_DATA } from '../constants';
+import { useTenantCollection } from '../hooks/useTenantCollection';
 
 interface LessonPlanLibraryProps {
   onMenuClick: () => void;
@@ -50,71 +51,12 @@ interface LessonPlan extends AIInterventionPlan {
 type ViewFilter = 'All' | 'My Plans' | 'Shared';
 const VIEW_FILTERS: ViewFilter[] = ['All', 'My Plans', 'Shared'];
 
-// Initial Mock Data
-const MOCK_PLANS: LessonPlan[] = [
-  {
-    id: 'lp-1',
-    title: 'Place Value & Rounding',
-    strategy: 'Direct Instruction & Guided Practice',
-    subject: 'Math',
-    grade: '4th',
-    createdDate: '2024-11-15',
-    author: 'Mr. Davis',
-    ownerId: 'Mr. Davis', // Matches current user for demo
-    isShared: true,
-    frequency: 'Daily',
-    duration: '45 min',
-    monitoringMethod: 'Exit Ticket',
-    baseline: 0,
-    goal: 80,
-    lessonPlan: {
-      objective: 'Students will be able to **round multi-digit whole numbers** to any place using a number line.',
-      materials: ['Place value charts', 'Dry erase markers', 'Rounding worksheet', 'Number line templates'],
-      procedure: [
-        'Review place value names up to millions using the **Place Value Chart**.',
-        'Demonstrate rounding using a large classroom number line. *Focus on midpoint strategy*.',
-        'Guided practice: Round **45,678** to the nearest thousand together.',
-        'Independent practice with peer check using dry erase boards.'
-      ],
-      assessment: '**Exit ticket:** Round 123,456 to the nearest ten thousand. Explain your reasoning.',
-      differentiation: 'Provide number lines with marked midpoints for students needing support (Tier 2). Challenge advanced students with decimal rounding.'
-    }
-  },
-  {
-    id: 'lp-2',
-    title: 'Character Inference',
-    strategy: 'Think-Pair-Share',
-    subject: 'Reading',
-    grade: '4th',
-    createdDate: '2024-11-18',
-    author: 'Mrs. Johnson',
-    ownerId: 'Mrs. Johnson',
-    isShared: true,
-    frequency: '3x/week',
-    duration: '30 min',
-    monitoringMethod: 'Reading Log',
-    baseline: 0,
-    goal: 85,
-    lessonPlan: {
-      objective: 'Students will draw inferences about a character\'s traits based on their *actions* and *dialogue*.',
-      materials: ['"Wonder" excerpt', 'Character trait list', 'Graphic organizer'],
-      procedure: [
-        'Read aloud a short passage from **Wonder**.',
-        'Model thinking: "I think Auggie feels shy because he looked down when spoken to."',
-        'Students pair up to find another trait evidence using the text.',
-        'Share out findings to the whole class.'
-      ],
-      assessment: 'Complete the "Trait-Evidence" T-chart with at least **2 examples** from the text.',
-      differentiation: 'Sentence starters for EL students. Graphic novel version for visual learners.'
-    }
-  }
-];
-
 export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClick, currentUserRole }) => {
+  const lessonPlanCollection = useTenantCollection<LessonPlan>('lesson-plans');
   // Assuming current user name is Mr. Davis for this demo context usually, but checking role.
   const currentUserId = currentUserRole === UserRole.TEACHER ? 'Mr. Davis' : 'Rosa Cortese';
   
-  const [plans, setPlans] = useState<LessonPlan[]>(MOCK_PLANS);
+  const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('All');
   const [gradeFilter, setGradeFilter] = useState('All');
@@ -140,6 +82,30 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
   const [selectedPlan, setSelectedPlan] = useState<LessonPlan | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedPlan, setEditedPlan] = useState<LessonPlan | null>(null);
+  const hasHydratedRef = useRef(false);
+  const lastPersistedRef = useRef("");
+
+  useEffect(() => {
+    const rows = lessonPlanCollection.query.data?.rows;
+    if (!rows) return;
+    hasHydratedRef.current = true;
+    const serialized = JSON.stringify(rows);
+    lastPersistedRef.current = serialized;
+    setPlans(rows);
+  }, [lessonPlanCollection.query.data]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    const serialized = JSON.stringify(plans);
+    if (serialized === lastPersistedRef.current) return;
+    const timeout = window.setTimeout(() => {
+      lastPersistedRef.current = serialized;
+      lessonPlanCollection.replaceMutation.mutate(plans);
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [lessonPlanCollection.replaceMutation, plans]);
 
   // Computed
   const filteredPlans = plans.filter(p => {

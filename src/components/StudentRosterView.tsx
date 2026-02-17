@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { CLASS_ROSTER_DATA, generateMasterRoster, TEACHERS } from '../constants';
+import { TEACHERS } from '../constants';
 import { Tier } from '../types';
 import { 
   Search,
@@ -36,6 +36,7 @@ import {
 import { ReferralModal } from './ReferralModal';
 import { DraggableModal } from './DraggableModal';
 import type { WorkspacePageId } from '../lib/workspaceRoutes';
+import { useStudents } from '../hooks/useStudents';
 
 interface StudentRosterViewProps {
   onMenuClick: () => void;
@@ -72,16 +73,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   embedded = false,
   onNavigate
 }) => {
+  const scope = viewType === 'master' ? 'master' : 'class';
+  const studentsApi = useStudents(scope);
+  const isMasterScope = scope === 'master';
   // Initialize state with enriched data (Teacher & Status)
-  const [students, setStudents] = useState<ExtendedStudent[]>(() => {
-      const rawData = viewType === 'master' ? generateMasterRoster() : CLASS_ROSTER_DATA;
-      return rawData.map((s, i) => ({
-          ...s,
-          // deterministic mock assignment
-          teacher: TEACHERS[i % TEACHERS.length], 
-          status: s.activeInterventions > 0 ? 'Active' : 'Monitoring'
-      }));
-  });
+  const [students, setStudents] = useState<ExtendedStudent[]>([]);
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
@@ -125,15 +121,15 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       gpa: '3.0'
   });
 
-  // Effect to update students if viewType prop changes
+  // Hydrate from API rows scoped to classroom/master mode
   useEffect(() => {
-    const rawData = viewType === 'master' ? generateMasterRoster() : CLASS_ROSTER_DATA;
-    setStudents(rawData.map((s, i) => ({
+    const rows = studentsApi.studentsQuery.data?.rows ?? [];
+    setStudents(rows.map((s, i) => ({
         ...s,
         teacher: TEACHERS[i % TEACHERS.length],
         status: s.activeInterventions > 0 ? 'Active' : 'Monitoring'
     })));
-  }, [viewType]);
+  }, [studentsApi.studentsQuery.data?.rows]);
 
   // --- Derived Data ---
   const classStats = useMemo(() => {
@@ -300,6 +296,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
 
   const handleBulkDelete = () => {
       if (window.confirm(`Are you sure you want to remove ${selectedIds.size} students from the roster?`)) {
+          if (isMasterScope) {
+              selectedIds.forEach((id) => {
+                  studentsApi.deleteMutation.mutate({ id });
+              });
+          }
           setStudents(prev => prev.filter(s => !selectedIds.has(s.id)));
           setSelectedIds(new Set());
           setIsBulkMode(false);
@@ -311,6 +312,19 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       if (!editingStudent) return;
       
       setStudents(prev => prev.map(s => s.id === editingStudent.id ? editingStudent : s));
+      if (isMasterScope) {
+          studentsApi.updateMutation.mutate({
+              id: editingStudent.id,
+              patch: {
+                  name: editingStudent.name,
+                  grade: editingStudent.grade,
+                  tier: editingStudent.tier,
+                  gpa: editingStudent.gpa,
+                  attendance: editingStudent.attendance,
+                  readingLevel: editingStudent.readingLevel,
+              },
+          });
+      }
       setEditingStudent(null);
   };
 
@@ -334,6 +348,16 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       };
 
       setStudents(prev => [newStudent, ...prev]);
+      if (isMasterScope) {
+          studentsApi.createMutation.mutate({
+              name: newStudent.name,
+              grade: newStudent.grade,
+              tier: newStudent.tier,
+              gpa: newStudent.gpa,
+              attendance: newStudent.attendance,
+              readingLevel: newStudent.readingLevel,
+          });
+      }
       setIsAddStudentModalOpen(false);
       // Reset
       setNewStudentData({

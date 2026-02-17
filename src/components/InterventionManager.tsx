@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   Search, 
   ChevronDown, 
@@ -27,12 +27,9 @@ import { Tier } from '../types';
 import { DraggableModal } from './DraggableModal';
 import type { AIInterventionPlan } from '../services/geminiService';
 import { generateStructuredIntervention } from '../services/geminiService';
+import { useTenantCollection } from '../hooks/useTenantCollection';
 
-// --- Mock Data Generation for Whole School ---
-const NAMES = ["Leo Martinez", "Emma Wilson", "Jayden Smith", "Sophia Rodriguez", "Liam Parker", "Noah Chang", "Ava Patel", "Ethan James", "Isabella Rossi", "Mason Clark", "Lucas Baker", "Mia Wright", "Benjamin Hill", "Charlotte King", "Henry Scott"];
 const TEACHERS = ["Mr. Davis", "Mrs. Johnson", "Mr. Thompson", "Ms. Lee", "Mrs. Garcia"];
-const GRADES = ["3rd", "4th", "5th"];
-const PLANS = ["Leveled Literacy", "Math 180", "Check-In/Check-Out", "Social Skills Group", "Phonics Lab", "Behavior Chart"];
 
 interface InterventionRecord {
   id: string;
@@ -52,40 +49,6 @@ interface InterventionRecord {
   lessonPlan?: AIInterventionPlan; // Optional robust plan
 }
 
-const generateInterventions = (): InterventionRecord[] => {
-  return Array.from({ length: 45 }).map((_, i) => {
-    const name = NAMES[i % NAMES.length] + (i > 14 ? ` ${String.fromCharCode(65 + i)}.` : '');
-    const [first, ...rest] = name.split(' ');
-    const last = rest.join(' ');
-    const tierRoll = Math.random();
-    const tier = tierRoll > 0.7 ? Tier.TIER_3 : (tierRoll > 0.3 ? Tier.TIER_2 : Tier.TIER_1); // Skewed for data variety
-    const progress = Math.floor(Math.random() * 100);
-    
-    let status: InterventionRecord['status'] = 'On Track';
-    if (progress < 50) status = 'Critical';
-    else if (progress < 75) status = 'At Risk';
-
-    return {
-      id: `int-${i}`,
-      studentName: name,
-      firstName: first,
-      lastName: last,
-      grade: GRADES[i % GRADES.length],
-      teacher: TEACHERS[i % TEACHERS.length],
-      tier: tier,
-      planName: PLANS[i % PLANS.length],
-      startDate: new Date(Date.now() - Math.floor(Math.random() * 10000000000)).toISOString().split('T')[0],
-      durationWeeks: Math.floor(Math.random() * 12) + 2,
-      progress,
-      attendance: 80 + Math.floor(Math.random() * 20),
-      status,
-      avatarSeed: name.replace(/ /g, '')
-    };
-  });
-};
-
-const MOCK_DATA = generateInterventions();
-
 // --- Grouping & Sorting Types ---
 type GroupBy = 'None' | 'Teacher' | 'Grade' | 'Tier' | 'Status';
 type SortBy = 'Last Name' | 'First Name' | 'Progress' | 'Attendance' | 'Duration' | 'Grade' | 'Teacher' | 'Tier' | 'Plan Name';
@@ -96,7 +59,8 @@ interface InterventionManagerProps {
 }
 
 export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStudentClick, onMenuClick }) => {
-  const [records, setRecords] = useState<InterventionRecord[]>(MOCK_DATA);
+  const interventionsCollection = useTenantCollection<InterventionRecord>('interventions');
+  const [records, setRecords] = useState<InterventionRecord[]>([]);
   
   // View Controls
   const [groupBy, setGroupBy] = useState<GroupBy>('None');
@@ -133,6 +97,30 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStud
   // Monitoring Agent State
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const hasHydratedRef = useRef(false);
+  const lastPersistedRef = useRef("");
+
+  useEffect(() => {
+    const rows = interventionsCollection.query.data?.rows;
+    if (!rows) return;
+    hasHydratedRef.current = true;
+    const serialized = JSON.stringify(rows);
+    lastPersistedRef.current = serialized;
+    setRecords(rows);
+  }, [interventionsCollection.query.data]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    const serialized = JSON.stringify(records);
+    if (serialized === lastPersistedRef.current) return;
+    const timeout = window.setTimeout(() => {
+      lastPersistedRef.current = serialized;
+      interventionsCollection.replaceMutation.mutate(records);
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [interventionsCollection.replaceMutation, records]);
 
   // Filter & Sort Logic
   const processedData = useMemo<Record<string, InterventionRecord[]>>(() => {
@@ -340,7 +328,9 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStud
     total: records.length,
     critical: records.filter(r => r.status === 'Critical').length,
     tier3: records.filter(r => r.tier === Tier.TIER_3).length,
-    avgProgress: Math.round(records.reduce((acc, r) => acc + r.progress, 0) / records.length)
+    avgProgress: records.length > 0
+      ? Math.round(records.reduce((acc, r) => acc + r.progress, 0) / records.length)
+      : 0
   };
 
   const activeFilterCount = [
