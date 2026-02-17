@@ -523,13 +523,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // --- Styles ---
   const getEventTypeStyles = (type: EventType) => {
     switch (type) {
-        case EventType.MTSS: return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100', dot: 'bg-rose-500' };
-        case EventType.IEP: return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100', dot: 'bg-orange-500' };
-        case EventType.STAFF: return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', dot: 'bg-blue-500' };
-        case EventType.PARENT: return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', dot: 'bg-emerald-500' };
-        case EventType.DISTRICT: return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100', dot: 'bg-purple-500' };
-        case EventType.DEADLINE: return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', dot: 'bg-slate-500' };
-        default: return { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-100', dot: 'bg-indigo-500' };
+        case EventType.MTSS: return { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100', dot: 'bg-rose-500', hoverBorder: 'hover:border-rose-200' };
+        case EventType.IEP: return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-100', dot: 'bg-orange-500', hoverBorder: 'hover:border-orange-200' };
+        case EventType.STAFF: return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', dot: 'bg-blue-500', hoverBorder: 'hover:border-blue-200' };
+        case EventType.PARENT: return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', dot: 'bg-emerald-500', hoverBorder: 'hover:border-emerald-200' };
+        case EventType.DISTRICT: return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-100', dot: 'bg-purple-500', hoverBorder: 'hover:border-purple-200' };
+        case EventType.DEADLINE: return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', dot: 'bg-slate-500', hoverBorder: 'hover:border-slate-300' };
+        default: return { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-100', dot: 'bg-indigo-500', hoverBorder: 'hover:border-indigo-200' };
     }
   };
 
@@ -1414,7 +1414,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     <button 
                                         key={evt.id}
                                         onClick={(e) => { e.stopPropagation(); handleEventClick(evt); }}
-                                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-bold truncate shadow-sm hover:shadow transition-all hover:-translate-y-0.5 flex items-center gap-2 bg-opacity-90 hover:bg-opacity-100 ${styles.bg} ${styles.text} border border-transparent hover:border-${styles.dot.split('-')[1]}-200 group/evt`}
+                                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-bold truncate shadow-sm hover:shadow transition-all hover:-translate-y-0.5 flex items-center gap-2 bg-opacity-90 hover:bg-opacity-100 ${styles.bg} ${styles.text} border border-transparent ${styles.hoverBorder} group/evt`}
                                     >
                                         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${styles.dot}`} />
                                         
@@ -1442,3 +1442,5 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     </div>
   );
 };
+
+
