@@ -3,6 +3,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import appCss from "../styles.css?url";
 import type { AppRouterContext } from "../lib/query-client";
 import type { ReactNode } from "react";
+import { TenantContextSwitcher } from "../components/TenantContextSwitcher";
 
 export const Route = createRootRouteWithContext<AppRouterContext>()({
   head: () => ({
@@ -31,10 +32,13 @@ function RootDocument({ children }: { children: ReactNode }) {
       </head>
       <body>
         <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-[1600px] gap-2 px-4 py-3 md:px-8">
-            <NavLink to="/">Dashboard</NavLink>
-            <NavLink to="/query-health">Query Health</NavLink>
-            <NavLink to="/roster-table">Roster Table</NavLink>
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-8">
+            <div className="flex items-center gap-2">
+              <NavLink to="/">Dashboard</NavLink>
+              <NavLink to="/query-health">Query Health</NavLink>
+              <NavLink to="/roster-table">Roster Table</NavLink>
+            </div>
+            <TenantContextSwitcher />
           </div>
         </nav>
         {children}

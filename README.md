@@ -28,6 +28,7 @@ Dev server is pinned to `http://localhost:3000` (`strictPort` enabled). If port 
 - Table UI: TanStack Table (see `/roster-table`)
 - API routes: Start server routes (including `/api/ai/*`)
 - Optimistic updates: `/roster-table` now supports optimistic create/update/delete with automatic rollback on failure.
+- Multi-tenant + RBAC foundation: org/district/school context and server-enforced role checks are now active on student and AI APIs.
 
 ## Student API (Compatibility Layer)
 
@@ -35,6 +36,18 @@ Dev server is pinned to `http://localhost:3000` (`strictPort` enabled). If port 
 - `POST /api/students` (creates master roster student)
 - `PATCH /api/students?id=<studentId>` (updates master roster student)
 - `DELETE /api/students?id=<studentId>` (deletes master roster student)
+
+All student API operations now enforce active tenant context and field-level RBAC server-side.
+
+## Tenant + Session API
+
+- `GET /api/health`: returns health plus current session, effective roles, contexts, and available users (dev bootstrap).
+- `POST /api/health`: updates active user/context and sets session cookies.
+  - Request body example:
+    - `{ "userId": "u-principal-ne" }`
+    - `{ "context": { "organizationId": "org-bufsd", "districtId": "dist-bufsd", "schoolId": "sch-ne" } }`
+
+Use the top navigation context switcher to change active user and tenant context in the running app.
 
 ## Quality Checks
 

@@ -6,6 +6,8 @@ import { ReportingAgent } from "../../../services/agents/ReportingAgent";
 import { StudentAgent } from "../../../services/agents/StudentAgent";
 import type { CalendarEvent} from "../../../types";
 import { UserRole } from "../../../types";
+import { getSessionFromRequest } from "../../../lib/server/auth-context";
+import { requirePermission } from "../../../lib/server/rbac";
 
 type Agents = {
   studentAgent: StudentAgent;
@@ -19,6 +21,14 @@ let cachedAgents: Agents | null = null;
 let initError: Error | null = null;
 
 const isString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
+const mapRoleToUserRole = (role: string): UserRole => {
+  if (role === "teacher") return UserRole.TEACHER;
+  if (role === "principal") return UserRole.PRINCIPAL;
+  if (role === "district_admin" || role === "org_admin") return UserRole.DISTRICT;
+  if (role === "parent") return UserRole.PARENT;
+  return UserRole.TEACHER;
+};
 
 const getAgents = (): Agents | null => {
   if (cachedAgents) return cachedAgents;
@@ -112,6 +122,11 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
   server: {
     handlers: {
       POST: async ({ params, request }) => {
+        const session = getSessionFromRequest(request);
+        if (!session) return jsonError("Unauthorized.", 401);
+        const permission = requirePermission(session, { resource: "ai", action: "read" });
+        if (!permission.ok) return jsonError(permission.error, permission.status);
+
         const agents = getAgents();
         if (!agents) return jsonError("AI server not configured. Set GEMINI_API_KEY.", 503);
 
@@ -122,22 +137,23 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             query: string;
             history: unknown[];
             contextDocuments: unknown[];
-            role: UserRole;
-            username: string;
+            role?: UserRole;
+            username?: string;
           }>(request);
-          if (!body || !isString(body.query) || !Array.isArray(body.history) || !Array.isArray(body.contextDocuments) || !isString(body.username)) {
+          if (!body || !isString(body.query) || !Array.isArray(body.history) || !Array.isArray(body.contextDocuments)) {
             return jsonError("Invalid request body.");
           }
-          if (!Object.values(UserRole).includes(body.role)) return jsonError("Invalid user role.");
 
           try {
+            const role = mapRoleToUserRole(session.effectiveRoles[0] ?? session.user.primaryRole);
+            const username = session.user.name;
             const text = await collectStreamText((onChunk) =>
               agents.orchestrator.queryRAGChatStream(
                 body.query,
                 body.history as never[],
                 body.contextDocuments as never[],
-                body.role,
-                body.username,
+                role,
+                username,
                 onChunk
               )
             );
