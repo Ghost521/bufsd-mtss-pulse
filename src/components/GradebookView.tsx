@@ -826,7 +826,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               <div className="flex flex-col gap-8 items-center">
                 {/* Visual Donut */}
                 <div className="w-40 h-40 relative shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <PieChart>
                         <Pie
                             data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
@@ -1196,32 +1196,30 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                         }`}>
                                             {avg}%
                                         </div>
-                                        <div className="h-6 w-full px-2 opacity-70 relative">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <LineChart data={trendData}>
-                                                    <Line 
-                                                        type="monotone" 
-                                                        dataKey="value" 
-                                                        stroke={avg >= 90 ? '#10b981' : avg < 70 ? '#f43f5e' : '#6366f1'} 
-                                                        strokeWidth={2} 
-                                                        dot={false} 
-                                                    />
-                                                    <YAxis domain={[0, 100]} hide />
-                                                    <Tooltip 
-                                                        content={({ active, payload }) => {
-                                                            if (active && payload && payload.length) {
-                                                                return (
-                                                                    <div className="bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-lg border border-slate-700">
-                                                                        <p className="font-bold">{payload[0].payload.title}</p>
-                                                                        <p>Score: {payload[0].value}</p>
-                                                                    </div>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        }}
-                                                    />
-                                                </LineChart>
-                                            </ResponsiveContainer>
+                                        <div className="h-6 w-full px-2 opacity-70 relative flex items-center justify-center">
+                                            <LineChart width={72} height={24} data={trendData}>
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="value" 
+                                                    stroke={avg >= 90 ? '#10b981' : avg < 70 ? '#f43f5e' : '#6366f1'} 
+                                                    strokeWidth={2} 
+                                                    dot={false} 
+                                                />
+                                                <YAxis domain={[0, 100]} hide />
+                                                <Tooltip 
+                                                    content={({ active, payload }) => {
+                                                        if (active && payload && payload.length) {
+                                                            return (
+                                                                <div className="bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-lg border border-slate-700">
+                                                                    <p className="font-bold">{payload[0].payload.title}</p>
+                                                                    <p>Score: {payload[0].value}</p>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    }}
+                                                />
+                                            </LineChart>
                                         </div>
                                     </div>
                                 </td>
