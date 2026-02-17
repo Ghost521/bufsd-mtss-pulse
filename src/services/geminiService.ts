@@ -23,6 +23,44 @@ class ApiError extends Error {
   }
 }
 
+const parseNestedJson = (raw: string): unknown => {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeAiErrorMessage = (rawMessage: string): string => {
+  let message = rawMessage;
+
+  const parsed = parseNestedJson(rawMessage);
+  if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === "string") {
+    message = parsed.error.message;
+  }
+
+  const nested = parseNestedJson(message);
+  if (isRecord(nested) && isRecord(nested.error) && typeof nested.error.message === "string") {
+    message = nested.error.message;
+  }
+
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("quota exceeded") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("rate limit")
+  ) {
+    const retryMatch = message.match(/retry in\s+([\d.]+)s/i) ?? message.match(/\"retryDelay\"\s*:\s*\"([\d.]+)s\"/i);
+    if (retryMatch) {
+      const retrySeconds = Math.max(1, Math.ceil(Number.parseFloat(retryMatch[1])));
+      return `Gemini rate limit reached. Please retry in about ${retrySeconds} seconds.`;
+    }
+    return "Gemini rate limit reached. Please retry shortly.";
+  }
+
+  return message.length > 320 ? `${message.slice(0, 320)}...` : message;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
 const isEnvelopeResponse = (value: unknown): value is { ok: boolean; data?: unknown; error?: string; errorDetail?: { message?: string } } =>
@@ -39,7 +77,7 @@ const responseErrorMessage = async (response: Response): Promise<string> => {
   } catch {
     // best effort only
   }
-  return detail;
+  return normalizeAiErrorMessage(detail);
 };
 
 const postJson = async <TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> => {
@@ -210,8 +248,10 @@ const streamSse = async <TRequest>(
 
     if (parsed.event === "error") {
       const payload = parsed.data as Partial<AiStreamErrorEvent>;
-      const message = typeof payload.message === "string" ? payload.message : "Streaming request failed";
-      throw new ApiError(message, 500);
+      const rawMessage = typeof payload.message === "string" ? payload.message : "Streaming request failed";
+      const message = normalizeAiErrorMessage(rawMessage);
+      const status = payload.code === "MODEL_UNAVAILABLE" ? 503 : 500;
+      throw new ApiError(message, status);
     }
 
     if (parsed.event === "done" && isRecord(parsed.data)) {

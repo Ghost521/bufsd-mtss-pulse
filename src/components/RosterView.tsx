@@ -4,6 +4,7 @@ import { STAFF_ROSTER_DATA } from '../constants';
 import type { StaffRosterItem} from '../types';
 import { UserRole } from '../types';
 import { StudentRosterView } from './StudentRosterView';
+import type { WorkspacePageId } from '../lib/workspaceRoutes';
 import { 
   Users, 
   TrendingUp, 
@@ -35,7 +36,7 @@ interface RosterViewProps {
   onMenuClick: () => void;
   onEmailClick?: (name: string) => void;
   onStudentClick?: (name: string) => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: WorkspacePageId) => void;
   currentUserRole: UserRole;
 }
 

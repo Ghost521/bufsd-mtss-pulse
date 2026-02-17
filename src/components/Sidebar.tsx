@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Users,
@@ -18,6 +19,8 @@ import {
 } from "lucide-react";
 import { UserRole } from "../types";
 import { TenantContextSwitcher } from "./TenantContextSwitcher";
+import type { WorkspacePageId } from "../lib/workspaceRoutes";
+import { buildWorkspacePath } from "../lib/workspaceRoutes";
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -26,12 +29,11 @@ interface SidebarProps {
   schoolName: string;
   isOpen: boolean;
   onClose: () => void;
-  activePage: string;
-  onNavigate: (page: string) => void;
+  activePage: WorkspacePageId;
 }
 
 type WorkspaceNavItem = {
-  id: string;
+  id: WorkspacePageId | "staffing" | "assignments";
   icon: React.ComponentType<{ size?: number }>;
   label: string;
   implemented: boolean;
@@ -102,9 +104,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
   activePage,
-  onNavigate,
 }) => {
-  const menuItems = getMenuItems(currentRole).filter((item) => item.implemented);
+  const menuItems = getMenuItems(currentRole).filter(
+    (item): item is WorkspaceNavItem & { id: WorkspacePageId } => item.implemented
+  );
 
   return (
     <>
@@ -153,14 +156,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {menuItems.map((item) => {
               const isActive = activePage === item.id;
               return (
-                <button
+                <Link
                   key={item.id}
-                  type="button"
+                  to={buildWorkspacePath(currentRole, item.id)}
+                  activeOptions={{ exact: true }}
                   onClick={() => {
-                    onNavigate(item.id);
                     onClose();
                   }}
-                  className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+                  className={`block w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
                     isActive ? "bg-brand-600 text-white shadow-lg shadow-brand-900/50" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                   }`}
                   aria-current={isActive ? "page" : undefined}
@@ -170,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <item.icon size={20} />
                     {item.label}
                   </span>
-                </button>
+                </Link>
               );
             })}
           </nav>
@@ -192,10 +195,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </select>
             </div>
 
-            <button
-              type="button"
+            <Link
+              to={buildWorkspacePath(currentRole, "settings")}
+              activeOptions={{ exact: true }}
               onClick={() => {
-                onNavigate("settings");
                 onClose();
               }}
               className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
@@ -204,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Settings size={20} />
               <span className="text-sm font-medium">Settings</span>
-            </button>
+            </Link>
 
             <div className="rounded-xl bg-slate-800/50 p-3">
               <div className="mb-3 flex items-center gap-3">

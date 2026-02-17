@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RosterTableRouteImport } from './routes/roster-table'
 import { Route as QueryHealthRouteImport } from './routes/query-health'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRoleRouteImport } from './routes/app.$role'
 import { Route as ApiStudentsRouteImport } from './routes/api/students'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as AppRolePageRouteImport } from './routes/app.$role.$page'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
@@ -34,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoleRoute = AppRoleRouteImport.update({
+  id: '/app/$role',
+  path: '/app/$role',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStudentsRoute = ApiStudentsRouteImport.update({
   id: '/api/students',
   path: '/api/students',
@@ -43,6 +50,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppRolePageRoute = AppRolePageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
+  getParentRoute: () => AppRoleRoute,
 } as any)
 const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
   id: '/api/auth/logout',
@@ -71,10 +83,12 @@ export interface FileRoutesByFullPath {
   '/roster-table': typeof RosterTableRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
+  '/app/$role': typeof AppRoleRouteWithChildren
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/app/$role/$page': typeof AppRolePageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -82,10 +96,12 @@ export interface FileRoutesByTo {
   '/roster-table': typeof RosterTableRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
+  '/app/$role': typeof AppRoleRouteWithChildren
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/app/$role/$page': typeof AppRolePageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -94,10 +110,12 @@ export interface FileRoutesById {
   '/roster-table': typeof RosterTableRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
+  '/app/$role': typeof AppRoleRouteWithChildren
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/app/$role/$page': typeof AppRolePageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,10 +125,12 @@ export interface FileRouteTypes {
     | '/roster-table'
     | '/api/health'
     | '/api/students'
+    | '/app/$role'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/app/$role/$page'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -118,10 +138,12 @@ export interface FileRouteTypes {
     | '/roster-table'
     | '/api/health'
     | '/api/students'
+    | '/app/$role'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/app/$role/$page'
   id:
     | '__root__'
     | '/'
@@ -129,10 +151,12 @@ export interface FileRouteTypes {
     | '/roster-table'
     | '/api/health'
     | '/api/students'
+    | '/app/$role'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/app/$role/$page'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -141,6 +165,7 @@ export interface RootRouteChildren {
   RosterTableRoute: typeof RosterTableRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiStudentsRoute: typeof ApiStudentsRoute
+  AppRoleRoute: typeof AppRoleRouteWithChildren
   ApiAiEndpointRoute: typeof ApiAiEndpointRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -170,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/$role': {
+      id: '/app/$role'
+      path: '/app/$role'
+      fullPath: '/app/$role'
+      preLoaderRoute: typeof AppRoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/students': {
       id: '/api/students'
       path: '/api/students'
@@ -183,6 +215,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/app/$role/$page': {
+      id: '/app/$role/$page'
+      path: '/$page'
+      fullPath: '/app/$role/$page'
+      preLoaderRoute: typeof AppRolePageRouteImport
+      parentRoute: typeof AppRoleRoute
     }
     '/api/auth/logout': {
       id: '/api/auth/logout'
@@ -215,12 +254,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppRoleRouteChildren {
+  AppRolePageRoute: typeof AppRolePageRoute
+}
+
+const AppRoleRouteChildren: AppRoleRouteChildren = {
+  AppRolePageRoute: AppRolePageRoute,
+}
+
+const AppRoleRouteWithChildren =
+  AppRoleRoute._addFileChildren(AppRoleRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   QueryHealthRoute: QueryHealthRoute,
   RosterTableRoute: RosterTableRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiStudentsRoute: ApiStudentsRoute,
+  AppRoleRoute: AppRoleRouteWithChildren,
   ApiAiEndpointRoute: ApiAiEndpointRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,

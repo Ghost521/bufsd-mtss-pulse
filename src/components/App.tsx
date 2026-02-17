@@ -1,5 +1,6 @@
 
 import React, { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { 
   Activity, 
   Zap, 
@@ -31,6 +32,13 @@ import type { DashboardData, RAGDocument} from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { generateDashboardBriefing } from '../services/geminiService';
+import {
+  buildWorkspacePath,
+  normalizePageForRole,
+  slugToPage,
+  slugToRole,
+  type WorkspacePageId,
+} from '../lib/workspaceRoutes';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -79,13 +87,18 @@ type FlashMessage = {
 };
 
 const App: React.FC = () => {
-  const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
+  const navigate = useNavigate();
+  const routeParams = useParams({ strict: false });
+  const routeRole = slugToRole((routeParams as { role?: string }).role) ?? UserRole.PRINCIPAL;
+  const routePage = normalizePageForRole(routeRole, slugToPage((routeParams as { page?: string }).page));
+
+  const [currentRole, setCurrentRole] = useState<UserRole>(routeRole);
   const [data, setData] = useState<DashboardData>(PRINCIPAL_DATA);
   const [hasHydrated, setHasHydrated] = useState(false);
   
   // UI State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState<WorkspacePageId>(routePage);
   const [messageRecipient, setMessageRecipient] = useState<string | undefined>(undefined);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [flashMessage, setFlashMessage] = useState<FlashMessage | null>(null);
@@ -137,16 +150,6 @@ const App: React.FC = () => {
   // RAG Document State
   const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>(MOCK_RAG_DOCUMENTS);
 
-  const availablePagesByRole: Record<UserRole, string[]> = useMemo(
-    () => ({
-      [UserRole.PRINCIPAL]: ['dashboard', 'rosters', 'lesson_plans', 'interventions', 'calendar', 'reports', 'messages', 'documents', 'import', 'settings', 'profile'],
-      [UserRole.TEACHER]: ['dashboard', 'class_roster', 'gradebook', 'lesson_plans', 'interventions', 'calendar', 'messages', 'documents', 'import', 'settings', 'profile'],
-      [UserRole.DISTRICT]: ['dashboard', 'map', 'reports', 'calendar', 'messages', 'documents', 'import', 'settings', 'profile'],
-      [UserRole.PARENT]: ['dashboard', 'reports', 'calendar', 'messages', 'documents', 'settings', 'profile'],
-    }),
-    []
-  );
-
   const roleHeadline = useMemo(
     () =>
       ({
@@ -161,6 +164,11 @@ const App: React.FC = () => {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, []);
+
+  useEffect(() => {
+    setCurrentRole(routeRole);
+    setActivePage(routePage);
+  }, [routePage, routeRole]);
 
   // Update data when role changes
   useEffect(() => {
@@ -181,13 +189,13 @@ const App: React.FC = () => {
     setBriefingGeneratedAt(null);
     setIsModalOpen(false);
     setSelectedStudent(null);
-    setActivePage((current) => (availablePagesByRole[currentRole].includes(current) ? current : 'dashboard'));
+    setActivePage((current) => normalizePageForRole(currentRole, current));
     setProfileStudent(null);
     setIsMobileMenuOpen(false);
     setIsMoreMenuOpen(false);
     setMessageRecipient(undefined);
     setIsReferralModalOpen(false);
-  }, [availablePagesByRole, currentRole]);
+  }, [currentRole]);
 
   useEffect(() => {
     setHasHydrated(true);
@@ -340,6 +348,20 @@ const App: React.FC = () => {
     </button>
   );
 
+  const navigateToPage = (page: WorkspacePageId) => {
+    const nextPage = normalizePageForRole(currentRole, page);
+    setActivePage(nextPage);
+    void navigate({ to: buildWorkspacePath(currentRole, nextPage) });
+  };
+
+  const handleRoleChange = (nextRole: UserRole) => {
+    const targetPage = normalizePageForRole(nextRole, activePage === 'profile' ? 'dashboard' : activePage);
+    setCurrentRole(nextRole);
+    setActivePage(targetPage);
+    setProfileStudent(null);
+    void navigate({ to: buildWorkspacePath(nextRole, targetPage) });
+  };
+
   const handleRefresh = () => {
     if (isRefreshing) return;
     setIsMoreMenuOpen(false);
@@ -411,20 +433,20 @@ const App: React.FC = () => {
 
   const handleNavigateToProfile = (studentName: string) => {
     setProfileStudent(studentName);
-    setActivePage('profile');
+    navigateToPage('profile');
     setIsModalOpen(false);
     window.scrollTo(0,0);
   };
 
   const handleBackToDashboard = () => {
-    setActivePage('dashboard');
+    navigateToPage('dashboard');
     setProfileStudent(null);
   };
 
   // Messaging Handlers
   const handleNavigateToMessages = (recipient?: string) => {
     setIsModalOpen(false);
-    setActivePage('messages');
+    navigateToPage('messages');
     setMessageRecipient(recipient);
   };
 
@@ -480,7 +502,7 @@ const App: React.FC = () => {
         id: 'open-reports',
         label: 'Open Reports',
         enabled: true,
-        onClick: () => setActivePage('reports'),
+        onClick: () => navigateToPage('reports'),
         icon: BarChart2,
       };
     }
@@ -518,7 +540,7 @@ const App: React.FC = () => {
         id: 'schedule-mtss',
         label: 'Schedule MTSS',
         enabled: true,
-        onClick: () => setActivePage('calendar'),
+        onClick: () => navigateToPage('calendar'),
         icon: CalendarPlus,
       });
     }
@@ -527,7 +549,7 @@ const App: React.FC = () => {
         id: 'view-roster',
         label: 'View Roster',
         enabled: true,
-        onClick: () => setActivePage('class_roster'),
+        onClick: () => navigateToPage('class_roster'),
         icon: Users,
       });
     }
@@ -536,7 +558,7 @@ const App: React.FC = () => {
         id: 'district-map',
         label: 'Open Schools Map',
         enabled: true,
-        onClick: () => setActivePage('map'),
+        onClick: () => navigateToPage('map'),
         icon: Users,
       });
     }
@@ -546,23 +568,23 @@ const App: React.FC = () => {
   const topTasks: Array<{ id: string; label: string; onClick: () => void }> = ({
       [UserRole.PRINCIPAL]: [
         { id: 'task-referral', label: 'Create Support Referral', onClick: () => setIsReferralModalOpen(true) },
-        { id: 'task-interventions', label: 'Review Active Supports', onClick: () => setActivePage('interventions') },
-        { id: 'task-calendar', label: 'Open MTSS Calendar', onClick: () => setActivePage('calendar') },
+        { id: 'task-interventions', label: 'Review Active Supports', onClick: () => navigateToPage('interventions') },
+        { id: 'task-calendar', label: 'Open MTSS Calendar', onClick: () => navigateToPage('calendar') },
       ],
       [UserRole.TEACHER]: [
-        { id: 'task-roster', label: 'Open Student Roster', onClick: () => setActivePage('class_roster') },
+        { id: 'task-roster', label: 'Open Student Roster', onClick: () => navigateToPage('class_roster') },
         { id: 'task-messages', label: 'Message Family', onClick: () => handleNavigateToMessages('Mrs. Martinez') },
-        { id: 'task-gradebook', label: 'Update Gradebook', onClick: () => setActivePage('gradebook') },
+        { id: 'task-gradebook', label: 'Update Gradebook', onClick: () => navigateToPage('gradebook') },
       ],
       [UserRole.DISTRICT]: [
-        { id: 'task-map', label: 'View Schools Map', onClick: () => setActivePage('map') },
-        { id: 'task-reports', label: 'Review System Reports', onClick: () => setActivePage('reports') },
-        { id: 'task-messages', label: 'Send District Message', onClick: () => setActivePage('messages') },
+        { id: 'task-map', label: 'View Schools Map', onClick: () => navigateToPage('map') },
+        { id: 'task-reports', label: 'Review System Reports', onClick: () => navigateToPage('reports') },
+        { id: 'task-messages', label: 'Send District Message', onClick: () => navigateToPage('messages') },
       ],
       [UserRole.PARENT]: [
-        { id: 'task-report', label: 'Review Progress Report', onClick: () => setActivePage('reports') },
+        { id: 'task-report', label: 'Review Progress Report', onClick: () => navigateToPage('reports') },
         { id: 'task-message', label: 'Message Teacher', onClick: () => handleNavigateToMessages('Mr. Davis') },
-        { id: 'task-calendar', label: 'Check Calendar', onClick: () => setActivePage('calendar') },
+        { id: 'task-calendar', label: 'Check Calendar', onClick: () => navigateToPage('calendar') },
       ],
     }[currentRole]);
 
@@ -855,7 +877,7 @@ const App: React.FC = () => {
             <ActionItemsList
               items={data.actionItems}
               onStudentClick={handleStudentClick}
-              onViewAll={() => setActivePage('reports')}
+              onViewAll={() => navigateToPage('reports')}
               totalCount={data.actionItems.length}
             />
           </div>
@@ -924,7 +946,7 @@ const App: React.FC = () => {
               <MonitoringPulse
                 students={data.monitoringPulse}
                 onStudentClick={handleStudentClick}
-                onViewAll={() => setActivePage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'class_roster' : 'reports')}
+                onViewAll={() => navigateToPage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'class_roster' : 'reports')}
                 freshnessLabel={freshnessLabel}
               />
             </div>
@@ -954,14 +976,14 @@ const App: React.FC = () => {
             onMenuClick={() => setIsMobileMenuOpen(true)}
             onMessageClick={() => handleNavigateToMessages('Mrs. Martinez')}
           />
-        ) : null;
+        ) : renderDashboard();
       case 'rosters':
         return (
           <RosterView 
             onMenuClick={() => setIsMobileMenuOpen(true)} 
             onEmailClick={(name) => handleNavigateToMessages(name)}
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
-            onNavigate={setActivePage}
+            onNavigate={navigateToPage}
             currentUserRole={currentRole}
           />
         );
@@ -972,7 +994,7 @@ const App: React.FC = () => {
              onMenuClick={() => setIsMobileMenuOpen(true)} 
              onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
              viewType={currentRole === UserRole.PRINCIPAL || currentRole === UserRole.DISTRICT ? 'master' : 'classroom'}
-             onNavigate={setActivePage}
+             onNavigate={navigateToPage}
           />
         );
       case 'gradebook':
@@ -1032,7 +1054,7 @@ const App: React.FC = () => {
         return (
           <DataImporter 
             onMenuClick={() => setIsMobileMenuOpen(true)}
-            onImportComplete={() => setActivePage('dashboard')}
+            onImportComplete={() => navigateToPage('dashboard')}
             currentUserRole={currentRole}
           />
         );
@@ -1092,20 +1114,19 @@ const App: React.FC = () => {
           isOpen={isReferralModalOpen} 
           onClose={() => setIsReferralModalOpen(false)}
           onViewQueue={() => {
-            setActivePage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'interventions' : 'reports');
+            navigateToPage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'interventions' : 'reports');
           }}
         />
       </Suspense>
 
       <Sidebar 
         currentRole={currentRole} 
-        onRoleChange={setCurrentRole}
+        onRoleChange={handleRoleChange}
         userName={data.userName}
         schoolName={data.schoolName}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         activePage={activePage}
-        onNavigate={setActivePage}
       />
       
       <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 lg:ml-64">

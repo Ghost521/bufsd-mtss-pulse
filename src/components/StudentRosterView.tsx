@@ -35,13 +35,14 @@ import {
 } from 'lucide-react';
 import { ReferralModal } from './ReferralModal';
 import { DraggableModal } from './DraggableModal';
+import type { WorkspacePageId } from '../lib/workspaceRoutes';
 
 interface StudentRosterViewProps {
   onMenuClick: () => void;
   onStudentClick: (name: string) => void;
   viewType?: 'classroom' | 'master';
   embedded?: boolean; // New prop to hide header if nested
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: WorkspacePageId) => void;
 }
 
 // Extended type for local view handling

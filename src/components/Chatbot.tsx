@@ -143,10 +143,14 @@ export const Chatbot: React.FC<ChatbotProps> = ({
         },
         controller.signal
       );
-    } catch {
+    } catch (error) {
       if (!controller.signal.aborted) {
+        const message =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : "Unable to complete response.";
         setMessages(prev => prev.map(m => 
-            m.id === tempId ? { ...m, text: responseText + "\n\n_Error: Unable to complete response._" } : m
+            m.id === tempId ? { ...m, text: responseText + `\n\n_Error: ${message}_` } : m
         ));
       }
     } finally {

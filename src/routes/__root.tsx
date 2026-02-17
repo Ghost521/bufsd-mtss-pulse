@@ -38,7 +38,7 @@ function RootDocument({ children }: { children: ReactNode }) {
                 <p className="text-xs font-semibold text-slate-600">Navigation</p>
               </div>
               <div className="flex items-center gap-2">
-                <NavLink to="/">MTSS Workspace</NavLink>
+                <NavLink to="/app/principal">MTSS Workspace</NavLink>
                 <NavLink to="/query-health">Platform Health</NavLink>
                 <NavLink to="/roster-table">Student Roster</NavLink>
               </div>
