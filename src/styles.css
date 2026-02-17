@@ -18,6 +18,10 @@
   color-scheme: light;
 }
 
+html {
+  font-family: var(--font-sans);
+}
+
 *,
 *::before,
 *::after {
@@ -26,7 +30,7 @@
 
 body {
   margin: 0;
-  font-family: var(--font-sans);
+  font-family: inherit;
   background-color: #f8fafc;
 }
 
@@ -35,7 +39,8 @@ h2,
 h3,
 h4,
 h5,
-h6 {
+h6,
+[role="heading"] {
   font-family: var(--font-heading);
 }
 
