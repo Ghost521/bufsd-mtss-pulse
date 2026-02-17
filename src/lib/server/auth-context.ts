@@ -1,11 +1,13 @@
 import {
   canUserAccessContext,
+  ensureTenantStoreHydrated,
   findUserByEmail,
   findUserById,
   getAccessibleContextsForMemberships,
   getUserGroups,
   getUserMemberships,
   normalizeContext,
+  provisionUserFromWorkOSEmail,
 } from "./tenant-store";
 import { clearCookie, parseCookieHeader, serializeCookie } from "./cookies";
 import { authenticateSealedWorkOSSession, isWorkOSEnabled, WORKOS_SESSION_COOKIE } from "./workos";
@@ -70,12 +72,20 @@ const resolveUserIdFromWorkOS = async (request: Request): Promise<string | null>
   if (!auth?.authenticated || !auth.user?.email) return null;
 
   const mapped = findUserByEmail(auth.user.email);
-  return mapped?.id ?? null;
+  if (mapped) return mapped.id;
+
+  const fullName = [auth.user.firstName, auth.user.lastName].filter((part): part is string => Boolean(part && part.trim())).join(" ");
+  const provisioned = await provisionUserFromWorkOSEmail({
+    email: auth.user.email,
+    name: fullName || null,
+  });
+  return provisioned.user?.id ?? null;
 };
 
 export const canSwitchUsersInSession = (): boolean => !isWorkOSEnabled() || ALLOW_IMPERSONATION;
 
 export const getSessionFromRequest = async (request: Request): Promise<SessionContext | null> => {
+  await ensureTenantStoreHydrated();
   const cookies = parseCookieHeader(request.headers.get("cookie"));
   const requestedContext = parseTenantContext(request.headers.get("x-mtss-context") ?? cookies[CONTEXT_COOKIE]);
 

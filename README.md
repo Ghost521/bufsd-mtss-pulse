@@ -26,8 +26,13 @@ This contains everything you need to run your app locally.
    - `WORKOS_CONNECTION_ID=...` (optional)
    - `APP_BASE_URL=http://localhost:3000`
    - `WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback`
+   - `WORKOS_PROVISION_AUTO_CREATE=true`
+   - `WORKOS_PROVISION_DEFAULT_ROLE=teacher`
+   - `WORKOS_PROVISION_DEFAULT_SCOPE_TYPE=school`
+   - `WORKOS_PROVISION_DEFAULT_SCOPE_ID=sch-ne`
    - `MTSS_ALLOW_IMPERSONATION=false`
-   - WorkOS user email must match a local tenant user email for access.
+   - `TENANT_AUTH_STORE_KEY=__tenant_auth__`
+   - If `WORKOS_PROVISION_AUTO_CREATE=false`, WorkOS user email must already match a local tenant user email.
 5. Deploy Convex functions (first time and when schema/functions change):
    - `npm run convex:dev` (local dev + codegen)
    - `npm run convex:deploy` (publish to cloud)
@@ -46,6 +51,7 @@ Dev server is pinned to `http://localhost:3000` (`strictPort` enabled). If port 
 - API routes: Start server routes (including `/api/ai/*`)
 - Optimistic updates: `/roster-table` now supports optimistic create/update/delete with automatic rollback on failure.
 - Multi-tenant + RBAC foundation: org/district/school context and server-enforced role checks are now active on student and AI APIs.
+- Tenant auth state persistence: org/district/school/users/memberships/groups/invites are now loaded from persisted storage (Convex-backed when enabled) instead of static in-memory constants.
 - Persistence: Convex-backed audit persistence with automatic memory fallback if Convex functions are unavailable.
 
 ## Student API (Compatibility Layer)
@@ -65,6 +71,7 @@ All student API operations now enforce active tenant context and field-level RBA
 - `GET /api/auth/callback`: WorkOS OAuth callback.
 - `GET /api/auth/logout`: clears local cookies and logs out of WorkOS session.
 - When WorkOS is enabled, user switching is disabled by default (`MTSS_ALLOW_IMPERSONATION=false`) and identity is mapped from WorkOS user email.
+- JIT provisioning: if no local user mapping exists, app can auto-provision a local user and default membership (`WORKOS_PROVISION_*` vars), prioritizing pending invite scope when available.
   - Request body example:
     - `{ "userId": "u-principal-ne" }`
     - `{ "context": { "organizationId": "org-bufsd", "districtId": "dist-bufsd", "schoolId": "sch-ne" } }`

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildSessionForUser, createSessionCookieHeaders } from "../../../lib/server/auth-context";
 import { clearCookie, parseCookieHeader, serializeCookie } from "../../../lib/server/cookies";
-import { findUserByEmail } from "../../../lib/server/tenant-store";
+import { ensureTenantStoreHydrated, findUserByEmail, isWorkOSAutoProvisionEnabled, provisionUserFromWorkOSEmail } from "../../../lib/server/tenant-store";
 import {
   WORKOS_OAUTH_STATE_COOKIE,
   WORKOS_RETURN_TO_COOKIE,
@@ -47,15 +47,25 @@ export const Route = createFileRoute("/api/auth/callback")({
           return Response.json({ ok: false, error: "WorkOS authentication failed." }, { status: 401 });
         }
 
-        const mappedUser = findUserByEmail(auth.user.email);
+        await ensureTenantStoreHydrated();
+        let mappedUser = findUserByEmail(auth.user.email);
         if (!mappedUser) {
-          return Response.json(
-            {
-              ok: false,
-              error: `No local tenant user mapping found for ${auth.user.email}.`,
-            },
-            { status: 403 }
-          );
+          const fullName = [auth.user.firstName, auth.user.lastName].filter((part): part is string => Boolean(part && part.trim())).join(" ");
+          const provisioned = await provisionUserFromWorkOSEmail({
+            email: auth.user.email,
+            name: fullName || null,
+          });
+          mappedUser = provisioned.user;
+          if (!mappedUser) {
+            return Response.json(
+              {
+                ok: false,
+                error: provisioned.reason ?? `No local tenant user mapping found for ${auth.user.email}.`,
+                autoProvisionEnabled: isWorkOSAutoProvisionEnabled(),
+              },
+              { status: 403 }
+            );
+          }
         }
 
         const session = buildSessionForUser(mappedUser.id);

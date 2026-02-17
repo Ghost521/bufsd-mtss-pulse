@@ -1,6 +1,16 @@
 import type { TenantContext } from "./tenant-types";
 
-type TenantDomain = "documents" | "messages" | "calendar";
+type TenantDomain =
+  | "documents"
+  | "messages"
+  | "calendar"
+  | "tenant_organizations"
+  | "tenant_districts"
+  | "tenant_schools"
+  | "tenant_users"
+  | "tenant_memberships"
+  | "tenant_groups"
+  | "tenant_invites";
 
 const DEFAULT_CONVEX_CLOUD_URL = "https://calculating-rook-861.convex.cloud";
 const DEFAULT_CONVEX_ACTIONS_URL = "https://calculating-rook-861.convex.site";

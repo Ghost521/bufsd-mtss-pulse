@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { canSwitchUsersInSession, getSessionFromRequest, getSessionSummary, resolveSessionChange } from "../../lib/server/auth-context";
 import { getAuditCount, newRequestId } from "../../lib/server/audit-log";
 import { getPersistenceDiagnostics } from "../../lib/server/persistence";
-import { getUsers } from "../../lib/server/tenant-store";
+import { getUsers, isWorkOSAutoProvisionEnabled } from "../../lib/server/tenant-store";
 import { getWorkOSConfigSummary, isWorkOSEnabled } from "../../lib/server/workos";
 
 export const Route = createFileRoute("/api/health")({
@@ -27,6 +27,7 @@ export const Route = createFileRoute("/api/health")({
             workosEnabled,
             signedIn: Boolean(summary),
             canSwitchUsers,
+            autoProvisionEnabled: isWorkOSAutoProvisionEnabled(),
             workos: getWorkOSConfigSummary(),
           },
           availableUsers: canSwitchUsers
