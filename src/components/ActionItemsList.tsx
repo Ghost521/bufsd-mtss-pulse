@@ -90,7 +90,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
     } catch (error) {
         console.error(error);
         setPlanTitle("Draft Intervention Plan");
-        setPlanNotes("Unable to generate AI plan. Please enter details manually.");
+        setPlanNotes("Unable to generate a recommended plan. Please enter details manually.");
         setIsEditingNotes(true); // Switch to edit mode if error
     } finally {
         setIsGeneratingPlan(false);
@@ -119,15 +119,15 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
       <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
         <div>
            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            Priority Action Items
+            Priority Student Support Actions
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-             {localItems.length} priority cases requiring attention.
+             {localItems.length} student cases ready for team review.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
            <BrainCircuit size={14} />
-           AI Analysis
+           Decision Support
         </div>
       </div>
       
@@ -136,7 +136,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
            <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
               <CheckCircle2 size={48} className="text-emerald-200 mb-4" />
               <p className="font-medium text-slate-600">All caught up!</p>
-              <p className="text-sm">No priority items detected.</p>
+              <p className="text-sm">No student cases currently flagged for follow-up.</p>
            </div>
         ) : (
           localItems.map((item) => (
@@ -147,7 +147,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                  <div className="absolute inset-0 bg-white/90 z-20 flex items-center justify-center backdrop-blur-[1px]">
                     <div className="flex flex-col items-center gap-2 text-emerald-600 animate-in fade-in zoom-in duration-300">
                         <CheckCircle2 size={32} />
-                        <span className="font-bold text-sm">Plan Created Successfully</span>
+                        <span className="font-bold text-sm">Support Plan Added</span>
                     </div>
                  </div>
               )}
@@ -182,7 +182,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                       </div>
                   </div>
                   <p className="text-sm text-slate-600 leading-relaxed py-1">
-                    <span className="font-semibold text-slate-700">Observation: </span>
+                    <span className="font-semibold text-slate-700">Signal: </span>
                     {item.insight}
                   </p>
               </div>
@@ -194,7 +194,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                     className="bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 group/btn"
                  >
                    <Sparkles size={16} className="text-indigo-500 group-hover/btn:animate-pulse" />
-                   Review AI Suggestion
+                   Review Recommended Plan
                  </button>
               </div>
             </div>
@@ -210,7 +210,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
               disabled={!onViewAll}
               className="text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-            View all flagged cases in reports ({visibleTotal})
+            View all flagged student cases in reports ({visibleTotal})
             </button>
         </div>
       )}
@@ -239,7 +239,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                     <BrainCircuit size={20} className="text-indigo-600" />
                 </div>
                 <div>
-                    <span className="font-bold text-sm uppercase tracking-wider text-indigo-900 block opacity-70">AI Proposed Plan</span>
+                    <span className="font-bold text-sm uppercase tracking-wider text-indigo-900 block opacity-70">Recommended Support Plan</span>
                     <span className="font-bold text-lg text-slate-800 leading-none">For {selectedItem?.studentName}</span>
                 </div>
             </div>
@@ -259,7 +259,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                     disabled={isGeneratingPlan}
                     className="flex-1 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all text-sm flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Approve Plan <ArrowRight size={16} />
+                    Approve and Add Plan <ArrowRight size={16} />
                 </button>
             </div>
         }
@@ -269,14 +269,14 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                 <div className="flex flex-col items-center justify-center gap-4 text-indigo-600 flex-1 h-full">
                     <Loader2 size={48} className="animate-spin" />
                     <div className="text-center">
-                        <p className="font-bold text-xl">Drafting Intervention...</p>
-                        <p className="text-sm text-indigo-400 mt-1">Analyzing behavior patterns and academic history</p>
+                        <p className="font-bold text-xl">Preparing Support Plan...</p>
+                        <p className="text-sm text-indigo-400 mt-1">Reviewing recent progress and intervention history</p>
                     </div>
                 </div>
             ) : (
                 <div className="space-y-5 flex-1">
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Proposed Intervention</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Recommended Intervention Plan</label>
                         <input 
                             type="text" 
                             value={planTitle}

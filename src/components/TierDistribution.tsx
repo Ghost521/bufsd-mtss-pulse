@@ -31,7 +31,7 @@ export const TierDistribution: React.FC<TierDistributionProps> = ({ data }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-      <h3 className="font-bold text-slate-800 mb-6">Tier Distribution</h3>
+      <h3 className="font-bold text-slate-800 mb-6">Tiered Support Distribution</h3>
       
       <div className="space-y-6">
         {data.map((item) => (

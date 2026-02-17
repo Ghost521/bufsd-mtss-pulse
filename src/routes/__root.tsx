@@ -34,13 +34,13 @@ function RootDocument({ children }: { children: ReactNode }) {
           <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
             <div className="flex items-center gap-3">
               <div className="hidden sm:block">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Global</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Platform</p>
                 <p className="text-xs font-semibold text-slate-600">Navigation</p>
               </div>
               <div className="flex items-center gap-2">
-                <NavLink to="/">Workspace</NavLink>
-                <NavLink to="/query-health">System Health</NavLink>
-                <NavLink to="/roster-table">Student Grid</NavLink>
+                <NavLink to="/">MTSS Workspace</NavLink>
+                <NavLink to="/query-health">Platform Health</NavLink>
+                <NavLink to="/roster-table">Student Roster</NavLink>
               </div>
             </div>
           </div>

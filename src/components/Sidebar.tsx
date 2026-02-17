@@ -38,28 +38,28 @@ type WorkspaceNavItem = {
 };
 
 const getMenuItems = (role: UserRole): WorkspaceNavItem[] => {
-  const knowledgeBaseItem: WorkspaceNavItem = { id: "documents", icon: Database, label: "Knowledge Base", implemented: true };
+  const knowledgeBaseItem: WorkspaceNavItem = { id: "documents", icon: Database, label: "Resource Library", implemented: true };
   const messagesItem: WorkspaceNavItem = { id: "messages", icon: MessageCircle, label: "Messages", implemented: true };
   const calendarItem: WorkspaceNavItem = { id: "calendar", icon: Calendar, label: "Calendar", implemented: true };
-  const importItem: WorkspaceNavItem = { id: "import", icon: HardDriveUpload, label: "Data Import", implemented: true };
+  const importItem: WorkspaceNavItem = { id: "import", icon: HardDriveUpload, label: "Data Integrations", implemented: true };
   const lessonPlansItem: WorkspaceNavItem = { id: "lesson_plans", icon: BookCopy, label: "Lesson Plans", implemented: true };
 
   switch (role) {
     case UserRole.PRINCIPAL:
       return [
-        { id: "dashboard", icon: LayoutDashboard, label: "Command Center", implemented: true },
+        { id: "dashboard", icon: LayoutDashboard, label: "Leadership Dashboard", implemented: true },
         { id: "rosters", icon: Users, label: "Rosters", implemented: true },
         lessonPlansItem,
         { id: "interventions", icon: FileText, label: "Intervention Plans", implemented: true },
         calendarItem,
-        { id: "reports", icon: BarChart2, label: "District Reports", implemented: true },
+        { id: "reports", icon: BarChart2, label: "School Reports", implemented: true },
         messagesItem,
         knowledgeBaseItem,
         importItem,
       ];
     case UserRole.TEACHER:
       return [
-        { id: "dashboard", icon: LayoutDashboard, label: "My Classroom", implemented: true },
+        { id: "dashboard", icon: LayoutDashboard, label: "Classroom Dashboard", implemented: true },
         { id: "class_roster", icon: Users, label: "Roster", implemented: true },
         { id: "gradebook", icon: BookOpen, label: "Gradebook", implemented: true },
         lessonPlansItem,
@@ -71,7 +71,7 @@ const getMenuItems = (role: UserRole): WorkspaceNavItem[] => {
       ];
     case UserRole.DISTRICT:
       return [
-        { id: "dashboard", icon: LayoutDashboard, label: "District Pulse", implemented: true },
+        { id: "dashboard", icon: LayoutDashboard, label: "District Dashboard", implemented: true },
         { id: "map", icon: School, label: "Schools Map", implemented: true },
         { id: "reports", icon: BarChart2, label: "System Reports", implemented: true },
         { id: "staffing", icon: Users, label: "Staffing", implemented: false },
@@ -82,7 +82,7 @@ const getMenuItems = (role: UserRole): WorkspaceNavItem[] => {
       ];
     case UserRole.PARENT:
       return [
-        { id: "dashboard", icon: LayoutDashboard, label: "My Child", implemented: true },
+        { id: "dashboard", icon: LayoutDashboard, label: "Student Progress", implemented: true },
         { id: "assignments", icon: ClipboardList, label: "Assignments", implemented: false },
         { id: "reports", icon: FileText, label: "Report Cards", implemented: true },
         calendarItem,
@@ -145,8 +145,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <div className="px-4 pt-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Workspace</p>
-            <p className="text-xs font-semibold text-slate-300">Role Tools</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">MTSS Platform</p>
+            <p className="text-xs font-semibold text-slate-300">Role Workspace</p>
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -177,12 +177,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="space-y-4 border-t border-slate-800 p-4">
             <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">Demo Role</label>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">View As Role</label>
               <select
                 value={currentRole}
                 onChange={(event) => onRoleChange(event.target.value as UserRole)}
                 className="w-full rounded border border-slate-700 bg-slate-800 p-2 text-xs text-slate-300 focus:border-brand-500 focus:outline-none"
-                aria-label="Switch workspace role"
+                aria-label="Switch active role view"
               >
                 {Object.values(UserRole).map((role) => (
                   <option key={role} value={role}>

@@ -150,10 +150,10 @@ const App: React.FC = () => {
   const roleHeadline = useMemo(
     () =>
       ({
-        [UserRole.PRINCIPAL]: 'Principal Command Center',
-        [UserRole.TEACHER]: 'Classroom Command Center',
-        [UserRole.DISTRICT]: 'District Operations Workspace',
-        [UserRole.PARENT]: 'Family Progress Workspace',
+        [UserRole.PRINCIPAL]: 'Leadership Dashboard',
+        [UserRole.TEACHER]: 'Classroom Dashboard',
+        [UserRole.DISTRICT]: 'District Dashboard',
+        [UserRole.PARENT]: 'Family Progress Dashboard',
       }) as Record<UserRole, string>,
     []
   );
@@ -290,7 +290,7 @@ const App: React.FC = () => {
   }, [freshness, timeTick]);
 
   const freshnessLabel = useMemo(() => {
-    if (!computedFreshness.lastUpdatedAt) return 'Update status unavailable';
+    if (!computedFreshness.lastUpdatedAt) return 'Data refresh status unavailable';
     const lastUpdatedTime = new Date(computedFreshness.lastUpdatedAt).getTime();
     const ageMinutes = Math.floor(Math.max(0, timeTick - lastUpdatedTime) / 60000);
     if (ageMinutes <= 0) return 'Updated just now';
@@ -486,7 +486,7 @@ const App: React.FC = () => {
     }
     return {
       id: 'new-referral',
-      label: 'New Referral',
+      label: 'Create Referral',
       enabled: true,
       onClick: () => setIsReferralModalOpen(true),
       icon: Plus,
@@ -545,12 +545,12 @@ const App: React.FC = () => {
 
   const topTasks: Array<{ id: string; label: string; onClick: () => void }> = ({
       [UserRole.PRINCIPAL]: [
-        { id: 'task-referral', label: 'Create Referral', onClick: () => setIsReferralModalOpen(true) },
-        { id: 'task-interventions', label: 'Review Interventions', onClick: () => setActivePage('interventions') },
+        { id: 'task-referral', label: 'Create Support Referral', onClick: () => setIsReferralModalOpen(true) },
+        { id: 'task-interventions', label: 'Review Active Supports', onClick: () => setActivePage('interventions') },
         { id: 'task-calendar', label: 'Open MTSS Calendar', onClick: () => setActivePage('calendar') },
       ],
       [UserRole.TEACHER]: [
-        { id: 'task-roster', label: 'Open Class Roster', onClick: () => setActivePage('class_roster') },
+        { id: 'task-roster', label: 'Open Student Roster', onClick: () => setActivePage('class_roster') },
         { id: 'task-messages', label: 'Message Family', onClick: () => handleNavigateToMessages('Mrs. Martinez') },
         { id: 'task-gradebook', label: 'Update Gradebook', onClick: () => setActivePage('gradebook') },
       ],
@@ -613,7 +613,7 @@ const App: React.FC = () => {
               <Menu size={24} />
             </button>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Dashboard</p>
               <h2 className="truncate text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">{roleHeadline[currentRole]}</h2>
               <p className="mt-1 text-sm font-medium text-slate-600">
                 {data.userName} • {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} • {currentDateLabel}
@@ -627,7 +627,7 @@ const App: React.FC = () => {
                       : 'text-slate-500'
                 }`}
               >
-                {freshnessLabel} • Local workspace source
+                {freshnessLabel} • Local demo dataset
               </p>
             </div>
           </div>
@@ -655,7 +655,7 @@ const App: React.FC = () => {
               aria-expanded={isMoreMenuOpen}
               aria-haspopup="menu"
             >
-              More
+              Actions
               <ChevronDown size={16} className={`transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -836,7 +836,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="mb-6 space-y-2">
-        {renderMobileSectionHeader('metrics', 'Performance Metrics', 'Current intervention and attendance indicators')}
+        {renderMobileSectionHeader('metrics', 'Performance Metrics', 'Intervention delivery and student outcome indicators')}
         <div className={`${mobileSections.metrics ? 'block' : 'hidden'} lg:block`}>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {data.metrics.map((metric) => (
@@ -862,20 +862,20 @@ const App: React.FC = () => {
 
           {showBriefing ? (
             <div className="space-y-2">
-              {renderMobileSectionHeader('aiBriefing', 'AI Executive Summary', 'Top risks and recommended actions')}
+              {renderMobileSectionHeader('aiBriefing', 'Leadership Briefing', 'Top risks and recommended next steps')}
               <div className={`${mobileSections.aiBriefing ? 'block' : 'hidden'} lg:block`}>{renderAIBriefing()}</div>
             </div>
           ) : null}
 
           {/* Dynamic Chart Section */}
           <div className="space-y-2">
-            {renderMobileSectionHeader('chart', data.chartTitle, 'Performance visualization')}
+            {renderMobileSectionHeader('chart', data.chartTitle, 'Outcome trend view')}
             <div className={`${mobileSections.chart ? 'block' : 'hidden'} lg:block`}>
               <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
                 <div className="mb-6 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800">{data.chartTitle}</h3>
-                    <p className="text-sm text-slate-500">Performance Visualization</p>
+                    <p className="text-sm text-slate-500">Outcome Trend View</p>
                   </div>
                 </div>
 
@@ -911,7 +911,7 @@ const App: React.FC = () => {
         <div className={`col-span-12 ${currentRole === UserRole.PARENT ? 'lg:col-span-5' : 'lg:col-span-4'} space-y-6 md:space-y-8`}>
           {currentRole !== UserRole.PARENT && data.tierDistribution ? (
             <div className="space-y-2">
-              {renderMobileSectionHeader('tierDistribution', 'Tier Distribution', 'Student support mix by tier')}
+              {renderMobileSectionHeader('tierDistribution', 'Tiered Support Distribution', 'Students receiving Tier 1, Tier 2, and Tier 3 supports')}
               <div className={`${mobileSections.tierDistribution ? 'block' : 'hidden'} lg:block`}>
                 <TierDistribution data={data.tierDistribution} />
               </div>
@@ -919,7 +919,7 @@ const App: React.FC = () => {
           ) : null}
 
           <div className="space-y-2 md:sticky md:top-8">
-            {renderMobileSectionHeader('monitoring', 'Monitoring Pulse', freshnessLabel)}
+            {renderMobileSectionHeader('monitoring', 'Student Monitoring Queue', freshnessLabel)}
             <div className={`${mobileSections.monitoring ? 'block' : 'hidden'} lg:block`}>
               <MonitoringPulse
                 students={data.monitoringPulse}

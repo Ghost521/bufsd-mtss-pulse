@@ -47,15 +47,15 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
         <div>
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-800">
             <Activity size={16} className="text-indigo-600" />
-            Monitoring Pulse
+            Student Monitoring Queue
           </h3>
-          <p className="mt-1 text-xs font-medium text-slate-500">{freshnessLabel ?? "Status unavailable"}</p>
+          <p className="mt-1 text-xs font-medium text-slate-500">{freshnessLabel ?? "Data status unavailable"}</p>
         </div>
       </div>
 
       <div className="flex-1 divide-y divide-slate-50">
         {students.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">No active monitoring alerts.</div>
+          <div className="p-8 text-center text-sm text-slate-400">No students currently flagged for progress check.</div>
         ) : (
           students.map((student) => {
             const trendStyle = getTrendStyles(student.trend);
@@ -99,7 +99,7 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
           disabled={!onViewAll}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-transparent py-2.5 text-xs font-bold text-slate-600 shadow-sm transition-all hover:border-slate-200 hover:bg-white hover:text-indigo-600 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
         >
-          View All Monitored Cases
+          View Full Monitoring Queue
           <ArrowRight size={14} />
         </button>
       </div>

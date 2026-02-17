@@ -62,7 +62,7 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
       const json = (await response.json()) as HealthSessionResponse;
       setData(json);
     } catch {
-      setError("Failed to load tenant context.");
+      setError("Unable to load organization context.");
     } finally {
       setIsBusy(false);
     }
@@ -90,11 +90,11 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || "Session update failed.");
+        throw new Error(body?.error || "Context update failed.");
       }
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Session update failed.");
+      setError(caught instanceof Error ? caught.message : "Context update failed.");
     } finally {
       setIsBusy(false);
     }
@@ -125,15 +125,15 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
 
   return (
     <div className={containerClass}>
-      <p className={labelClass}>Context</p>
+      <p className={labelClass}>Organization Context</p>
       {canSwitchUsers ? (
         <select
           value={data?.session?.user.id ?? ""}
           onChange={(event) => void onUserChange(event.target.value)}
           disabled={isBusy || !data}
           className={`${inputClass} ${isSidebar ? "w-full" : "max-w-[180px]"}`}
-          title="Active user"
-          aria-label="Active user"
+          title="Active user profile"
+          aria-label="Active user profile"
         >
           {(data?.availableUsers ?? []).map((user) => (
             <option key={user.id} value={user.id}>
@@ -148,8 +148,8 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
         onChange={(event) => void onContextChange(event.target.value)}
         disabled={isBusy || !hasSession || availableContexts.length === 0}
         className={`${inputClass} ${isSidebar ? "w-full" : "max-w-[240px]"}`}
-        title="Active tenant context"
-        aria-label="Active tenant context"
+        title="Active organization context"
+        aria-label="Active organization context"
       >
         {availableContexts.map((context) => (
           <option key={contextKey(context)} value={contextKey(context)}>
@@ -164,7 +164,7 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
         disabled={isBusy}
         className={actionClass}
       >
-        Refresh
+        Refresh Context
       </button>
       {workosEnabled && hasSession ? (
         <a
