@@ -34,9 +34,9 @@ import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'rechar
 import { generateDashboardBriefing } from '../services/geminiService';
 import {
   buildWorkspacePath,
+  DEFAULT_WORKSPACE_PAGE,
   normalizePageForRole,
   slugToPage,
-  slugToRole,
   type WorkspacePageId,
 } from '../lib/workspaceRoutes';
 
@@ -86,19 +86,43 @@ type FlashMessage = {
   text: string;
 };
 
+type HealthSessionResponse = {
+  session: {
+    user?: {
+      primaryRole?: string;
+    };
+    effectiveRoles?: string[];
+  } | null;
+};
+
+const ALL_WORKSPACE_ROLES: UserRole[] = [
+  UserRole.PRINCIPAL,
+  UserRole.TEACHER,
+  UserRole.DISTRICT,
+  UserRole.PARENT,
+];
+
+const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | null => {
+  if (role === 'principal') return UserRole.PRINCIPAL;
+  if (role === 'teacher') return UserRole.TEACHER;
+  if (role === 'district_admin' || role === 'org_admin') return UserRole.DISTRICT;
+  if (role === 'parent') return UserRole.PARENT;
+  return null;
+};
+
 const App: React.FC = () => {
   const navigate = useNavigate();
   const routeParams = useParams({ strict: false });
-  const routeRole = slugToRole((routeParams as { role?: string }).role) ?? UserRole.PRINCIPAL;
-  const routePage = normalizePageForRole(routeRole, slugToPage((routeParams as { page?: string }).page));
+  const routePage = slugToPage((routeParams as { page?: string }).page);
 
-  const [currentRole, setCurrentRole] = useState<UserRole>(routeRole);
+  const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
+  const [availableRoles, setAvailableRoles] = useState<UserRole[]>(ALL_WORKSPACE_ROLES);
   const [data, setData] = useState<DashboardData>(PRINCIPAL_DATA);
   const [hasHydrated, setHasHydrated] = useState(false);
   
   // UI State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activePage, setActivePage] = useState<WorkspacePageId>(routePage);
+  const [activePage, setActivePage] = useState<WorkspacePageId>(DEFAULT_WORKSPACE_PAGE);
   const [messageRecipient, setMessageRecipient] = useState<string | undefined>(undefined);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [flashMessage, setFlashMessage] = useState<FlashMessage | null>(null);
@@ -166,10 +190,52 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setCurrentRole(routeRole);
-    setActivePage(routePage);
+    let isMounted = true;
+
+    const loadSessionRoles = async () => {
+      try {
+        const response = await fetch('/api/health');
+        if (!response.ok) return;
+        const payload = (await response.json()) as HealthSessionResponse;
+        const session = payload.session;
+        if (!session) return;
+
+        const mappedRoles = (session.effectiveRoles ?? [])
+          .map((role) => mapSessionRoleToUserRole(role))
+          .filter((role): role is UserRole => role !== null);
+        const primaryRole = mapSessionRoleToUserRole(session.user?.primaryRole);
+        const nextRoles = Array.from(
+          new Set<UserRole>([
+            ...mappedRoles,
+            ...(primaryRole ? [primaryRole] : []),
+          ])
+        );
+
+        if (!isMounted || nextRoles.length === 0) return;
+        setAvailableRoles(nextRoles);
+        setCurrentRole((previous) => (nextRoles.includes(previous) ? previous : nextRoles[0]));
+      } catch {
+        // Keep default local role state when health lookup fails.
+      }
+    };
+
+    void loadSessionRoles();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const requestedPage = routePage ?? DEFAULT_WORKSPACE_PAGE;
+    const normalizedPage = normalizePageForRole(currentRole, requestedPage);
+
+    setActivePage(normalizedPage);
     setIsMobileMenuOpen(false);
-  }, [routePage, routeRole]);
+
+    if (requestedPage !== normalizedPage) {
+      void navigate({ to: buildWorkspacePath(normalizedPage), replace: true });
+    }
+  }, [currentRole, navigate, routePage]);
 
   // Update data when role changes
   useEffect(() => {
@@ -353,16 +419,17 @@ const App: React.FC = () => {
     const nextPage = normalizePageForRole(currentRole, page);
     setActivePage(nextPage);
     setIsMobileMenuOpen(false);
-    void navigate({ to: buildWorkspacePath(currentRole, nextPage) });
+    void navigate({ to: buildWorkspacePath(nextPage) });
   };
 
   const handleRoleChange = (nextRole: UserRole) => {
+    if (!availableRoles.includes(nextRole)) return;
     const targetPage = normalizePageForRole(nextRole, activePage === 'profile' ? 'dashboard' : activePage);
     setCurrentRole(nextRole);
     setActivePage(targetPage);
     setProfileStudent(null);
     setIsMobileMenuOpen(false);
-    void navigate({ to: buildWorkspacePath(nextRole, targetPage) });
+    void navigate({ to: buildWorkspacePath(targetPage) });
   };
 
   useEffect(() => {
@@ -1144,6 +1211,7 @@ const App: React.FC = () => {
 
       <Sidebar 
         currentRole={currentRole} 
+        availableRoles={availableRoles}
         onRoleChange={handleRoleChange}
         userName={data.userName}
         schoolName={data.schoolName}

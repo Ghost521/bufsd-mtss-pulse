@@ -24,6 +24,7 @@ import { buildWorkspacePath } from "../lib/workspaceRoutes";
 
 interface SidebarProps {
   currentRole: UserRole;
+  availableRoles: UserRole[];
   onRoleChange: (role: UserRole) => void;
   userName: string;
   schoolName: string;
@@ -98,6 +99,7 @@ const getMenuItems = (role: UserRole): WorkspaceNavItem[] => {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentRole,
+  availableRoles,
   onRoleChange,
   userName,
   schoolName,
@@ -158,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               return (
                 <Link
                   key={item.id}
-                  to={buildWorkspacePath(currentRole, item.id)}
+                  to={buildWorkspacePath(item.id)}
                   activeOptions={{ exact: true }}
                   onClick={() => {
                     onClose();
@@ -184,10 +186,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <select
                 value={currentRole}
                 onChange={(event) => onRoleChange(event.target.value as UserRole)}
+                disabled={availableRoles.length <= 1}
                 className="w-full rounded border border-slate-700 bg-slate-800 p-2 text-xs text-slate-300 focus:border-brand-500 focus:outline-none"
                 aria-label="Switch active role view"
               >
-                {Object.values(UserRole).map((role) => (
+                {availableRoles.map((role) => (
                   <option key={role} value={role}>
                     {role}
                   </option>
@@ -196,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <Link
-              to={buildWorkspacePath(currentRole, "settings")}
+              to={buildWorkspacePath("settings")}
               activeOptions={{ exact: true }}
               onClick={() => {
                 onClose();

@@ -11,11 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RosterTableRouteImport } from './routes/roster-table'
 import { Route as QueryHealthRouteImport } from './routes/query-health'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AppRoleRouteImport } from './routes/app.$role'
+import { Route as AppPageRouteImport } from './routes/app.$page'
 import { Route as ApiStudentsRouteImport } from './routes/api/students'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
-import { Route as AppRolePageRouteImport } from './routes/app.$role.$page'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
@@ -31,15 +31,20 @@ const QueryHealthRoute = QueryHealthRouteImport.update({
   path: '/query-health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoleRoute = AppRoleRouteImport.update({
-  id: '/app/$role',
-  path: '/app/$role',
-  getParentRoute: () => rootRouteImport,
+const AppPageRoute = AppPageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiStudentsRoute = ApiStudentsRouteImport.update({
   id: '/api/students',
@@ -50,11 +55,6 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AppRolePageRoute = AppRolePageRouteImport.update({
-  id: '/$page',
-  path: '/$page',
-  getParentRoute: () => AppRoleRoute,
 } as any)
 const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
   id: '/api/auth/logout',
@@ -79,93 +79,93 @@ const ApiAiEndpointRoute = ApiAiEndpointRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
   '/query-health': typeof QueryHealthRoute
   '/roster-table': typeof RosterTableRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
-  '/app/$role': typeof AppRoleRouteWithChildren
+  '/app/$page': typeof AppPageRoute
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
-  '/app/$role/$page': typeof AppRolePageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
   '/query-health': typeof QueryHealthRoute
   '/roster-table': typeof RosterTableRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
-  '/app/$role': typeof AppRoleRouteWithChildren
+  '/app/$page': typeof AppPageRoute
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
-  '/app/$role/$page': typeof AppRolePageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
   '/query-health': typeof QueryHealthRoute
   '/roster-table': typeof RosterTableRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
-  '/app/$role': typeof AppRoleRouteWithChildren
+  '/app/$page': typeof AppPageRoute
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
-  '/app/$role/$page': typeof AppRolePageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app'
     | '/query-health'
     | '/roster-table'
     | '/api/health'
     | '/api/students'
-    | '/app/$role'
+    | '/app/$page'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
-    | '/app/$role/$page'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/app'
     | '/query-health'
     | '/roster-table'
     | '/api/health'
     | '/api/students'
-    | '/app/$role'
+    | '/app/$page'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
-    | '/app/$role/$page'
   id:
     | '__root__'
     | '/'
+    | '/app'
     | '/query-health'
     | '/roster-table'
     | '/api/health'
     | '/api/students'
-    | '/app/$role'
+    | '/app/$page'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
     | '/api/auth/login'
     | '/api/auth/logout'
-    | '/app/$role/$page'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
   QueryHealthRoute: typeof QueryHealthRoute
   RosterTableRoute: typeof RosterTableRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiStudentsRoute: typeof ApiStudentsRoute
-  AppRoleRoute: typeof AppRoleRouteWithChildren
   ApiAiEndpointRoute: typeof ApiAiEndpointRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -188,6 +188,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueryHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -195,12 +202,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/app/$role': {
-      id: '/app/$role'
-      path: '/app/$role'
-      fullPath: '/app/$role'
-      preLoaderRoute: typeof AppRoleRouteImport
-      parentRoute: typeof rootRouteImport
+    '/app/$page': {
+      id: '/app/$page'
+      path: '/$page'
+      fullPath: '/app/$page'
+      preLoaderRoute: typeof AppPageRouteImport
+      parentRoute: typeof AppRoute
     }
     '/api/students': {
       id: '/api/students'
@@ -215,13 +222,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/app/$role/$page': {
-      id: '/app/$role/$page'
-      path: '/$page'
-      fullPath: '/app/$role/$page'
-      preLoaderRoute: typeof AppRolePageRouteImport
-      parentRoute: typeof AppRoleRoute
     }
     '/api/auth/logout': {
       id: '/api/auth/logout'
@@ -254,24 +254,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AppRoleRouteChildren {
-  AppRolePageRoute: typeof AppRolePageRoute
+interface AppRouteChildren {
+  AppPageRoute: typeof AppPageRoute
 }
 
-const AppRoleRouteChildren: AppRoleRouteChildren = {
-  AppRolePageRoute: AppRolePageRoute,
+const AppRouteChildren: AppRouteChildren = {
+  AppPageRoute: AppPageRoute,
 }
 
-const AppRoleRouteWithChildren =
-  AppRoleRoute._addFileChildren(AppRoleRouteChildren)
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
   QueryHealthRoute: QueryHealthRoute,
   RosterTableRoute: RosterTableRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiStudentsRoute: ApiStudentsRoute,
-  AppRoleRoute: AppRoleRouteWithChildren,
   ApiAiEndpointRoute: ApiAiEndpointRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,

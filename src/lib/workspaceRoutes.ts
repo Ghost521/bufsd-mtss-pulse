@@ -1,7 +1,5 @@
 import { UserRole } from "../types";
 
-export type RoleSlug = "principal" | "teacher" | "district" | "parent";
-
 export type WorkspacePageId =
   | "dashboard"
   | "rosters"
@@ -19,20 +17,6 @@ export type WorkspacePageId =
   | "profile";
 
 export const DEFAULT_WORKSPACE_PAGE: WorkspacePageId = "dashboard";
-
-const ROLE_TO_SLUG: Record<UserRole, RoleSlug> = {
-  [UserRole.PRINCIPAL]: "principal",
-  [UserRole.TEACHER]: "teacher",
-  [UserRole.DISTRICT]: "district",
-  [UserRole.PARENT]: "parent",
-};
-
-const SLUG_TO_ROLE: Record<RoleSlug, UserRole> = {
-  principal: UserRole.PRINCIPAL,
-  teacher: UserRole.TEACHER,
-  district: UserRole.DISTRICT,
-  parent: UserRole.PARENT,
-};
 
 const PAGE_ID_TO_SLUG: Record<WorkspacePageId, string> = {
   dashboard: "dashboard",
@@ -97,17 +81,6 @@ export const ROLE_ALLOWED_PAGES: Record<UserRole, WorkspacePageId[]> = {
   [UserRole.PARENT]: ["dashboard", "reports", "calendar", "messages", "documents", "settings", "profile"],
 };
 
-export function roleToSlug(role: UserRole): RoleSlug {
-  return ROLE_TO_SLUG[role];
-}
-
-export function slugToRole(value?: string): UserRole | null {
-  if (!value) {
-    return null;
-  }
-  return SLUG_TO_ROLE[value as RoleSlug] ?? null;
-}
-
 export function pageToSlug(page: WorkspacePageId): string {
   return PAGE_ID_TO_SLUG[page];
 }
@@ -130,10 +103,9 @@ export function normalizePageForRole(role: UserRole, page?: WorkspacePageId | nu
   return DEFAULT_WORKSPACE_PAGE;
 }
 
-export function buildWorkspacePath(role: UserRole, page: WorkspacePageId = DEFAULT_WORKSPACE_PAGE): string {
-  const roleSlug = roleToSlug(role);
+export function buildWorkspacePath(page: WorkspacePageId = DEFAULT_WORKSPACE_PAGE): string {
   if (page === DEFAULT_WORKSPACE_PAGE) {
-    return `/app/${roleSlug}`;
+    return "/app";
   }
-  return `/app/${roleSlug}/${pageToSlug(page)}`;
+  return `/app/${pageToSlug(page)}`;
 }
