@@ -1,17 +1,23 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { ActionItem } from '../types';
 import { Sparkles, ArrowRight, X, CheckCircle2, AlertTriangle, Loader2, BrainCircuit, Edit, Eye, Undo2 } from 'lucide-react';
-import { generateActionItemPlan } from '../services/geminiService';
+import { generateActionItemPlan, getAiFailureInfo } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { DraggableModal } from './DraggableModal';
 
 interface ActionItemsListProps {
   items: ActionItem[];
   onStudentClick: (studentName: string) => void;
-  onViewAll?: () => void;
+  onViewAll: () => void;
   totalCount?: number;
 }
+
+type PlanErrorState = {
+  message: string;
+  isRetryable: boolean;
+  retryAvailableAtMs?: number;
+};
 
 export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStudentClick, onViewAll, totalCount }) => {
   const [localItems, setLocalItems] = useState<ActionItem[]>(items);
@@ -25,6 +31,8 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
   const [planNotes, setPlanNotes] = useState("");
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [planError, setPlanError] = useState<PlanErrorState | null>(null);
+  const [timerTick, setTimerTick] = useState(() => Date.now());
 
   // Sync props to state when role/data changes
   useEffect(() => {
@@ -41,6 +49,20 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
       window.clearTimeout(timer);
     };
   }, [lastDismissed]);
+
+  useEffect(() => {
+    if (!planError?.retryAvailableAtMs) return;
+    const interval = window.setInterval(() => setTimerTick(Date.now()), 1000);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [planError?.retryAvailableAtMs]);
+
+  const retrySecondsRemaining = useMemo(() => {
+    if (!planError?.retryAvailableAtMs) return 0;
+    const remaining = Math.ceil((planError.retryAvailableAtMs - timerTick) / 1000);
+    return Math.max(0, remaining);
+  }, [planError?.retryAvailableAtMs, timerTick]);
 
   const getBadgeColor = (category: string) => {
     switch (category) {
@@ -73,27 +95,63 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
     setLastDismissed(null);
   };
 
-  const handleReviewClick = async (item: ActionItem) => {
+  const handleReviewClick = async (item: ActionItem, options?: { preserveDraft?: boolean }) => {
+    const preserveDraft = options?.preserveDraft ?? false;
+    const previousTitle = planTitle;
+    const previousNotes = planNotes;
+
     setSelectedItem(item);
     setReviewMode(true);
     setIsGeneratingPlan(true);
+    setPlanError(null);
     setIsEditingNotes(false); // Default to preview mode for better readability
     
     // Reset fields while loading
-    setPlanTitle("");
-    setPlanNotes("");
+    if (!preserveDraft) {
+      setPlanTitle("");
+      setPlanNotes("");
+    }
 
     try {
         const result = await generateActionItemPlan(item.studentName, item.grade, item.category, item.insight);
         setPlanTitle(result.title);
         setPlanNotes(result.notes);
+        setPlanError(null);
     } catch (error) {
-        console.error(error);
-        setPlanTitle("Draft Intervention Plan");
-        setPlanNotes("Unable to generate a recommended plan. Please enter details manually.");
+        const failure = getAiFailureInfo(error);
+        const retryAvailableAtMs = failure.retryAfterSeconds ? Date.now() + failure.retryAfterSeconds * 1000 : undefined;
+        setPlanError({
+          message: failure.message,
+          isRetryable: failure.isRetryable,
+          retryAvailableAtMs,
+        });
+
+        if (preserveDraft && (previousTitle.trim().length > 0 || previousNotes.trim().length > 0)) {
+          setPlanTitle(previousTitle);
+          setPlanNotes(previousNotes);
+        } else {
+          setPlanTitle("Draft Intervention Plan");
+          setPlanNotes("Unable to generate a recommended plan. Please enter details manually.");
+        }
         setIsEditingNotes(true); // Switch to edit mode if error
     } finally {
         setIsGeneratingPlan(false);
+    }
+  };
+
+  const handleRetryPlanGeneration = () => {
+    if (!selectedItem || retrySecondsRemaining > 0) return;
+    void handleReviewClick(selectedItem, { preserveDraft: true });
+  };
+
+  const handleContinueManually = () => {
+    setPlanError(null);
+    setIsEditingNotes(true);
+    if (!planTitle.trim()) {
+      setPlanTitle("Draft Intervention Plan");
+    }
+    if (!planNotes.trim()) {
+      setPlanNotes("Add intervention rationale, implementation steps, progress-monitoring plan, and owner.");
     }
   };
 
@@ -189,7 +247,9 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
 
               <div className="flex justify-end">
                  <button 
-                    onClick={() => handleReviewClick(item)}
+                    onClick={() => {
+                      void handleReviewClick(item);
+                    }}
                     type="button"
                     className="bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 group/btn"
                  >
@@ -207,8 +267,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
             <button
               type="button"
               onClick={onViewAll}
-              disabled={!onViewAll}
-              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
             >
             View all flagged student cases in reports ({visibleTotal})
             </button>
@@ -275,6 +334,30 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                 </div>
             ) : (
                 <div className="space-y-5 flex-1">
+                    {planError ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                            <p className="font-semibold">AI recommendation unavailable right now.</p>
+                            <p className="mt-1">{planError.message}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleRetryPlanGeneration}
+                                    disabled={!planError.isRetryable || retrySecondsRemaining > 0 || isGeneratingPlan}
+                                    className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {retrySecondsRemaining > 0 ? `Retry in ${retrySecondsRemaining}s` : "Retry"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleContinueManually}
+                                    className="rounded-md border border-transparent bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                                >
+                                    Continue Manually
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
+
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Recommended Intervention Plan</label>
                         <input 

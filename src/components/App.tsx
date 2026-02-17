@@ -168,6 +168,7 @@ const App: React.FC = () => {
   useEffect(() => {
     setCurrentRole(routeRole);
     setActivePage(routePage);
+    setIsMobileMenuOpen(false);
   }, [routePage, routeRole]);
 
   // Update data when role changes
@@ -351,6 +352,7 @@ const App: React.FC = () => {
   const navigateToPage = (page: WorkspacePageId) => {
     const nextPage = normalizePageForRole(currentRole, page);
     setActivePage(nextPage);
+    setIsMobileMenuOpen(false);
     void navigate({ to: buildWorkspacePath(currentRole, nextPage) });
   };
 
@@ -359,8 +361,21 @@ const App: React.FC = () => {
     setCurrentRole(nextRole);
     setActivePage(targetPage);
     setProfileStudent(null);
+    setIsMobileMenuOpen(false);
     void navigate({ to: buildWorkspacePath(nextRole, targetPage) });
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleViewportChange = () => {
+      setIsMobileMenuOpen(false);
+    };
+    mediaQuery.addEventListener("change", handleViewportChange);
+    return () => {
+      mediaQuery.removeEventListener("change", handleViewportChange);
+    };
+  }, []);
 
   const handleRefresh = () => {
     if (isRefreshing) return;
@@ -946,7 +961,15 @@ const App: React.FC = () => {
               <MonitoringPulse
                 students={data.monitoringPulse}
                 onStudentClick={handleStudentClick}
-                onViewAll={() => navigateToPage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'class_roster' : 'reports')}
+                onViewAll={() =>
+                  navigateToPage(
+                    currentRole === UserRole.PRINCIPAL
+                      ? 'rosters'
+                      : currentRole === UserRole.TEACHER
+                        ? 'class_roster'
+                        : 'reports'
+                  )
+                }
                 freshnessLabel={freshnessLabel}
               />
             </div>

@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Minus, CheckCircle2, ArrowRight, Activity, Za
 interface MonitoringPulseProps {
   students: StudentMonitoring[];
   onStudentClick: (studentName: string) => void;
-  onViewAll?: () => void;
+  onViewAll: () => void;
   freshnessLabel?: string;
 }
 
@@ -95,8 +95,15 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
       <div className="border-t border-slate-100 bg-slate-50/50 p-3">
         <button
           type="button"
-          onClick={onViewAll}
-          disabled={!onViewAll}
+          onClick={() => {
+            if (!onViewAll) {
+              if (import.meta.env.DEV) {
+                console.warn("[MonitoringPulse] Missing onViewAll handler.");
+              }
+              return;
+            }
+            onViewAll();
+          }}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-transparent py-2.5 text-xs font-bold text-slate-600 shadow-sm transition-all hover:border-slate-200 hover:bg-white hover:text-indigo-600 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
         >
           View Full Monitoring Queue

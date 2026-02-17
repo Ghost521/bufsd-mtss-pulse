@@ -16,12 +16,19 @@ const DEBUG_STREAM = import.meta.env.VITE_MTSS_DEBUG_STREAM === "true";
 const DEFAULT_IDLE_TIMEOUT_MS = 20_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 90_000;
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message);
     this.name = "ApiError";
   }
 }
+
+export type AiFailureInfo = {
+  message: string;
+  isRetryable: boolean;
+  retryAfterSeconds?: number;
+  status?: number;
+};
 
 const parseNestedJson = (raw: string): unknown => {
   try {
@@ -59,6 +66,47 @@ const normalizeAiErrorMessage = (rawMessage: string): string => {
   }
 
   return message.length > 320 ? `${message.slice(0, 320)}...` : message;
+};
+
+const parseRetryAfterSeconds = (message: string): number | undefined => {
+  const retryMatch = message.match(/about\s+(\d+)\s+seconds?/i) ?? message.match(/retry in\s+(\d+)\s+seconds?/i);
+  if (!retryMatch) return undefined;
+  const parsed = Number.parseInt(retryMatch[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+export const getAiFailureInfo = (
+  error: unknown,
+  fallback = "Unable to generate an AI recommendation right now."
+): AiFailureInfo => {
+  if (error instanceof ApiError) {
+    const retryAfterSeconds = parseRetryAfterSeconds(error.message);
+    const isRetryable =
+      error.status === 429 ||
+      error.status === 503 ||
+      error.status === 408 ||
+      /rate limit|retry|temporar|timeout|unavailable/i.test(error.message);
+    return {
+      message: error.message || fallback,
+      status: error.status,
+      isRetryable,
+      retryAfterSeconds,
+    };
+  }
+
+  if (error instanceof Error) {
+    const message = error.message || fallback;
+    return {
+      message,
+      isRetryable: /rate limit|retry|temporar|timeout|unavailable/i.test(message),
+      retryAfterSeconds: parseRetryAfterSeconds(message),
+    };
+  }
+
+  return {
+    message: fallback,
+    isRetryable: false,
+  };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
