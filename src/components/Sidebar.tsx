@@ -56,6 +56,8 @@ type WorkspaceNavGroup = {
   items: WorkspaceNavItem[];
 };
 
+const showSidebarTestControls = import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
+
 const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
   const dashboardByRole: Record<UserRole, WorkspaceNavItem> = {
     [UserRole.PRINCIPAL]: { id: "dashboard", icon: LayoutDashboard, label: "Leadership Dashboard" },
@@ -360,23 +362,25 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             </div>
 
             <div className="mt-3 space-y-3">
-              <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
-                <label className="mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">View As Role</label>
-                <p className="mb-2 text-xs text-slate-500">Choose the perspective for this workspace.</p>
-                <select
-                  value={currentRole}
-                  onChange={(event) => onRoleChange(event.target.value as UserRole)}
-                  disabled={availableRoles.length <= 1}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-xs text-slate-100 transition-colors focus:border-brand-400 focus:outline-none"
-                  aria-label="Switch active role view"
-                >
-                  {availableRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {showSidebarTestControls ? (
+                <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
+                  <label className="mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">View As Role</label>
+                  <p className="mb-2 text-xs text-slate-500">Choose the perspective for this workspace.</p>
+                  <select
+                    value={currentRole}
+                    onChange={(event) => onRoleChange(event.target.value as UserRole)}
+                    disabled={availableRoles.length <= 1}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-xs text-slate-100 transition-colors focus:border-brand-400 focus:outline-none"
+                    aria-label="Switch active role view"
+                  >
+                    {availableRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
               <Link
                 to={buildWorkspacePath("settings")}
@@ -395,11 +399,13 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <span className="text-[11px] text-slate-400">Manage</span>
               </Link>
 
-              <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
-                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">Workspace Session</p>
-                <p className="mb-2 text-xs text-slate-500">Update organization context and authentication state.</p>
-                <TenantContextSwitcher variant="sidebar" />
-              </div>
+              {showSidebarTestControls ? (
+                <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
+                  <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">Workspace Session</p>
+                  <p className="mb-2 text-xs text-slate-500">Update organization context and authentication state.</p>
+                  <TenantContextSwitcher variant="sidebar" />
+                </div>
+              ) : null}
             </div>
           </section>
         )}
