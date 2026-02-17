@@ -1,25 +1,7 @@
-
-import React, { useState, useRef } from 'react';
-import { UserRole } from '../types';
-import { 
-  User, 
-  Bell, 
-  Shield, 
-  Globe, 
-  Database, 
-  Smartphone, 
-  Mail, 
-  Save, 
-  Loader2, 
-  CheckCircle2, 
-  Camera,
-  Lock,
-  Eye,
-  EyeOff,
-  LogOut,
-  CreditCard,
-  School
-} from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Bell, Camera, CheckCircle2, Database, Globe, Loader2, LogOut, Mail, RotateCcw, Save, School, Shield, User } from "lucide-react";
+import { UserRole } from "../types";
+import { settingsRecordSchema, settingsSectionSchemaMap, type SettingsRecord, type SettingsSectionId } from "../lib/schemas/settings";
 
 interface SettingsViewProps {
   currentUserRole: UserRole;
@@ -27,431 +9,381 @@ interface SettingsViewProps {
   currentSchoolName: string;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ 
-  currentUserRole, 
-  currentUserName,
-  currentSchoolName: _currentSchoolName
-}) => {
-  const [activeTab, setActiveTab] = useState('profile');
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  
-  // Profile State
-  const [displayName, setDisplayName] = useState(currentUserName);
-  const [email, setEmail] = useState(`${currentUserName.toLowerCase().replace(/\s/g, '.')}@bufsd.org`);
-  const [bio, setBio] = useState('');
-  const [avatar, setAvatar] = useState<string | null>(null);
+type SectionStatus = { saving: boolean; success: string | null; error: string | null };
+type SectionItem = { id: SettingsSectionId; label: string; icon: React.ComponentType<{ size?: number }>; roles: UserRole[] | "all" };
+
+const sections: SectionItem[] = [
+  { id: "profile", label: "My Profile", icon: User, roles: "all" },
+  { id: "notifications", label: "Notifications", icon: Bell, roles: "all" },
+  { id: "security", label: "Security", icon: Shield, roles: "all" },
+  { id: "preferences", label: "Family Preferences", icon: Globe, roles: [UserRole.PARENT] },
+  { id: "classroom", label: "Classroom Defaults", icon: School, roles: [UserRole.TEACHER] },
+  { id: "system", label: "System Integrations", icon: Database, roles: [UserRole.PRINCIPAL, UserRole.DISTRICT] },
+];
+
+const sectionIds = sections.map((s) => s.id);
+const blankStatus = () =>
+  Object.fromEntries(sectionIds.map((id) => [id, { saving: false, success: null, error: null }])) as Record<SettingsSectionId, SectionStatus>;
+const blankErrors = () => Object.fromEntries(sectionIds.map((id) => [id, {}])) as Record<SettingsSectionId, Record<string, string>>;
+
+const parseApiError = async (response: Response) => {
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  return payload?.error ?? `Request failed (${response.status})`;
+};
+
+const fallbackRecord = (name: string, role: UserRole): SettingsRecord =>
+  settingsRecordSchema.parse({
+    id: "settings::fallback",
+    userId: "fallback",
+    version: 1,
+    profile: { displayName: name, email: `${name.toLowerCase().replace(/\s+/g, ".")}@bufsd.org`, bio: "", avatarUrl: null },
+    notifications: {
+      emailNotifications: true,
+      pushNotifications: false,
+      digestFrequency: "Daily",
+      alerts: {
+        newMessageReceived: true,
+        mtssMeetingScheduled: true,
+        interventionPlanGoalMet: true,
+        studentFlaggedAtRisk: true,
+      },
+    },
+    security: { twoFactorEnabled: true, providerManagedAuth: true, lastPasswordChangedAt: null },
+    preferences: { preferredLanguage: "English", contactMethodPriority: "Email first, then Phone" },
+    classroom: { autoFlagLowAttendance: role === UserRole.TEACHER, weeklyParentSummary: role === UserRole.TEACHER },
+    system: { infiniteCampusConnected: true, cleverConnected: true, powerSchoolConnected: false },
+    updatedAt: new Date().toISOString(),
+    updatedBy: "fallback",
+  });
+
+const Toggle: React.FC<{ label: string; checked: boolean; onChange: (checked: boolean) => void }> = ({ label, checked, onChange }) => (
+  <label className="relative inline-flex cursor-pointer items-center" aria-label={label}>
+    <input type="checkbox" className="peer sr-only" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <span className="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-300" />
+    <span className="pointer-events-none absolute left-[2px] top-[2px] h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5" />
+  </label>
+);
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, currentUserName, currentSchoolName }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<SettingsSectionId>("profile");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [record, setRecord] = useState<SettingsRecord | null>(null);
+  const [draft, setDraft] = useState<SettingsRecord | null>(null);
+  const [status, setStatus] = useState<Record<SettingsSectionId, SectionStatus>>(blankStatus);
+  const [errors, setErrors] = useState<Record<SettingsSectionId, Record<string, string>>>(blankErrors);
 
-  // Security State
-  const [showPassword, setShowPassword] = useState(false);
-  const [twoFactor, setTwoFactor] = useState(true);
+  const visibleSections = useMemo(
+    () => sections.filter((item) => item.roles === "all" || item.roles.includes(currentUserRole)),
+    [currentUserRole]
+  );
 
-  // Notification State
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [pushNotifs, setPushNotifs] = useState(false);
-  const [digestFreq, setDigestFreq] = useState('Daily');
+  useEffect(() => {
+    if (!visibleSections.some((section) => section.id === activeTab)) {
+      setActiveTab(visibleSections[0]?.id ?? "profile");
+    }
+  }, [activeTab, visibleSections]);
 
-  const handleSave = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      setSuccessMsg('Settings saved successfully.');
-      setTimeout(() => setSuccessMsg(null), 3000);
-    }, 1000);
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const response = await fetch("/api/data/settings");
+        if (!response.ok) throw new Error(await parseApiError(response));
+        const payload = (await response.json()) as { rows?: unknown[] };
+        const parsed = settingsRecordSchema.safeParse(payload.rows?.[0]);
+        const next = parsed.success ? parsed.data : fallbackRecord(currentUserName, currentUserRole);
+        if (!mounted) return;
+        setRecord(next);
+        setDraft(next);
+      } catch (error) {
+        if (!mounted) return;
+        setLoadError(error instanceof Error ? error.message : "Unable to load settings.");
+        const fallback = fallbackRecord(currentUserName, currentUserRole);
+        setRecord(fallback);
+        setDraft(fallback);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, [currentUserName, currentUserRole]);
+
+  const updateSection = <T extends SettingsSectionId>(section: T, patch: Partial<SettingsRecord[T]>) => {
+    setDraft((previous) => (previous ? { ...previous, [section]: { ...previous[section], ...patch } } : previous));
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setAvatar(reader.result as string);
-      reader.readAsDataURL(file);
+  const isDirty = (section: SettingsSectionId) => (!!record && !!draft ? JSON.stringify(record[section]) !== JSON.stringify(draft[section]) : false);
+
+  const resetSection = (section: SettingsSectionId) => {
+    if (!record) return;
+    setDraft((previous) => (previous ? { ...previous, [section]: record[section] } : previous));
+    setErrors((previous) => ({ ...previous, [section]: {} }));
+    setStatus((previous) => ({ ...previous, [section]: { ...previous[section], success: null, error: null } }));
+  };
+
+  const saveSection = async (section: SettingsSectionId) => {
+    if (!draft) return;
+    const parsed = settingsSectionSchemaMap[section].safeParse(draft[section]);
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.issues.reduce<Record<string, string>>((acc, issue) => {
+        const key = issue.path.length > 0 ? issue.path.join(".") : "root";
+        acc[key] = issue.message;
+        return acc;
+      }, {});
+      setErrors((previous) => ({ ...previous, [section]: fieldErrors }));
+      setStatus((previous) => ({ ...previous, [section]: { ...previous[section], error: "Please resolve validation errors before saving." } }));
+      return;
+    }
+
+    setStatus((previous) => ({ ...previous, [section]: { saving: true, success: null, error: null } }));
+    try {
+      const response = await fetch("/api/data/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section, data: parsed.data }),
+      });
+      if (!response.ok) throw new Error(await parseApiError(response));
+      const payload = (await response.json()) as { row?: unknown };
+      const nextParsed = settingsRecordSchema.safeParse(payload.row);
+      if (!nextParsed.success) throw new Error("Settings response was invalid.");
+      setRecord(nextParsed.data);
+      setDraft(nextParsed.data);
+      setErrors((previous) => ({ ...previous, [section]: {} }));
+      setStatus((previous) => ({ ...previous, [section]: { saving: false, success: "Changes saved.", error: null } }));
+    } catch (error) {
+      setStatus((previous) => ({
+        ...previous,
+        [section]: { saving: false, success: null, error: error instanceof Error ? error.message : "Unable to save section." },
+      }));
     }
   };
 
-  const menuItems = [
-    { id: 'profile', label: 'My Profile', icon: User, roles: ['All'] },
-    { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['All'] },
-    { id: 'security', label: 'Security', icon: Shield, roles: ['All'] },
-    { id: 'preferences', label: 'Preferences', icon: Globe, roles: ['All'] },
-    { id: 'classroom', label: 'Classroom', icon: School, roles: [UserRole.TEACHER] },
-    { id: 'billing', label: 'Billing & Plans', icon: CreditCard, roles: [UserRole.DISTRICT] },
-    { id: 'system', label: 'System & Integrations', icon: Database, roles: [UserRole.DISTRICT, UserRole.PRINCIPAL] },
-  ];
+  const onAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setErrors((previous) => ({ ...previous, profile: { ...previous.profile, avatarUrl: "Please upload an image file." } }));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setErrors((previous) => ({ ...previous, profile: { ...previous.profile, avatarUrl: "Image must be 2MB or smaller." } }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => updateSection("profile", { avatarUrl: (reader.result as string) ?? null });
+    reader.readAsDataURL(file);
+  };
 
-  const filteredItems = menuItems.filter(item => 
-    item.roles.includes('All') || item.roles.includes(currentUserRole)
-  );
+  if (isLoading || !draft) {
+    return (
+      <div className="mx-auto flex min-h-[340px] max-w-5xl items-center justify-center">
+        <p className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm">
+          <Loader2 size={16} className="animate-spin" /> Loading settings...
+        </p>
+      </div>
+    );
+  }
+
+  const activeStatus = status[activeTab];
+  const activeErrors = errors[activeTab];
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Account Settings</h1>
-        <p className="text-slate-500 mt-1">Manage your profile, preferences, and system configurations.</p>
-      </div>
+    <div className="mx-auto max-w-6xl pb-16">
+      <header className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Account Settings</p>
+        <h1 className="mt-1 text-3xl font-bold text-slate-900">Manage your workspace preferences</h1>
+        <p className="mt-2 text-sm text-slate-600">{currentUserName} | {currentUserRole} | {currentSchoolName}</p>
+        {loadError ? <p className="mt-3 inline-flex items-center gap-2 text-sm text-amber-700"><AlertCircle size={16} />{loadError}</p> : null}
+      </header>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar Navigation */}
-        <div className="w-full lg:w-64 shrink-0">
-          <nav className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            {filteredItems.map(item => (
+      <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <aside className="space-y-4">
+          <nav role="tablist" aria-label="Settings sections" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {visibleSections.map((section) => (
               <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors border-l-4 ${
-                  activeTab === item.id 
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-600' 
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-transparent'
+                key={section.id}
+                id={`settings-tab-${section.id}`}
+                role="tab"
+                aria-selected={activeTab === section.id}
+                aria-controls={`settings-panel-${section.id}`}
+                type="button"
+                onClick={() => setActiveTab(section.id)}
+                className={`flex w-full items-center gap-3 border-l-4 px-4 py-3 text-left text-sm font-medium ${
+                  activeTab === section.id ? "border-indigo-600 bg-indigo-50 text-indigo-700" : "border-transparent text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <item.icon size={18} />
-                {item.label}
+                <section.icon size={17} /> {section.label}
               </button>
             ))}
           </nav>
-          
-          <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-             <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500">
-                    {currentUserName.substring(0,2).toUpperCase()}
-                </div>
-                <div className="overflow-hidden">
-                    <p className="text-sm font-bold text-slate-800 truncate">{currentUserName}</p>
-                    <p className="text-xs text-slate-500 truncate">{currentUserRole}</p>
-                </div>
-             </div>
-             <button className="w-full py-2 text-xs font-bold text-rose-600 border border-rose-200 bg-rose-50 hover:bg-rose-100 rounded-lg flex items-center justify-center gap-2 transition-colors">
-                <LogOut size={14} /> Sign Out
-             </button>
-          </div>
-        </div>
 
-        {/* Content Area */}
-        <div className="flex-1">
-          
-          {/* Profile Settings */}
-          {activeTab === 'profile' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-8">
-               <div>
-                  <h2 className="text-xl font-bold text-slate-900 mb-6">Public Profile</h2>
-                  <div className="flex flex-col md:flex-row gap-8 items-start">
-                     <div className="flex flex-col items-center gap-3">
-                        <div className="relative group">
-                            <div className="w-32 h-32 rounded-full bg-slate-100 border-4 border-white shadow-lg overflow-hidden ring-1 ring-slate-200">
-                                <img 
-                                    src={avatar || `https://api.dicebear.com/7.x/lorelei/svg?seed=${currentUserName.replace(/\s/g,'')}&backgroundColor=e0e7ff`} 
-                                    alt="avatar" 
-                                    className="w-full h-full object-cover"
-                                />
-                            </div>
-                            <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="absolute inset-0 bg-slate-900/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity text-white"
-                            >
-                                <Camera size={24} />
-                            </div>
-                            <input type="file" ref={fileInputRef} onChange={handleAvatarChange} className="hidden" accept="image/*" />
-                        </div>
-                        <p className="text-xs text-slate-400">Allowed *.jpeg, *.jpg, *.png</p>
-                     </div>
-                     
-                     <div className="flex-1 w-full space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Display Name</label>
-                                <input 
-                                    type="text" 
-                                    value={displayName}
-                                    onChange={(e) => setDisplayName(e.target.value)}
-                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label>
-                                <input 
-                                    type="text" 
-                                    value={currentUserRole}
-                                    disabled
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 cursor-not-allowed"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email Address</label>
-                            <div className="relative">
-                                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input 
-                                    type="email" 
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Bio / Status</label>
-                            <textarea 
-                                value={bio}
-                                onChange={(e) => setBio(e.target.value)}
-                                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent h-24 resize-none"
-                                placeholder="Brief description for your colleagues..."
-                            />
-                        </div>
-                     </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-600">
+                {currentUserName.substring(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-800">{currentUserName}</p>
+                <p className="truncate text-xs text-slate-500">{currentUserRole}</p>
+              </div>
+            </div>
+            <a href="/api/auth/logout?returnTo=/" className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">
+              <LogOut size={14} /> Sign Out
+            </a>
+          </div>
+        </aside>
+
+        <section id={`settings-panel-${activeTab}`} role="tabpanel" aria-labelledby={`settings-tab-${activeTab}`} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+          {activeTab === "profile" ? (
+            <div className="space-y-5">
+              <h2 className="text-xl font-bold text-slate-900">Public Profile</h2>
+              <div className="grid gap-8 md:grid-cols-[170px_minmax(0,1fr)]">
+                <div>
+                  <div className="relative">
+                    <img src={draft.profile.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${currentUserName.replace(/\s/g, "")}&backgroundColor=e0e7ff`} alt="profile avatar" className="h-32 w-32 rounded-full border-4 border-white object-cover shadow-md ring-1 ring-slate-200" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute bottom-1 right-1 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" aria-label="Upload profile image">
+                      <Camera size={16} />
+                    </button>
+                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={onAvatarChange} />
                   </div>
-               </div>
+                  {activeErrors.avatarUrl ? <p className="mt-2 text-xs text-rose-600">{activeErrors.avatarUrl}</p> : null}
+                </div>
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Display Name</label>
+                      <input value={draft.profile.displayName} onChange={(event) => updateSection("profile", { displayName: event.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      {activeErrors.displayName ? <p className="mt-1 text-xs text-rose-600">{activeErrors.displayName}</p> : null}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Role</label>
+                      <input disabled value={currentUserRole} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Email</label>
+                    <div className="relative">
+                      <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input value={draft.profile.email} onChange={(event) => updateSection("profile", { email: event.target.value })} className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    {activeErrors.email ? <p className="mt-1 text-xs text-rose-600">{activeErrors.email}</p> : null}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Bio</label>
+                    <textarea value={draft.profile.bio} onChange={(event) => updateSection("profile", { bio: event.target.value })} className="h-24 w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    {activeErrors.bio ? <p className="mt-1 text-xs text-rose-600">{activeErrors.bio}</p> : null}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Notifications Settings */}
-          {activeTab === 'notifications' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-8">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-1">Notifications</h2>
-                    <p className="text-sm text-slate-500 mb-6">Manage how you receive updates and alerts.</p>
-                    
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white border border-slate-200 rounded-lg text-indigo-600">
-                                    <Mail size={20} />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">Email Notifications</p>
-                                    <p className="text-xs text-slate-500">Receive daily summaries and critical alerts via email.</p>
-                                </div>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" className="sr-only peer" checked={emailNotifs} onChange={() => setEmailNotifs(!emailNotifs)} />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white border border-slate-200 rounded-lg text-indigo-600">
-                                    <Smartphone size={20} />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">Push Notifications</p>
-                                    <p className="text-xs text-slate-500">Real-time alerts on your mobile device.</p>
-                                </div>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" className="sr-only peer" checked={pushNotifs} onChange={() => setPushNotifs(!pushNotifs)} />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100">
-                            <h3 className="text-sm font-bold text-slate-900 mb-3">Alert Preferences</h3>
-                            <div className="space-y-3">
-                                {['New Message Received', 'MTSS Meeting Scheduled', 'Intervention Plan Goal Met', 'Student Flagged (At-Risk)'].map((alert, i) => (
-                                    <div key={i} className="flex items-center gap-3">
-                                        <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
-                                        <span className="text-sm text-slate-600">{alert}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Digest Frequency</label>
-                            <select 
-                                value={digestFreq}
-                                onChange={(e) => setDigestFreq(e.target.value)}
-                                className="w-full md:w-64 p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                            >
-                                <option>Instant</option>
-                                <option>Daily</option>
-                                <option>Weekly</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
+          {activeTab === "notifications" ? (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-slate-900">Notifications</h2>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-bold text-slate-800">Email Notifications</p>
+                <Toggle label="Email notifications" checked={draft.notifications.emailNotifications} onChange={(checked) => updateSection("notifications", { emailNotifications: checked })} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-bold text-slate-800">Push Notifications</p>
+                <Toggle label="Push notifications" checked={draft.notifications.pushNotifications} onChange={(checked) => updateSection("notifications", { pushNotifications: checked })} />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Digest Frequency</label>
+                <select value={draft.notifications.digestFrequency} onChange={(event) => updateSection("notifications", { digestFrequency: event.target.value as "Instant" | "Daily" | "Weekly" })} className="w-full max-w-xs rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="Instant">Instant</option>
+                  <option value="Daily">Daily</option>
+                  <option value="Weekly">Weekly</option>
+                </select>
+              </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Security Settings */}
-          {activeTab === 'security' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-8">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-6">Login & Security</h2>
-                    
-                    <div className="space-y-6 max-w-md">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Current Password</label>
-                            <input type="password" value="password123" disabled className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500" />
-                        </div>
-                        
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">New Password</label>
-                            <div className="relative">
-                                <input 
-                                    type={showPassword ? "text" : "password"}
-                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                                />
-                                <button 
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600"
-                                >
-                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="pt-6 border-t border-slate-100">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">Two-Factor Authentication</p>
-                                    <p className="text-xs text-slate-500">Add an extra layer of security.</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" className="sr-only peer" checked={twoFactor} onChange={() => setTwoFactor(!twoFactor)} />
-                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
-                            <div className="flex gap-3">
-                                <Lock size={20} className="text-indigo-600 shrink-0" />
-                                <div>
-                                    <p className="text-sm font-bold text-indigo-900">Security Log</p>
-                                    <p className="text-xs text-indigo-700 mt-1">Last login: Today at 8:45 AM from Chrome (Windows).</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+          {activeTab === "security" ? (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-slate-900">Security</h2>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-bold text-slate-800">Two-Factor Authentication</p>
+                <Toggle label="Two-factor authentication" checked={draft.security.twoFactorEnabled} onChange={(checked) => updateSection("security", { twoFactorEnabled: checked })} />
+              </div>
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+                <p className="font-bold">Authentication is managed by WorkOS</p>
+                <p className="mt-1 text-xs text-indigo-800">Password reset and account recovery are controlled by your identity provider.</p>
+                <a href="/api/auth/login?returnTo=/app/settings" className="mt-3 inline-flex rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                  Re-authenticate with provider
+                </a>
+              </div>
             </div>
-          )}
+          ) : null}
 
-          {/* System Settings (District/Principal) */}
-          {activeTab === 'system' && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-8">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-1">System Integrations</h2>
-                    <p className="text-sm text-slate-500 mb-6">Manage data sync and external service connections.</p>
-
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold text-lg">IC</div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">Infinite Campus</h4>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        <span className="text-xs text-emerald-600 font-medium">Connected • Synced 10m ago</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100">Configure</button>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold text-lg">C</div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">Clever</h4>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                        <span className="text-xs text-emerald-600 font-medium">Connected</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100">Configure</button>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl opacity-60">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-orange-700 font-bold text-lg">P</div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">PowerSchool</h4>
-                                    <p className="text-xs text-slate-500 mt-1">Not configured</p>
-                                </div>
-                            </div>
-                            <button className="px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100">Connect</button>
-                        </div>
-                    </div>
-                </div>
+          {activeTab === "preferences" ? (
+            <div className="space-y-4 max-w-md">
+              <h2 className="text-xl font-bold text-slate-900">Family Preferences</h2>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Preferred Language</label>
+                <select value={draft.preferences.preferredLanguage} onChange={(event) => updateSection("preferences", { preferredLanguage: event.target.value as "English" | "Spanish" | "Mandarin" | "Arabic" })} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="English">English</option>
+                  <option value="Spanish">Spanish</option>
+                  <option value="Mandarin">Mandarin</option>
+                  <option value="Arabic">Arabic</option>
+                </select>
+              </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Parent Preferences */}
-          {activeTab === 'preferences' && currentUserRole === UserRole.PARENT && (
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-8">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-6">Family Preferences</h2>
-                    <div className="space-y-6 max-w-md">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Preferred Language</label>
-                            <select className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-                                <option>English</option>
-                                <option>Spanish</option>
-                                <option>Mandarin</option>
-                                <option>Arabic</option>
-                            </select>
-                            <p className="text-xs text-slate-400 mt-1">All communications will be translated to this language.</p>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Contact Method Priority</label>
-                            <select className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-                                <option>Email first, then Phone</option>
-                                <option>Phone first, then Email</option>
-                                <option>SMS Only</option>
-                            </select>
-                        </div>
-                    </div>
+          {activeTab === "classroom" ? (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-slate-900">Classroom Defaults</h2>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+                <p className="text-sm font-bold text-slate-800">Auto-flag low attendance</p>
+                <Toggle label="Auto-flag low attendance" checked={draft.classroom.autoFlagLowAttendance} onChange={(checked) => updateSection("classroom", { autoFlagLowAttendance: checked })} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+                <p className="text-sm font-bold text-slate-800">Weekly parent summary</p>
+                <Toggle label="Weekly parent summary" checked={draft.classroom.weeklyParentSummary} onChange={(checked) => updateSection("classroom", { weeklyParentSummary: checked })} />
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "system" ? (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-slate-900">System Integrations</h2>
+              {[
+                ["infiniteCampusConnected", "Infinite Campus"],
+                ["cleverConnected", "Clever"],
+                ["powerSchoolConnected", "PowerSchool"],
+              ].map(([key, label]) => (
+                <div key={key} className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+                  <p className="text-sm font-bold text-slate-800">{label}</p>
+                  <Toggle
+                    label={`Toggle ${label}`}
+                    checked={draft.system[key as keyof typeof draft.system]}
+                    onChange={(checked) => updateSection("system", { [key]: checked } as Partial<typeof draft.system>)}
+                  />
                 </div>
-             </div>
-          )}
+              ))}
+            </div>
+          ) : null}
 
-          {/* Teacher Classroom Settings */}
-          {activeTab === 'classroom' && (
-             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-8">
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-6">Classroom Defaults</h2>
-                    <div className="space-y-4">
-                        <div className="p-4 border border-slate-200 rounded-xl">
-                            <label className="flex items-center justify-between cursor-pointer mb-2">
-                                <span className="font-bold text-slate-700 text-sm">Auto-flag low attendance</span>
-                                <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" />
-                            </label>
-                            <p className="text-xs text-slate-500">Automatically create an action item if attendance drops below 85%.</p>
-                        </div>
-                        <div className="p-4 border border-slate-200 rounded-xl">
-                            <label className="flex items-center justify-between cursor-pointer mb-2">
-                                <span className="font-bold text-slate-700 text-sm">Weekly Parent Summary</span>
-                                <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" />
-                            </label>
-                            <p className="text-xs text-slate-500">Send automated weekly behavior/academic summaries to parents.</p>
-                        </div>
-                    </div>
-                </div>
-             </div>
-          )}
-
-          {/* Save Bar */}
-          <div className="mt-6 flex justify-end items-center gap-4">
-             {successMsg && (
-                 <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm animate-in fade-in slide-in-from-right-2">
-                     <CheckCircle2 size={16} /> {successMsg}
-                 </div>
-             )}
-             <button 
-                onClick={handleSave}
-                disabled={isLoading}
-                className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 disabled:opacity-70 transition-all flex items-center gap-2"
-             >
-                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                Save Changes
-             </button>
+          <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 pt-4">
+            {activeStatus.error ? <p className="mr-auto inline-flex items-center gap-2 text-sm font-medium text-rose-700"><AlertCircle size={16} />{activeStatus.error}</p> : null}
+            {activeStatus.success ? <p className="mr-auto inline-flex items-center gap-2 text-sm font-medium text-emerald-700"><CheckCircle2 size={16} />{activeStatus.success}</p> : null}
+            <button type="button" onClick={() => resetSection(activeTab)} disabled={!isDirty(activeTab) || activeStatus.saving} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+              <RotateCcw size={16} /> Reset
+            </button>
+            <button type="button" onClick={() => void saveSection(activeTab)} disabled={!isDirty(activeTab) || activeStatus.saving} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+              {activeStatus.saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+            </button>
           </div>
-
-        </div>
+        </section>
       </div>
     </div>
   );

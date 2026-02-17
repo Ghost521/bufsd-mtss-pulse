@@ -3,8 +3,10 @@ import { createDomainRow, deleteDomainRow, listDomainRows, replaceDomainRows, up
 import { getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
 import { newRequestId } from "../../../lib/server/audit-log";
+import { SettingsStoreError, getOrCreateUserSettings, updateUserSettingsSection } from "../../../lib/server/settings-store";
+import { sectionUpdateRequestSchema } from "../../../lib/schemas/settings";
 
-type DomainResource = "calendar" | "messages" | "documents" | "interventions" | "lesson_plans" | "imports";
+type DomainResource = "calendar" | "messages" | "documents" | "interventions" | "lesson_plans" | "imports" | "settings";
 
 const parseDomain = (value: string): DataDomain | null => {
   if (value === "calendar") return "calendar";
@@ -13,6 +15,7 @@ const parseDomain = (value: string): DataDomain | null => {
   if (value === "interventions") return "interventions";
   if (value === "lesson-plans") return "lesson-plans";
   if (value === "imports") return "imports";
+  if (value === "settings") return "settings";
   return null;
 };
 
@@ -45,6 +48,11 @@ export const Route = createFileRoute("/api/data/$domain")({
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
         }
 
+        if (domain === "settings") {
+          const settings = await getOrCreateUserSettings(session);
+          return Response.json({ ok: true, rows: [settings], total: 1, requestId });
+        }
+
         const rows = await listDomainRows<Record<string, unknown>>(session, domain);
         return Response.json({ ok: true, rows, total: rows.length, requestId });
       },
@@ -59,6 +67,13 @@ export const Route = createFileRoute("/api/data/$domain")({
         const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
         if (!permission.ok) {
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
+
+        if (domain === "settings") {
+          return Response.json(
+            { ok: false, error: "Bulk replace is not supported for settings.", requestId },
+            { status: 405 }
+          );
         }
 
         const body = await parseBody(request);
@@ -81,6 +96,13 @@ export const Route = createFileRoute("/api/data/$domain")({
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
         }
 
+        if (domain === "settings") {
+          return Response.json(
+            { ok: false, error: "Create is not supported for settings.", requestId },
+            { status: 405 }
+          );
+        }
+
         const body = await parseBody(request);
         const row = parseRow(body?.row);
         if (!row) return Response.json({ ok: false, error: "Invalid payload. Expected row object.", requestId }, { status: 400 });
@@ -99,6 +121,43 @@ export const Route = createFileRoute("/api/data/$domain")({
         const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
         if (!permission.ok) {
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
+
+        if (domain === "settings") {
+          const body = await parseBody(request);
+          if (!body) return Response.json({ ok: false, error: "Invalid settings payload.", requestId }, { status: 400 });
+
+          if (body.action === "password") {
+            return Response.json(
+              {
+                ok: false,
+                error: "Password changes are managed by WorkOS. Use your identity provider account settings.",
+                requestId,
+              },
+              { status: 501 }
+            );
+          }
+
+          const parsed = sectionUpdateRequestSchema.safeParse({
+            section: body.section,
+            data: body.data,
+          });
+          if (!parsed.success) {
+            return Response.json(
+              { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid settings payload.", requestId },
+              { status: 400 }
+            );
+          }
+
+          try {
+            const updated = await updateUserSettingsSection(session, parsed.data.section, parsed.data.data);
+            return Response.json({ ok: true, row: updated, requestId });
+          } catch (error) {
+            if (error instanceof SettingsStoreError) {
+              return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+            }
+            return Response.json({ ok: false, error: "Unable to update settings.", requestId }, { status: 500 });
+          }
         }
 
         const url = new URL(request.url);
@@ -125,6 +184,13 @@ export const Route = createFileRoute("/api/data/$domain")({
         const permission = requirePermission(session, { resource: toResource(domain), action: "delete" });
         if (!permission.ok) {
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
+
+        if (domain === "settings") {
+          return Response.json(
+            { ok: false, error: "Delete is not supported for settings.", requestId },
+            { status: 405 }
+          );
         }
 
         const url = new URL(request.url);

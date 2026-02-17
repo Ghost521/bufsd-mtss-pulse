@@ -11,7 +11,6 @@ import {
   BrainCircuit, 
   ChevronRight,
   LayoutList,
-  Menu,
   FileText,
   Image as ImageIcon,
   ClipboardPaste,
@@ -20,6 +19,7 @@ import {
 import type { ImportAnalysisResult} from '../services/geminiService';
 import { analyzeImportedBatch, extractDataFromDocument } from '../services/geminiService';
 import { Tier, UserRole } from '../types';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface DataImporterProps {
   onMenuClick: () => void;
@@ -299,9 +299,10 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b border-slate-200">
         <div className="flex items-center gap-3">
-            <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg">
-                <Menu size={24} />
-            </button>
+            <SidebarToggleButton
+                onClick={onMenuClick}
+                className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+            />
             <div>
                 <h2 className="text-2xl font-bold text-slate-900">Data Import</h2>
                 <p className="text-slate-500 text-sm">Sync roster data from files or external systems.</p>

@@ -10,7 +10,6 @@ import {
   Printer,
   Save,
   Trash2,
-  Menu,
   Sparkles,
   BookOpen,
   Check,
@@ -31,6 +30,7 @@ import { Tier } from '../types';
 import { RichTextRenderer } from './RichTextRenderer';
 import { CLASS_ROSTER_DATA } from '../constants';
 import { useTenantCollection } from '../hooks/useTenantCollection';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface LessonPlanLibraryProps {
   onMenuClick: () => void;
@@ -255,9 +255,10 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
       <div className="bg-white border-b border-slate-200 p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div className="flex items-center gap-3">
-                <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg">
-                    <Menu size={24} />
-                </button>
+                <SidebarToggleButton
+                    onClick={onMenuClick}
+                    className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                />
                 <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
                     <BookCopy size={24} />
                 </div>

@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import type { RAGDocument} from '../types';
 import { DocumentScope, ApprovalStatus, UserRole } from '../types';
-import { Upload, FileText, CheckCircle2, AlertCircle, Download, Trash2, Globe, Youtube, Link as LinkIcon, Sparkles, Loader2, Menu, ChevronDown, AlertTriangle, FileType, Eye, ExternalLink, MonitorPlay, Image as ImageIcon } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, Download, Trash2, Globe, Youtube, Link as LinkIcon, Sparkles, Loader2, ChevronDown, AlertTriangle, FileType, Eye, ExternalLink, MonitorPlay, Image as ImageIcon } from 'lucide-react';
 import { generateResourceSummary, generateFileSummary } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface DocumentManagerProps {
   currentUserRole: UserRole;
@@ -691,13 +692,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       {/* Header */}
       <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-3">
-          <button 
+          <SidebarToggleButton
             onClick={onMenuClick}
-            className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            aria-label="Toggle Sidebar"
-          >
-            <Menu size={24} />
-          </button>
+            className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+          />
           <div>
             <h2 className="text-xl font-bold text-slate-900">Knowledge Base Manager</h2>
             <p className="text-slate-500 text-sm">Manage RAG documents, websites, and permissions.</p>

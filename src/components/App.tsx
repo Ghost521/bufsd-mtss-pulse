@@ -1,6 +1,6 @@
 
-import React, { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import React, { lazy, Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { 
   Activity, 
   Zap, 
@@ -15,7 +15,6 @@ import {
   MessageSquare,
   X,
   Send,
-  Menu,
   CalendarPlus,
   BarChart2,
   Loader2,
@@ -23,6 +22,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
+import { SidebarToggleButton } from './SidebarToggleButton';
 import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
@@ -40,6 +40,7 @@ import {
 } from '../lib/workspaceRoutes';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useTenantCollection } from '../hooks/useTenantCollection';
+import { useSidebarState } from '../hooks/useSidebarState';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -103,6 +104,13 @@ const ALL_WORKSPACE_ROLES: UserRole[] = [
   UserRole.PARENT,
 ];
 
+const DEFAULT_SIDEBAR_GROUP_STATE = {
+  work: true,
+  planning: true,
+  communication: true,
+  administration: true,
+};
+
 const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | null => {
   if (role === 'principal') return UserRole.PRINCIPAL;
   if (role === 'teacher') return UserRole.TEACHER;
@@ -125,16 +133,31 @@ const createEmptyDashboardData = (role: UserRole): DashboardData => ({
 
 const App: React.FC = () => {
   const navigate = useNavigate();
-  const routeParams = useParams({ strict: false });
-  const routePage = slugToPage((routeParams as { page?: string }).page);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const routePage = useMemo(() => {
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
+    if (!currentPath.startsWith("/app")) return null;
+    if (currentPath === "/app" || currentPath === "/app/") return null;
+    const slug = currentPath.replace(/^\/app\//, "").split("/")[0];
+    return slugToPage(slug);
+  }, [pathname]);
 
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>(ALL_WORKSPACE_ROLES);
   const [data, setData] = useState<DashboardData>(createEmptyDashboardData(UserRole.PRINCIPAL));
   const [hasHydrated, setHasHydrated] = useState(false);
+  const menuTriggerRef = useRef<HTMLElement | null>(null);
+  const hasInitializedRoleResetRef = useRef(false);
+  const sidebarUserKey = `${data.userName || 'anonymous'}:${currentRole}`;
+  const {
+    state: sidebarState,
+    actions: sidebarActions,
+  } = useSidebarState({
+    userKey: sidebarUserKey,
+    defaultGroupState: DEFAULT_SIDEBAR_GROUP_STATE,
+  });
   
   // UI State
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState<WorkspacePageId>(DEFAULT_WORKSPACE_PAGE);
   const [messageRecipient, setMessageRecipient] = useState<string | undefined>(undefined);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -199,10 +222,27 @@ const App: React.FC = () => {
       }) as Record<UserRole, string>,
     []
   );
+  const currentViewPage = useMemo(
+    () => normalizePageForRole(currentRole, routePage ?? activePage),
+    [activePage, currentRole, routePage]
+  );
+
+  const openMobileMenu = useCallback(() => {
+    menuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    sidebarActions.openMobile();
+  }, [sidebarActions]);
+
+  const closeMobileMenu = useCallback((restoreFocus = false) => {
+    sidebarActions.closeMobile();
+    const target = menuTriggerRef.current;
+    if (restoreFocus && target) {
+      window.setTimeout(() => target.focus(), 0);
+    }
+  }, [sidebarActions]);
 
   useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, []);
+    sidebarActions.closeMobile();
+  }, [sidebarActions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -245,7 +285,7 @@ const App: React.FC = () => {
     const normalizedPage = normalizePageForRole(currentRole, requestedPage);
 
     setActivePage(normalizedPage);
-    setIsMobileMenuOpen(false);
+    closeMobileMenu();
 
     if (requestedPage !== normalizedPage) {
       void navigate({ to: buildWorkspacePath(normalizedPage), replace: true });
@@ -254,6 +294,11 @@ const App: React.FC = () => {
 
   // Update data when role changes
   useEffect(() => {
+    if (!hasInitializedRoleResetRef.current) {
+      hasInitializedRoleResetRef.current = true;
+      return;
+    }
+
     setData((previous) => ({ ...createEmptyDashboardData(currentRole), userName: previous.userName, schoolName: previous.schoolName }));
     // Reset state on role change
     setBriefing(null);
@@ -266,9 +311,8 @@ const App: React.FC = () => {
     setBriefingGeneratedAt(null);
     setIsModalOpen(false);
     setSelectedStudent(null);
-    setActivePage((current) => normalizePageForRole(currentRole, current));
     setProfileStudent(null);
-    setIsMobileMenuOpen(false);
+    closeMobileMenu();
     setIsMoreMenuOpen(false);
     setMessageRecipient(undefined);
     setIsReferralModalOpen(false);
@@ -330,25 +374,25 @@ const App: React.FC = () => {
   }, [flashMessage]);
 
   useEffect(() => {
-    if (!isMobileMenuOpen) return;
+    if (!sidebarState.isMobileOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobileMenuOpen]);
+  }, [sidebarState.isMobileOpen]);
 
   useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      setIsMobileMenuOpen(false);
+      closeMobileMenu(true);
       setIsMoreMenuOpen(false);
     };
     window.addEventListener('keydown', onEscape);
     return () => {
       window.removeEventListener('keydown', onEscape);
     };
-  }, []);
+  }, [closeMobileMenu]);
 
   useEffect(() => {
     if (!isMoreMenuOpen) return;
@@ -438,17 +482,17 @@ const App: React.FC = () => {
   const navigateToPage = (page: WorkspacePageId) => {
     const nextPage = normalizePageForRole(currentRole, page);
     setActivePage(nextPage);
-    setIsMobileMenuOpen(false);
+    closeMobileMenu();
     void navigate({ to: buildWorkspacePath(nextPage) });
   };
 
   const handleRoleChange = (nextRole: UserRole) => {
     if (!availableRoles.includes(nextRole)) return;
-    const targetPage = normalizePageForRole(nextRole, activePage === 'profile' ? 'dashboard' : activePage);
+    const targetPage = normalizePageForRole(nextRole, currentViewPage === 'profile' ? 'dashboard' : currentViewPage);
     setCurrentRole(nextRole);
     setActivePage(targetPage);
     setProfileStudent(null);
-    setIsMobileMenuOpen(false);
+    closeMobileMenu();
     void navigate({ to: buildWorkspacePath(targetPage) });
   };
 
@@ -456,7 +500,7 @@ const App: React.FC = () => {
     if (typeof window === "undefined") return;
     const mediaQuery = window.matchMedia("(min-width: 1024px)");
     const handleViewportChange = () => {
-      setIsMobileMenuOpen(false);
+      closeMobileMenu();
     };
     mediaQuery.addEventListener("change", handleViewportChange);
     return () => {
@@ -468,7 +512,7 @@ const App: React.FC = () => {
     if (isRefreshing) return;
     setIsMoreMenuOpen(false);
     setIsRefreshing(true);
-    setFlashMessage({ tone: 'info', text: 'Refreshing dashboard data…' });
+    setFlashMessage({ tone: 'info', text: 'Refreshing dashboard data...' });
     window.setTimeout(() => {
       setFreshness({
         source: 'local',
@@ -486,7 +530,7 @@ const App: React.FC = () => {
     setShowBriefing(true);
     setBriefing(''); // Clear previous briefing
     setBriefingError(null);
-    setFlashMessage({ tone: 'info', text: 'Generating AI briefing…' });
+    setFlashMessage({ tone: 'info', text: 'Generating AI briefing...' });
     
     // Reset feedback UI for new generation
     setShowFeedbackInput(false);
@@ -637,14 +681,14 @@ const App: React.FC = () => {
     const actions: HeaderAction[] = [
       {
         id: 'refresh-local',
-        label: isRefreshing ? 'Refreshing…' : 'Refresh Data',
+        label: isRefreshing ? 'Refreshing...' : 'Refresh Data',
         enabled: !isRefreshing,
         onClick: handleRefresh,
         icon: RefreshCw,
       },
       {
         id: 'ai-brief',
-        label: isGenerating ? 'Generating…' : showBriefing ? 'Refresh AI Brief' : 'Generate AI Brief',
+        label: isGenerating ? 'Generating...' : showBriefing ? 'Refresh AI Brief' : 'Generate AI Brief',
         enabled: !isGenerating,
         onClick: () => {
           void handleGenerateInsight();
@@ -744,19 +788,15 @@ const App: React.FC = () => {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-start gap-3">
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="-ml-2 rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
-              aria-label="Open workspace menu"
-              type="button"
-            >
-              <Menu size={24} />
-            </button>
+            <SidebarToggleButton
+              onClick={openMobileMenu}
+              className="-ml-2 rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 lg:hidden"
+            />
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Dashboard</p>
               <h2 className="truncate text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">{roleHeadline[currentRole]}</h2>
               <p className="mt-1 text-sm font-medium text-slate-600">
-                {data.userName} • {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} • {currentDateLabel}
+                {data.userName} | {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} | {currentDateLabel}
               </p>
               <p
                 className={`mt-1 text-xs font-semibold ${
@@ -767,7 +807,7 @@ const App: React.FC = () => {
                       : 'text-slate-500'
                 }`}
               >
-                {freshnessLabel} • Tenant workspace data
+                {freshnessLabel} | Tenant workspace data
               </p>
             </div>
           </div>
@@ -846,7 +886,7 @@ const App: React.FC = () => {
         {isGenerating ? (
           <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-700">
             <Loader2 size={16} className="animate-spin" />
-            Building executive summary from current dashboard context…
+            Building executive summary from current dashboard context...
           </div>
         ) : null}
 
@@ -1093,20 +1133,20 @@ const App: React.FC = () => {
   );
 
   const renderActivePage = () => {
-    switch(activePage) {
+    switch(currentViewPage) {
       case 'profile':
         return profileStudent ? (
           <StudentProfile 
             studentName={profileStudent} 
             onBack={handleBackToDashboard} 
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
             onMessageClick={() => handleNavigateToMessages('Mrs. Martinez')}
           />
         ) : renderDashboard();
       case 'rosters':
         return (
           <RosterView 
-            onMenuClick={() => setIsMobileMenuOpen(true)} 
+            onMenuClick={openMobileMenu} 
             onEmailClick={(name) => handleNavigateToMessages(name)}
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
             onNavigate={navigateToPage}
@@ -1117,7 +1157,7 @@ const App: React.FC = () => {
         return (
           <StudentRosterView 
              key={currentRole} // Force re-mount when role changes to update viewType
-             onMenuClick={() => setIsMobileMenuOpen(true)} 
+             onMenuClick={openMobileMenu} 
              onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
              viewType={currentRole === UserRole.PRINCIPAL || currentRole === UserRole.DISTRICT ? 'master' : 'classroom'}
              onNavigate={navigateToPage}
@@ -1126,14 +1166,14 @@ const App: React.FC = () => {
       case 'gradebook':
         return (
           <GradebookView 
-             onMenuClick={() => setIsMobileMenuOpen(true)}
+             onMenuClick={openMobileMenu}
              currentUserRole={currentRole}
           />
         );
       case 'lesson_plans':
         return (
           <LessonPlanLibrary 
-             onMenuClick={() => setIsMobileMenuOpen(true)}
+             onMenuClick={openMobileMenu}
              currentUserRole={currentRole}
           />
         );
@@ -1150,7 +1190,7 @@ const App: React.FC = () => {
             onDelete={handleDeleteDocument}
             onStatusChange={handleStatusChange}
             onScopeChange={handleScopeChange}
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
           />
         );
       case 'messages':
@@ -1158,7 +1198,7 @@ const App: React.FC = () => {
           <MessagesView 
             currentUserRole={currentRole}
             currentUserName={data.userName}
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
             targetRecipient={messageRecipient}
           />
         );
@@ -1167,19 +1207,19 @@ const App: React.FC = () => {
           <CalendarView 
             currentUserRole={currentRole}
             currentUserName={data.userName}
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
           />
         );
       case 'map':
         return (
           <SchoolsMapView 
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
           />
         );
       case 'import':
         return (
           <DataImporter 
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
             onImportComplete={() => navigateToPage('dashboard')}
             currentUserRole={currentRole}
           />
@@ -1195,7 +1235,7 @@ const App: React.FC = () => {
         return (
           <InterventionManager
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
-            onMenuClick={() => setIsMobileMenuOpen(true)}
+            onMenuClick={openMobileMenu}
           />
         );
       case 'settings':
@@ -1251,12 +1291,22 @@ const App: React.FC = () => {
         onRoleChange={handleRoleChange}
         userName={data.userName}
         schoolName={data.schoolName}
-        isOpen={isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-        activePage={activePage}
+        isMobileOpen={sidebarState.isMobileOpen}
+        onMobileClose={() => closeMobileMenu(true)}
+        activePage={currentViewPage}
+        isDesktopCollapsed={sidebarState.isDesktopCollapsed}
+        onDesktopCollapseToggle={sidebarActions.toggleDesktopCollapsed}
+        groupState={sidebarState.groupState}
+        onGroupToggle={sidebarActions.toggleGroupExpanded}
+        searchQuery={sidebarState.searchQuery}
+        onSearchQueryChange={sidebarActions.setSearchQuery}
       />
       
-      <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 lg:ml-64">
+      <main
+        className={`mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 ${
+          sidebarState.isDesktopCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        }`}
+      >
         <Suspense fallback={<LazyViewFallback />}>
           {renderActivePage()}
         </Suspense>
@@ -1266,6 +1316,5 @@ const App: React.FC = () => {
 };
 
 export default App;
-
 
 

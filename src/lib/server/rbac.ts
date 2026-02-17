@@ -37,6 +37,8 @@ const roleGrants: Record<RoleKey, PermissionGrant[]> = {
     { resource: "lesson_plans", action: "update", fields: [ALL_FIELDS] },
     { resource: "lesson_plans", action: "delete", fields: [ALL_FIELDS] },
     { resource: "dashboard", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "update", fields: [ALL_FIELDS] },
     { resource: "imports", action: "read", fields: [ALL_FIELDS] },
     { resource: "imports", action: "create", fields: [ALL_FIELDS] },
     { resource: "imports", action: "update", fields: [ALL_FIELDS] },
@@ -69,6 +71,8 @@ const roleGrants: Record<RoleKey, PermissionGrant[]> = {
     { resource: "lesson_plans", action: "update", fields: [ALL_FIELDS] },
     { resource: "lesson_plans", action: "delete", fields: [ALL_FIELDS] },
     { resource: "dashboard", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "update", fields: [ALL_FIELDS] },
     { resource: "imports", action: "read", fields: [ALL_FIELDS] },
     { resource: "imports", action: "create", fields: [ALL_FIELDS] },
     { resource: "imports", action: "update", fields: [ALL_FIELDS] },
@@ -101,6 +105,8 @@ const roleGrants: Record<RoleKey, PermissionGrant[]> = {
     { resource: "lesson_plans", action: "update", fields: [ALL_FIELDS] },
     { resource: "lesson_plans", action: "delete", fields: [ALL_FIELDS] },
     { resource: "dashboard", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "update", fields: [ALL_FIELDS] },
     { resource: "imports", action: "read", fields: [ALL_FIELDS] },
     { resource: "imports", action: "create", fields: [ALL_FIELDS] },
     { resource: "imports", action: "update", fields: [ALL_FIELDS] },
@@ -132,6 +138,8 @@ const roleGrants: Record<RoleKey, PermissionGrant[]> = {
     { resource: "lesson_plans", action: "update", fields: [ALL_FIELDS] },
     { resource: "lesson_plans", action: "delete", fields: [ALL_FIELDS] },
     { resource: "dashboard", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "update", fields: [ALL_FIELDS] },
     { resource: "imports", action: "read", fields: [ALL_FIELDS] },
     { resource: "imports", action: "create", fields: [ALL_FIELDS] },
     { resource: "imports", action: "update", fields: [ALL_FIELDS] },
@@ -161,6 +169,8 @@ const roleGrants: Record<RoleKey, PermissionGrant[]> = {
     { resource: "lesson_plans", action: "update", fields: [ALL_FIELDS] },
     { resource: "lesson_plans", action: "delete", fields: [ALL_FIELDS] },
     { resource: "dashboard", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "read", fields: [ALL_FIELDS] },
+    { resource: "settings", action: "update", fields: [ALL_FIELDS] },
     { resource: "imports", action: "read", fields: [ALL_FIELDS] },
     { resource: "imports", action: "create", fields: [ALL_FIELDS] },
     { resource: "imports", action: "update", fields: [ALL_FIELDS] },
@@ -231,3 +241,4 @@ export const requirePermission = (
 
   return { ok: true };
 };
+

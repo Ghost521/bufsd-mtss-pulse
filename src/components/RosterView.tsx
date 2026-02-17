@@ -16,7 +16,6 @@ import {
   ArrowUpDown,
   ChevronDown,
   Check,
-  Menu,
   Camera,
   ArrowRight,
   Info,
@@ -31,6 +30,7 @@ import {
   Download,
   X
 } from 'lucide-react';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface RosterViewProps {
   onMenuClick: () => void;
@@ -240,13 +240,10 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
       <div className="flex flex-col gap-6 mb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div className="flex items-center gap-3">
-                <button 
+                <SidebarToggleButton
                     onClick={onMenuClick}
-                    className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                    aria-label="Toggle Sidebar"
-                    >
-                    <Menu size={24} />
-                </button>
+                    className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                />
                 <div>
                     <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Directory & Rosters</h2>
                     <p className="text-slate-500 mt-1">Manage personnel and monitor student body progress.</p>

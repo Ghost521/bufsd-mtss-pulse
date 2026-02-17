@@ -2,6 +2,7 @@ import type { TenantContext } from "./tenant-types";
 
 type TenantDomain =
   | "dashboard"
+  | "settings"
   | "documents"
   | "messages"
   | "calendar"

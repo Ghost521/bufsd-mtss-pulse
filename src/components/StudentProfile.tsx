@@ -12,7 +12,6 @@ import {
   Loader2,
   Save,
   Camera,
-  Menu,
   ShieldAlert,
   Pill,
   Eye,
@@ -37,6 +36,7 @@ import { Tier } from '../types';
 import { generateStudentProfileSummaryStream } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { ReferralModal } from './ReferralModal';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface ConfettiParticle {
   id: number;
@@ -239,7 +239,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         {/* ... Header Content ... */}
         <div className="absolute top-0 right-0 w-64 h-full bg-gradient-to-l from-slate-50 to-transparent pointer-events-none" />
         <div className="flex items-center gap-4 md:gap-6 relative z-10">
-            <button onClick={onMenuClick} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg -mr-2"><Menu size={20} /></button>
+            <SidebarToggleButton
+              onClick={onMenuClick}
+              className="lg:hidden p-2 text-slate-500 transition-colors hover:bg-slate-100 rounded-lg -mr-2"
+              iconSize={20}
+            />
             <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500 hover:text-slate-900 -ml-2"><ArrowLeft size={20} /></button>
             <div className="flex items-center gap-5">
                 <div className="relative group/avatar">

@@ -21,6 +21,7 @@ export const Route = createRootRouteWithContext<AppRouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  notFoundComponent: RootNotFound,
 });
 
 function RootDocument({ children }: { children: ReactNode }) {
@@ -30,21 +31,6 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
-            <div className="flex items-center gap-3">
-              <div className="hidden sm:block">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Platform</p>
-                <p className="text-xs font-semibold text-slate-600">Navigation</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <NavLink to="/app">MTSS Workspace</NavLink>
-                <NavLink to="/query-health">Platform Health</NavLink>
-                <NavLink to="/roster-table">Student Roster</NavLink>
-              </div>
-            </div>
-          </div>
-        </nav>
         {children}
         <TanStackRouterDevtools />
         <Scripts />
@@ -53,17 +39,28 @@ function RootDocument({ children }: { children: ReactNode }) {
   );
 }
 
-function NavLink({ to, children }: { to: string; children: ReactNode }) {
+function RootNotFound() {
   return (
-    <Link
-      to={to}
-      className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-      activeProps={{
-        className: "rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700",
-      }}
-    >
-      {children}
-    </Link>
+    <main className="mx-auto flex min-h-screen w-full max-w-[720px] items-center justify-center p-6">
+      <section className="w-full rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">404</p>
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">Page Not Found</h1>
+        <p className="mt-2 text-sm text-slate-600">The page you requested does not exist in this workspace.</p>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link
+            to="/app"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+          >
+            Go to Workspace
+          </Link>
+          <Link
+            to="/"
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            Home
+          </Link>
+        </div>
+      </section>
+    </main>
   );
 }
-

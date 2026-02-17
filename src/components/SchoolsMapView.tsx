@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { DISTRICT_SCHOOLS } from '../constants';
 import type { SchoolNode } from '../types';
 import { 
-  Menu, 
   Search, 
   MapPin, 
   Users, 
@@ -15,6 +14,7 @@ import {
   Zap
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface SchoolsMapViewProps {
   onMenuClick: () => void;
@@ -52,12 +52,10 @@ export const SchoolsMapView: React.FC<SchoolsMapViewProps> = ({ onMenuClick }) =
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-            <button 
+            <SidebarToggleButton
                 onClick={onMenuClick}
-                className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-            >
-                <Menu size={24} />
-            </button>
+                className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+            />
             <div>
                 <h2 className="text-2xl font-bold text-slate-900">District Map</h2>
                 <p className="text-slate-500 mt-1">Real-time status of {DISTRICT_SCHOOLS.length} schools.</p>

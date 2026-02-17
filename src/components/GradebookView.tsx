@@ -8,7 +8,6 @@ import {
   Search, 
   Plus, 
   Download, 
-  Menu, 
   ChevronDown, 
   TrendingUp, 
   AlertCircle,
@@ -37,6 +36,7 @@ import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, PieChart, Pie, Ce
 import { CustomDatePicker } from './CustomDatePicker';
 import { generateParentMessage } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface GradebookViewProps {
   onMenuClick: () => void;
@@ -814,12 +814,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       {/* --- Header --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-            <button 
+            <SidebarToggleButton
                 onClick={onMenuClick}
-                className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-                <Menu size={24} />
-            </button>
+                className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+            />
             <div>
                 <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Gradebook</h2>
                 <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">

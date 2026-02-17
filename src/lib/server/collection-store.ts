@@ -1,9 +1,9 @@
 import { readTenantCollection, writeTenantCollection, toTenantKey } from "./persistence";
 import type { SessionContext } from "./tenant-types";
 
-export type DataDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson-plans" | "imports";
+export type DataDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson-plans" | "imports" | "settings";
 
-type PersistedDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson_plans" | "imports";
+type PersistedDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson_plans" | "imports" | "settings";
 
 const toPersistedDomain = (domain: DataDomain): PersistedDomain => {
   if (domain === "lesson-plans") return "lesson_plans";

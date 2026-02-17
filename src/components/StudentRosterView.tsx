@@ -8,7 +8,6 @@ import {
   ArrowUpDown,
   ChevronDown,
   Check,
-  Menu,
   AlertCircle,
   Clock,
   LayoutGrid,
@@ -37,6 +36,7 @@ import { ReferralModal } from './ReferralModal';
 import { DraggableModal } from './DraggableModal';
 import type { WorkspacePageId } from '../lib/workspaceRoutes';
 import { useStudents } from '../hooks/useStudents';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface StudentRosterViewProps {
   onMenuClick: () => void;
@@ -635,12 +635,10 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
             {!embedded && (
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <button 
+                        <SidebarToggleButton
                             onClick={onMenuClick}
-                            className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                        >
-                            <Menu size={24} />
-                        </button>
+                            className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                        />
                         <div>
                             <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
                                 {viewType === 'master' ? 'Monitored Student Cases' : 'My Classroom'}

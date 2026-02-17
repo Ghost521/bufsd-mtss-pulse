@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../lib/query-keys";
 
-export type CollectionDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson-plans" | "imports";
+export type CollectionDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson-plans" | "imports" | "settings";
 
 export type CollectionResponse<TRow> = {
   ok: boolean;

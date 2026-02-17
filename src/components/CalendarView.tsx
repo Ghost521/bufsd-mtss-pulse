@@ -10,7 +10,6 @@ import {
   Check, 
   X, 
   AlertCircle, 
-  Menu,
   Filter,
   MoreHorizontal,
   Paperclip,
@@ -34,6 +33,7 @@ import { CustomDatePicker } from './CustomDatePicker';
 import { suggestMeetingTimes } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
 import { useTenantCollection } from '../hooks/useTenantCollection';
+import { SidebarToggleButton } from './SidebarToggleButton';
 
 // Initial Mock Groups
 const INITIAL_GROUPS = [
@@ -1293,9 +1293,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white relative z-10">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3 lg:hidden">
-                        <button onClick={onMenuClick} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg">
-                            <Menu size={24} />
-                        </button>
+                        <SidebarToggleButton
+                            onClick={onMenuClick}
+                            className="p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                        />
                     </div>
                     <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
                         {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -1469,5 +1470,4 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     </div>
   );
 };
-
 
