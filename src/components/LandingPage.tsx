@@ -49,7 +49,6 @@ export function LandingPage() {
     [workosEnabled]
   );
 
-  const primaryLabel = workosEnabled ? "Sign in with WorkOS" : "Continue to Workspace";
   const helperText = workosEnabled ? "Secure authentication is managed by WorkOS." : "WorkOS is not configured. Local mode is active.";
   const buttonDisabled = viewState === "loading";
 
@@ -93,7 +92,9 @@ export function LandingPage() {
       <section className="mx-auto w-full max-w-6xl px-5 pb-12 pt-10 md:px-8 md:pt-14">
         <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.35fr]">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d26a54]">For Student Support Teams</p>
+            <p className="inline-flex rounded-full bg-[#f5e8c6] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5a4720]">
+              Built for Hearts & Minds
+            </p>
             <h1 className="mt-3 text-4xl font-bold leading-[1.03] text-[#58473b] md:text-6xl">
               Every student has a story.
               <span className="mt-1 block text-[#db6c4d]">Help them write the best version.</span>
@@ -112,11 +113,17 @@ export function LandingPage() {
                 }`}
               >
                 {buttonDisabled ? <Loader2 size={15} className="animate-spin" /> : null}
-                {primaryLabel}
+                Start Your Journey
                 {buttonDisabled ? null : <ArrowRight size={15} />}
               </a>
-              <span className="text-xs font-medium text-[#9d8f82]">{helperText}</span>
+              <a
+                href="#support"
+                className="rounded-full border border-[#d9c9b5] bg-[#f7ede0] px-5 py-2.5 text-sm font-semibold text-[#735744] transition hover:bg-[#f1e4d2]"
+              >
+                Check Out Success Stories
+              </a>
             </div>
+            <p className="mt-3 text-xs font-medium text-[#9d8f82]">{helperText}</p>
             {viewState === "error" ? (
               <button
                 type="button"
@@ -261,14 +268,14 @@ export function LandingPage() {
               }`}
             >
               {buttonDisabled ? <Loader2 size={15} className="animate-spin" /> : null}
-              Get Started Now
+              Start Your Journey
               {buttonDisabled ? null : <ArrowRight size={15} />}
             </a>
             <a
-              href="#features"
+              href="#support"
               className="rounded-full border border-[#f0d4c4] bg-[#f5e3d8] px-5 py-2.5 text-sm font-semibold text-[#6a4835] hover:bg-[#f0d5c5]"
             >
-              Explore Features
+              Check Out Success Stories
             </a>
           </div>
         </div>
