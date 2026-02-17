@@ -24,6 +24,7 @@ interface ChatbotProps {
   documents: RAGDocument[];
   currentSchoolName: string;
   currentClassName?: string;
+  activePage?: string;
 }
 
 export const Chatbot: React.FC<ChatbotProps> = ({ 
@@ -31,7 +32,8 @@ export const Chatbot: React.FC<ChatbotProps> = ({
   currentUserName,
   documents,
   currentSchoolName,
-  currentClassName: _currentClassName
+  currentClassName: _currentClassName,
+  activePage
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -46,6 +48,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const isSettingsPage = activePage === "settings";
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -64,6 +67,13 @@ export const Chatbot: React.FC<ChatbotProps> = ({
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen, isMinimized, isTyping]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (isSettingsPage && window.matchMedia("(max-width: 1023px)").matches) {
+      setIsMinimized(true);
+    }
+  }, [isOpen, isSettingsPage]);
 
   // Role-based Suggested Prompts
   const getSuggestions = () => {
@@ -189,7 +199,10 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     return (
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 rounded-full shadow-xl flex items-center justify-center text-white hover:bg-indigo-700 transition-all hover:scale-110 z-[100] group"
+        aria-label="Open MTSS Assistant"
+        aria-expanded={false}
+        aria-controls="mtss-assistant-panel"
+        className={`fixed w-14 h-14 bg-indigo-600 rounded-full shadow-xl flex items-center justify-center text-white hover:bg-indigo-700 transition-all hover:scale-110 z-[100] group ${isSettingsPage ? "bottom-24 right-4 sm:right-6" : "bottom-6 right-6"}`}
       >
         <MessageSquare size={28} className="group-hover:scale-110 transition-transform" />
         {/* Pulse Ring */}
@@ -199,12 +212,23 @@ export const Chatbot: React.FC<ChatbotProps> = ({
   }
 
   return (
-    <div className={`fixed bottom-6 right-4 sm:right-6 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[100] transition-all duration-300 ${isMinimized ? 'w-72 h-16' : 'w-[420px] h-[650px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)]'}`}>
+    <div id="mtss-assistant-panel" role="dialog" aria-label="MTSS Assistant" className={`fixed bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[100] transition-all duration-300 ${isSettingsPage ? "bottom-24 right-4 sm:right-6" : "bottom-6 right-4 sm:right-6"} ${isMinimized ? 'w-72 h-16' : 'w-[420px] h-[650px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)]'}`}>
       
       {/* Header */}
       <div 
         className="bg-indigo-600 p-4 flex justify-between items-center cursor-pointer select-none relative overflow-hidden" 
         onClick={() => setIsMinimized(!isMinimized)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsMinimized((value) => !value);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={!isMinimized}
+        aria-controls="mtss-assistant-content"
+        aria-label={isMinimized ? "Expand MTSS Assistant" : "Minimize MTSS Assistant"}
       >
          {/* Decor */}
          <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
@@ -226,6 +250,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                 onClick={(e) => { e.stopPropagation(); handleClearChat(); }} 
                 className="p-1.5 hover:bg-white/20 rounded-lg transition-colors mr-1 text-white"
                 title="Clear Chat"
+                aria-label="Clear chat history"
               >
                 <RefreshCw size={16} />
               </button>
@@ -233,20 +258,24 @@ export const Chatbot: React.FC<ChatbotProps> = ({
             <button 
               onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }} 
               className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white"
+              aria-label={isMinimized ? "Expand assistant" : "Minimize assistant"}
+              aria-expanded={!isMinimized}
+              aria-controls="mtss-assistant-content"
             >
                 {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} 
               className="p-1.5 hover:bg-rose-500 rounded-lg transition-colors text-white ml-1"
+              aria-label="Close MTSS Assistant"
             >
                 <X size={18} />
             </button>
          </div>
       </div>
 
-      {!isMinimized && (
-          <>
+	      {!isMinimized && (
+	          <div id="mtss-assistant-content" className="flex min-h-0 flex-1 flex-col">
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-6 relative">
                 
@@ -332,6 +361,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                      <button 
                       onClick={handleStop}
                       className="pointer-events-auto flex items-center gap-2 px-4 py-1.5 bg-white border border-rose-200 shadow-md rounded-full text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                      aria-label="Stop generating response"
                      >
                         <StopCircle size={14} /> Stop Generating
                      </button>
@@ -354,24 +384,25 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                         rows={1}
                         disabled={isTyping}
                     />
-                    <button 
-                        onClick={() => handleSend()}
-                        disabled={!input.trim() || isTyping}
-                        className={`p-2 rounded-xl mb-0.5 transition-all ${
-                          input.trim() && !isTyping
-                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' 
+	                    <button 
+	                        onClick={() => handleSend()}
+	                        disabled={!input.trim() || isTyping}
+                          aria-label="Send message"
+	                        className={`p-2 rounded-xl mb-0.5 transition-all ${
+	                          input.trim() && !isTyping
+	                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' 
                             : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         }`}
                     >
                         <Send size={18} />
                     </button>
                 </div>
-                <div className="mt-2 text-[10px] text-center text-slate-400 font-medium flex justify-center items-center gap-1">
-                    <Sparkles size={10} className="text-indigo-400" /> AI can make mistakes. Review critical data.
-                </div>
-            </div>
-          </>
-      )}
+	                <div className="mt-2 text-[10px] text-center text-slate-400 font-medium flex justify-center items-center gap-1">
+	                    <Sparkles size={10} className="text-indigo-400" /> AI can make mistakes. Review critical data.
+	                </div>
+	            </div>
+	          </div>
+	      )}
     </div>
   );
 };

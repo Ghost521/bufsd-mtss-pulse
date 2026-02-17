@@ -17,6 +17,7 @@ interface SettingsViewProps {
 
 type SectionStatus = { saving: boolean; success: string | null; error: string | null };
 type SectionItem = { id: SettingsSectionId; label: string; icon: React.ComponentType<{ size?: number }>; roles: UserRole[] | "all" };
+type AuthState = "ok" | "unauthorized" | "forbidden";
 
 const sections: SectionItem[] = [
   { id: "profile", label: "My Profile", icon: User, roles: "all" },
@@ -27,14 +28,35 @@ const sections: SectionItem[] = [
   { id: "system", label: "System Integrations", icon: Database, roles: [UserRole.PRINCIPAL, UserRole.DISTRICT] },
 ];
 
+const sectionDescriptions: Record<SettingsSectionId, string> = {
+  profile: "Update your name, contact details, and profile image used across the workspace.",
+  notifications: "Control which alerts you receive and how often summary updates are delivered.",
+  security: "Review authentication controls and re-authenticate with your identity provider when needed.",
+  preferences: "Choose communication defaults that help your family receive updates clearly.",
+  classroom: "Set classroom automation defaults for attendance and parent communications.",
+  system: "Manage data integrations used to sync SIS and classroom platforms.",
+};
+
 const sectionIds = sections.map((s) => s.id);
 const blankStatus = () =>
   Object.fromEntries(sectionIds.map((id) => [id, { saving: false, success: null, error: null }])) as Record<SettingsSectionId, SectionStatus>;
 const blankErrors = () => Object.fromEntries(sectionIds.map((id) => [id, {}])) as Record<SettingsSectionId, Record<string, string>>;
 
-const parseApiError = async (response: Response) => {
-  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-  return payload?.error ?? `Request failed (${response.status})`;
+class ApiRequestError extends Error {
+  status: number;
+  requestId: string | null;
+
+  constructor(message: string, status: number, requestId: string | null = null) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.requestId = requestId;
+  }
+}
+
+const parseApiError = async (response: Response): Promise<ApiRequestError> => {
+  const payload = (await response.json().catch(() => null)) as { error?: string; requestId?: string } | null;
+  return new ApiRequestError(payload?.error ?? `Request failed (${response.status})`, response.status, payload?.requestId ?? null);
 };
 
 const createSafeDisplayName = (name: string): string => {
@@ -125,7 +147,7 @@ const Toggle: React.FC<{ label: string; checked: boolean; onChange: (checked: bo
   onChange,
   disabled = false,
 }) => (
-  <label className="relative inline-flex cursor-pointer items-center" aria-label={label}>
+  <label className={`relative inline-flex items-center ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`} aria-label={label}>
     <input
       type="checkbox"
       className="peer sr-only"
@@ -144,6 +166,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
   const [reloadToken, setReloadToken] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<AuthState>("ok");
   const [record, setRecord] = useState<SettingsRecord | null>(null);
   const [draft, setDraft] = useState<SettingsRecord | null>(null);
   const [status, setStatus] = useState<Record<SettingsSectionId, SectionStatus>>(blankStatus);
@@ -165,9 +188,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
     const load = async () => {
       setIsLoading(true);
       setLoadError(null);
+      setAuthState("ok");
       try {
         const response = await fetch("/api/data/settings");
-        if (!response.ok) throw new Error(await parseApiError(response));
+        if (!response.ok) throw await parseApiError(response);
         const payload = (await response.json()) as { rows?: unknown[] };
         const parsed = settingsRecordSchema.safeParse(payload.rows?.[0]);
         const next = parsed.success ? parsed.data : fallbackRecord(currentUserName, currentUserRole);
@@ -179,7 +203,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
         setDraft(next);
       } catch (error) {
         if (!mounted) return;
-        setLoadError(error instanceof Error ? error.message : "Unable to load settings.");
+        if (error instanceof ApiRequestError) {
+          if (error.status === 401) {
+            setAuthState("unauthorized");
+            setLoadError("Session expired. Sign in again to edit your settings.");
+          } else if (error.status === 403) {
+            setAuthState("forbidden");
+            setLoadError("You do not have permission to edit settings in this workspace.");
+          } else {
+            setLoadError(error.message);
+          }
+        } else {
+          setLoadError(error instanceof Error ? error.message : "Unable to load settings.");
+        }
         const fallback = fallbackRecord(currentUserName, currentUserRole);
         setRecord(fallback);
         setDraft(fallback);
@@ -211,6 +247,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
   };
 
   const isDirty = (section: SettingsSectionId) => (!!record && !!draft ? JSON.stringify(record[section]) !== JSON.stringify(draft[section]) : false);
+  const isSectionDirty = (section: SettingsSectionId) => isDirty(section);
+  const dirtySectionCount = sectionIds.filter((sectionId) => isSectionDirty(sectionId)).length;
+  const hasUnsavedChanges =
+    !!record && !!draft
+      ? sectionIds.some((sectionId) => JSON.stringify(record[sectionId]) !== JSON.stringify(draft[sectionId]))
+      : false;
+
+  const requestTabChange = (nextTab: SettingsSectionId): boolean => {
+    if (nextTab === activeTab) return true;
+    const currentDirty = isSectionDirty(activeTab);
+    if (currentDirty && !status[activeTab].saving && authState === "ok") {
+      const shouldLeave = window.confirm("You have unsaved changes in this section. Leave without saving?");
+      if (!shouldLeave) return false;
+    }
+    setActiveTab(nextTab);
+    return true;
+  };
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || authState !== "ok") return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedChanges, authState]);
 
   const resetSection = (section: SettingsSectionId) => {
     if (!record) return;
@@ -221,6 +284,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
 
   const saveSection = async (section: SettingsSectionId) => {
     if (!draft) return;
+    if (authState !== "ok") {
+      setStatus((previous) => ({
+        ...previous,
+        [section]: {
+          ...previous[section],
+          error:
+            authState === "unauthorized"
+              ? "Your session expired. Sign in again to save settings."
+              : "You do not have permission to update settings in this workspace.",
+        },
+      }));
+      return;
+    }
     const parsed = settingsSectionSchemaMap[section].safeParse(draft[section]);
     if (!parsed.success) {
       const fieldErrors = parsed.error.issues.reduce<Record<string, string>>((acc, issue) => {
@@ -240,18 +316,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ section, data: parsed.data }),
       });
-      if (!response.ok) throw new Error(await parseApiError(response));
+      if (!response.ok) throw await parseApiError(response);
       const payload = (await response.json()) as { row?: unknown };
       const nextParsed = settingsRecordSchema.safeParse(payload.row);
       if (!nextParsed.success) throw new Error("Settings response was invalid.");
+      setAuthState("ok");
       setRecord(nextParsed.data);
       setDraft(nextParsed.data);
       setErrors((previous) => ({ ...previous, [section]: {} }));
       setStatus((previous) => ({ ...previous, [section]: { saving: false, success: "Changes saved.", error: null } }));
     } catch (error) {
+      if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+        setAuthState(error.status === 401 ? "unauthorized" : "forbidden");
+      }
       setStatus((previous) => ({
         ...previous,
-        [section]: { saving: false, success: null, error: error instanceof Error ? error.message : "Unable to save section." },
+        [section]: {
+          saving: false,
+          success: null,
+          error:
+            error instanceof ApiRequestError && error.status === 401
+              ? "Session expired. Sign in again, then retry saving."
+              : error instanceof ApiRequestError && error.status === 403
+                ? "You do not have permission to update this settings section."
+                : error instanceof Error
+                  ? error.message
+                  : "Unable to save section.",
+        },
       }));
     }
   };
@@ -285,11 +376,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
 
     event.preventDefault();
     const nextSection = visibleSections[nextIndex];
-    setActiveTab(nextSection.id);
-    window.requestAnimationFrame(() => {
-      const target = document.getElementById(`settings-tab-${nextSection.id}`);
-      if (target instanceof HTMLButtonElement) target.focus();
-    });
+    const didChange = requestTabChange(nextSection.id);
+    if (didChange) {
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById(`settings-tab-${nextSection.id}`);
+        if (target instanceof HTMLButtonElement) target.focus();
+      });
+    }
   };
 
   const validateProfileField = (field: keyof SettingsRecord["profile"], value: unknown) => {
@@ -338,6 +431,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
   const activeErrors = errors[activeTab];
   const isProviderManagedAuth = draft.security.providerManagedAuth;
   const bioRemaining = 280 - draft.profile.bio.length;
+  const isSessionLocked = authState !== "ok";
+  const lastSavedValue = record?.updatedAt ?? draft.updatedAt;
+  const parsedLastSaved = new Date(lastSavedValue);
+  const lastSavedLabel = Number.isNaN(parsedLastSaved.getTime())
+    ? "Unknown"
+    : parsedLastSaved.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 
   return (
     <div className="mx-auto max-w-6xl pb-16">
@@ -345,7 +444,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Account Settings</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">Manage your workspace preferences</h1>
         <p className="mt-2 text-sm text-slate-600">{currentUserName} | {currentUserRole} | {currentSchoolName}</p>
-        {loadError ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-600">
+            Last saved: {lastSavedLabel}
+          </span>
+          {hasUnsavedChanges ? (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">
+              {dirtySectionCount} section{dirtySectionCount === 1 ? "" : "s"} with unsaved changes
+            </span>
+          ) : (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">All changes saved</span>
+          )}
+        </div>
+        {isSessionLocked ? (
+          <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            <p className="inline-flex items-center gap-2 font-semibold">
+              <AlertCircle size={16} />
+              {authState === "unauthorized"
+                ? "Session expired. Sign in again to continue editing settings."
+                : "You do not have permission to edit settings in this workspace."}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href="/api/auth/login?returnTo=/app/settings"
+                className="inline-flex items-center rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+              >
+                Sign in again
+              </a>
+              <a
+                href="/api/auth/logout?returnTo=/"
+                className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Sign out
+              </a>
+              <button
+                type="button"
+                onClick={() => setReloadToken((value) => value + 1)}
+                className="inline-flex items-center gap-2 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+              >
+                <RotateCcw size={14} /> Retry
+              </button>
+            </div>
+          </div>
+        ) : loadError ? (
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <p className="inline-flex items-center gap-2">
               <AlertCircle size={16} />
@@ -374,13 +515,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
                 aria-controls={`settings-panel-${section.id}`}
                 type="button"
                 tabIndex={activeTab === section.id ? 0 : -1}
-                onClick={() => setActiveTab(section.id)}
+                onClick={() => requestTabChange(section.id)}
                 onKeyDown={(event) => handleTabKeyDown(event, section.id)}
                 className={`flex w-full items-center gap-3 border-l-4 px-4 py-3 text-left text-sm font-medium ${
                   activeTab === section.id ? "border-indigo-600 bg-indigo-50 text-indigo-700" : "border-transparent text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <section.icon size={17} /> {section.label}
+                <section.icon size={17} />
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{section.label}</span>
+                  {isSectionDirty(section.id) ? <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" /> : null}
+                </span>
               </button>
             ))}
           </nav>
@@ -409,7 +554,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
             <select
               id="settings-mobile-section"
               value={activeTab}
-              onChange={(event) => setActiveTab(event.target.value as SettingsSectionId)}
+              onChange={(event) => requestTabChange(event.target.value as SettingsSectionId)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {visibleSections.map((section) => (
@@ -420,9 +565,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
             </select>
           </div>
 
+          <fieldset disabled={isSessionLocked} className="space-y-4 disabled:cursor-not-allowed disabled:opacity-75">
           {activeTab === "profile" ? (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-slate-900">Public Profile</h2>
+              <p className="-mt-3 text-sm text-slate-600">{sectionDescriptions.profile}</p>
               <div className="grid gap-8 md:grid-cols-[170px_minmax(0,1fr)]">
                 <div>
                   <div className="relative">
@@ -491,16 +638,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
           {activeTab === "notifications" ? (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Notifications</h2>
+              <p className="-mt-2 text-sm text-slate-600">{sectionDescriptions.notifications}</p>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-800">Email Notifications</p>
-                <Toggle label="Email notifications" checked={draft.notifications.emailNotifications} onChange={(checked) => updateSection("notifications", { emailNotifications: checked })} />
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Email Notifications</p>
+                  <p className="text-xs text-slate-500">Receive updates in your inbox for alerts and summaries.</p>
+                </div>
+                <Toggle
+                  label="Email notifications"
+                  checked={draft.notifications.emailNotifications}
+                  disabled={isSessionLocked}
+                  onChange={(checked) => updateSection("notifications", { emailNotifications: checked })}
+                />
               </div>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-800">Push Notifications</p>
-                <Toggle label="Push notifications" checked={draft.notifications.pushNotifications} onChange={(checked) => updateSection("notifications", { pushNotifications: checked })} />
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Push Notifications</p>
+                  <p className="text-xs text-slate-500">Show immediate in-app alerts while you work.</p>
+                </div>
+                <Toggle
+                  label="Push notifications"
+                  checked={draft.notifications.pushNotifications}
+                  disabled={isSessionLocked}
+                  onChange={(checked) => updateSection("notifications", { pushNotifications: checked })}
+                />
               </div>
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Digest Frequency</label>
+                <p className="-mt-1 mb-2 text-xs text-slate-500">Choose how often consolidated updates are delivered.</p>
                 <select value={draft.notifications.digestFrequency} onChange={(event) => updateSection("notifications", { digestFrequency: event.target.value as "Instant" | "Daily" | "Weekly" })} className="w-full max-w-xs rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="Instant">Instant</option>
                   <option value="Daily">Daily</option>
@@ -513,12 +678,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
           {activeTab === "security" ? (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Security</h2>
+              <p className="-mt-2 text-sm text-slate-600">{sectionDescriptions.security}</p>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-bold text-slate-800">Two-Factor Authentication</p>
                 <Toggle
                   label="Two-factor authentication"
                   checked={draft.security.twoFactorEnabled}
-                  disabled={isProviderManagedAuth}
+                  disabled={isProviderManagedAuth || isSessionLocked}
                   onChange={(checked) => updateSection("security", { twoFactorEnabled: checked })}
                 />
               </div>
@@ -538,6 +704,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
           {activeTab === "preferences" ? (
             <div className="space-y-4 max-w-md">
               <h2 className="text-xl font-bold text-slate-900">Family Preferences</h2>
+              <p className="-mt-2 text-sm text-slate-600">{sectionDescriptions.preferences}</p>
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Preferred Language</label>
                 <select value={draft.preferences.preferredLanguage} onChange={(event) => updateSection("preferences", { preferredLanguage: event.target.value as "English" | "Spanish" | "Mandarin" | "Arabic" })} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -547,19 +714,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
                   <option value="Arabic">Arabic</option>
                 </select>
               </div>
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Contact Priority</label>
+                <p className="-mt-1 mb-2 text-xs text-slate-500">Set which channel school outreach should try first.</p>
+                <select
+                  value={draft.preferences.contactMethodPriority}
+                  onChange={(event) =>
+                    updateSection("preferences", {
+                      contactMethodPriority: event.target.value as "Email first, then Phone" | "Phone first, then Email" | "SMS Only",
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="Email first, then Phone">Email first, then Phone</option>
+                  <option value="Phone first, then Email">Phone first, then Email</option>
+                  <option value="SMS Only">SMS Only</option>
+                </select>
+              </div>
             </div>
           ) : null}
 
           {activeTab === "classroom" ? (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Classroom Defaults</h2>
+              <p className="-mt-2 text-sm text-slate-600">{sectionDescriptions.classroom}</p>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
                 <p className="text-sm font-bold text-slate-800">Auto-flag low attendance</p>
-                <Toggle label="Auto-flag low attendance" checked={draft.classroom.autoFlagLowAttendance} onChange={(checked) => updateSection("classroom", { autoFlagLowAttendance: checked })} />
+                <Toggle
+                  label="Auto-flag low attendance"
+                  checked={draft.classroom.autoFlagLowAttendance}
+                  disabled={isSessionLocked}
+                  onChange={(checked) => updateSection("classroom", { autoFlagLowAttendance: checked })}
+                />
               </div>
               <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
                 <p className="text-sm font-bold text-slate-800">Weekly parent summary</p>
-                <Toggle label="Weekly parent summary" checked={draft.classroom.weeklyParentSummary} onChange={(checked) => updateSection("classroom", { weeklyParentSummary: checked })} />
+                <Toggle
+                  label="Weekly parent summary"
+                  checked={draft.classroom.weeklyParentSummary}
+                  disabled={isSessionLocked}
+                  onChange={(checked) => updateSection("classroom", { weeklyParentSummary: checked })}
+                />
               </div>
             </div>
           ) : null}
@@ -567,22 +762,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
           {activeTab === "system" ? (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-slate-900">System Integrations</h2>
+              <p className="-mt-2 text-sm text-slate-600">{sectionDescriptions.system}</p>
               {[
-                ["infiniteCampusConnected", "Infinite Campus"],
-                ["cleverConnected", "Clever"],
-                ["powerSchoolConnected", "PowerSchool"],
-              ].map(([key, label]) => (
+                {
+                  key: "infiniteCampusConnected",
+                  label: "Infinite Campus",
+                  description: "Sync roster and attendance data from Infinite Campus.",
+                },
+                {
+                  key: "cleverConnected",
+                  label: "Clever",
+                  description: "Enable secure classroom application and roster sync via Clever.",
+                },
+                {
+                  key: "powerSchoolConnected",
+                  label: "PowerSchool",
+                  description: "Connect PowerSchool for SIS data and gradebook integration.",
+                },
+              ].map(({ key, label, description }) => (
                 <div key={key} className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
-                  <p className="text-sm font-bold text-slate-800">{label}</p>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{label}</p>
+                    <p className="text-xs text-slate-500">{description}</p>
+                  </div>
                   <Toggle
-                    label={`Toggle ${label}`}
+                    label={`Connect ${label}`}
                     checked={draft.system[key as keyof typeof draft.system]}
+                    disabled={isSessionLocked}
                     onChange={(checked) => updateSection("system", { [key]: checked } as Partial<typeof draft.system>)}
                   />
                 </div>
               ))}
             </div>
           ) : null}
+          </fieldset>
 
           <div aria-live="polite" className="mt-6">
             {activeStatus.error ? <p className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-rose-700"><AlertCircle size={16} />{activeStatus.error}</p> : null}
@@ -590,11 +803,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
           </div>
 
           <div className="sticky bottom-0 z-10 -mx-6 flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur md:-mx-8 md:px-8 lg:static lg:m-0 lg:bg-transparent lg:p-0 lg:pt-4">
-            <button type="button" onClick={() => resetSection(activeTab)} disabled={!isDirty(activeTab) || activeStatus.saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            {isSessionLocked ? (
+              <p className="mr-auto text-xs font-semibold text-rose-700">Re-authenticate to edit settings.</p>
+            ) : null}
+            <button type="button" onClick={() => resetSection(activeTab)} disabled={isSessionLocked || !isDirty(activeTab) || activeStatus.saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
               <RotateCcw size={16} /> Reset
             </button>
-            <button type="button" onClick={() => void saveSection(activeTab)} disabled={!isDirty(activeTab) || activeStatus.saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
-              {activeStatus.saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+            <button type="button" onClick={() => void saveSection(activeTab)} disabled={isSessionLocked || !isDirty(activeTab) || activeStatus.saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+              {activeStatus.saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {activeStatus.saving ? "Saving..." : "Save"}
             </button>
           </div>
         </section>

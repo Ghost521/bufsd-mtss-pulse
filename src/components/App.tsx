@@ -1261,6 +1261,7 @@ const App: React.FC = () => {
           documents={ragDocuments}
           currentSchoolName={data.schoolName}
           currentClassName={currentRole === UserRole.TEACHER ? 'Class 4-B' : undefined}
+          activePage={currentViewPage}
         />
       </Suspense>
 

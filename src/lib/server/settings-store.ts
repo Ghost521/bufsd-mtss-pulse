@@ -22,7 +22,7 @@ const SETTINGS_DOMAIN = "settings" as const;
 const hasAnyRole = (roles: RoleKey[], required: RoleKey[]): boolean =>
   required.some((role) => roles.includes(role));
 
-const isSectionAllowedForRoles = (section: SettingsSectionId, roles: RoleKey[]): boolean => {
+export const isSettingsSectionAllowedForRoles = (section: SettingsSectionId, roles: RoleKey[]): boolean => {
   if (section === "profile" || section === "notifications" || section === "security") return true;
   if (section === "preferences") return roles.includes("parent");
   if (section === "classroom") return roles.includes("teacher");
@@ -107,7 +107,7 @@ export const updateUserSettingsSection = async <TSection extends SettingsSection
   section: TSection,
   data: unknown
 ): Promise<SettingsRecord> => {
-  if (!isSectionAllowedForRoles(section, session.effectiveRoles)) {
+  if (!isSettingsSectionAllowedForRoles(section, session.effectiveRoles)) {
     throw new SettingsStoreError("You do not have permission to update this settings section.", 403);
   }
 
