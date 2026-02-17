@@ -111,16 +111,16 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
   };
 
   const isSidebar = variant === "sidebar";
-  const containerClass = isSidebar ? "space-y-2" : "flex items-center gap-2";
-  const labelClass = isSidebar ? "block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500" : "sr-only";
+  const containerClass = isSidebar ? "space-y-2.5" : "flex items-center gap-2";
+  const labelClass = isSidebar ? "block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400" : "sr-only";
   const inputClass = isSidebar
-    ? "w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
+    ? "w-full rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-2 text-xs text-slate-100 transition-colors focus:border-brand-400 focus:outline-none disabled:opacity-60"
     : "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700";
   const actionClass = isSidebar
-    ? "rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+    ? "rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-2 text-xs text-slate-100 transition-colors hover:border-slate-500 hover:bg-slate-700 disabled:opacity-50"
     : "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50";
   const primaryActionClass = isSidebar
-    ? "rounded-md border border-indigo-300 bg-indigo-100 px-2 py-1.5 text-xs text-indigo-900 hover:bg-indigo-200"
+    ? "rounded-lg border border-brand-400/60 bg-brand-500/20 px-2.5 py-2 text-xs text-brand-100 transition-colors hover:bg-brand-500/30"
     : "rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-100";
 
   return (
@@ -183,7 +183,7 @@ export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitc
         </a>
       ) : null}
 
-      {error ? <span className={`truncate text-xs text-rose-600 ${isSidebar ? "" : "max-w-[220px]"}`}>{error}</span> : null}
+      {error ? <span className={`truncate text-xs text-rose-400 ${isSidebar ? "" : "max-w-[220px]"}`}>{error}</span> : null}
     </div>
   );
 }

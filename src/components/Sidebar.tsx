@@ -183,6 +183,15 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const navContainerClasses = isMobile
     ? "flex-1 space-y-1 overflow-y-auto px-3 py-4"
     : `flex-1 space-y-1 overflow-y-auto px-3 py-4 ${isDesktopCollapsed ? "pt-3" : "pt-4"}`;
+  const userInitials = useMemo(() => {
+    const parts = userName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (parts.length === 0) return "US";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  }, [userName]);
 
   return (
     <div className="flex h-full flex-col">
@@ -311,7 +320,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
       <div className={`border-t border-slate-800 p-3 ${isDesktopCollapsed && !isMobile ? "space-y-2" : "space-y-3"}`}>
         {isDesktopCollapsed && !isMobile ? (
-          <>
+          <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-800/40 p-2">
+            <button
+              type="button"
+              onClick={onDesktopCollapseToggle}
+              className="flex w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-2.5 text-slate-100 transition-colors hover:border-slate-500 hover:text-white"
+              aria-label="Expand account and workspace controls"
+              title="Expand account and workspace controls"
+            >
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-[11px] font-bold text-white">{userInitials}</span>
+            </button>
             <Link
               to={buildWorkspacePath("settings")}
               activeOptions={{ exact: true }}
@@ -324,29 +342,32 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             >
               <Settings size={18} />
             </Link>
-            <button
-              type="button"
-              onClick={onDesktopCollapseToggle}
-              className="flex w-full items-center justify-center rounded-lg bg-slate-800/60 p-2 text-slate-200"
-              aria-label="Expand account and workspace controls"
-              title="Expand account and workspace controls"
-            >
-              <span className="text-xs font-semibold">{userName.substring(0, 2).toUpperCase()}</span>
-            </button>
-          </>
+          </div>
         ) : (
-          <details className="rounded-xl border border-slate-800 bg-slate-800/50 p-3" open>
-            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-              Account &amp; Workspace
-            </summary>
+          <section className="rounded-2xl border border-slate-700/80 bg-gradient-to-b from-slate-800/70 to-slate-900/80 p-3 shadow-[0_10px_24px_-14px_rgba(0,0,0,0.8)]">
+            <div className="flex items-start gap-3">
+              <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white shadow-md">
+                {userInitials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Account &amp; Workspace</p>
+                <p className="truncate text-sm font-semibold text-white">{userName}</p>
+                <p className="truncate text-xs text-slate-400">{schoolName}</p>
+              </div>
+              <span className="rounded-full border border-brand-400/50 bg-brand-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-100">
+                {currentRole}
+              </span>
+            </div>
+
             <div className="mt-3 space-y-3">
-              <div>
-                <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">View As Role</label>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
+                <label className="mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">View As Role</label>
+                <p className="mb-2 text-xs text-slate-500">Choose the perspective for this workspace.</p>
                 <select
                   value={currentRole}
                   onChange={(event) => onRoleChange(event.target.value as UserRole)}
                   disabled={availableRoles.length <= 1}
-                  className="w-full rounded border border-slate-700 bg-slate-800 p-2 text-xs text-slate-200 focus:border-brand-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-xs text-slate-100 transition-colors focus:border-brand-400 focus:outline-none"
                   aria-label="Switch active role view"
                 >
                   {availableRoles.map((role) => (
@@ -361,28 +382,26 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 to={buildWorkspacePath("settings")}
                 activeOptions={{ exact: true }}
                 onClick={onClose}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
-                  activePage === "settings" ? "bg-slate-700 text-white" : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                  activePage === "settings"
+                    ? "border-brand-500/60 bg-brand-500/20 text-white"
+                    : "border-slate-700 bg-slate-900/40 text-slate-200 hover:border-slate-500 hover:text-white"
                 }`}
               >
-                <Settings size={16} />
-                <span className="text-sm font-medium">Settings</span>
+                <span className="inline-flex items-center gap-2">
+                  <Settings size={16} />
+                  <span className="text-sm font-medium">Settings</span>
+                </span>
+                <span className="text-[11px] text-slate-400">Manage</span>
               </Link>
 
-              <div className="rounded-lg bg-slate-900/50 p-3">
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="h-9 w-9 shrink-0 rounded-full bg-brand-500 text-center text-white shadow-md">
-                    <span className="inline-flex h-9 items-center justify-center font-bold">{userName.substring(0, 2).toUpperCase()}</span>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="truncate text-sm font-semibold text-white">{userName}</p>
-                    <p className="truncate text-xs text-slate-400">{currentRole}</p>
-                  </div>
-                </div>
+              <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">Workspace Session</p>
+                <p className="mb-2 text-xs text-slate-500">Update organization context and authentication state.</p>
                 <TenantContextSwitcher variant="sidebar" />
               </div>
             </div>
-          </details>
+          </section>
         )}
       </div>
     </div>
