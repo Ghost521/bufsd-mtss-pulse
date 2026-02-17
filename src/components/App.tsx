@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { 
   Activity, 
   Zap, 
@@ -24,28 +24,36 @@ import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
 import { MonitoringPulse } from './MonitoringPulse';
-import { StudentDetailModal } from './StudentDetailModal';
-import { StudentProfile } from './StudentProfile';
-import { RosterView } from './RosterView';
-import { StudentRosterView } from './StudentRosterView';
-import { GradebookView } from './GradebookView';
-import { DocumentManager } from './DocumentManager'; 
-import { Chatbot } from './Chatbot'; 
-import { MessagesView } from './MessagesView'; 
-import { SettingsView } from './SettingsView'; 
-import { CalendarView } from './CalendarView'; 
-import { SchoolsMapView } from './SchoolsMapView';
-import { DataImporter } from './DataImporter'; 
-import { ReportsView } from './ReportsView'; 
-import { ReferralModal } from './ReferralModal';
-import { InterventionManager } from './InterventionManager';
-import { LessonPlanLibrary } from './LessonPlanLibrary';
 import { RichTextRenderer } from './RichTextRenderer';
 import { PRINCIPAL_DATA, TEACHER_DATA, DISTRICT_DATA, PARENT_DATA, MOCK_RAG_DOCUMENTS } from '../constants';
 import type { DashboardData, RAGDocument} from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { generateDashboardBriefingStream } from '../services/geminiService';
+
+const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
+const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
+const RosterView = lazy(() => import('./RosterView').then((m) => ({ default: m.RosterView })));
+const StudentRosterView = lazy(() => import('./StudentRosterView').then((m) => ({ default: m.StudentRosterView })));
+const GradebookView = lazy(() => import('./GradebookView').then((m) => ({ default: m.GradebookView })));
+const LessonPlanLibrary = lazy(() => import('./LessonPlanLibrary').then((m) => ({ default: m.LessonPlanLibrary })));
+const DocumentManager = lazy(() => import('./DocumentManager').then((m) => ({ default: m.DocumentManager })));
+const MessagesView = lazy(() => import('./MessagesView').then((m) => ({ default: m.MessagesView })));
+const CalendarView = lazy(() => import('./CalendarView').then((m) => ({ default: m.CalendarView })));
+const SchoolsMapView = lazy(() => import('./SchoolsMapView').then((m) => ({ default: m.SchoolsMapView })));
+const DataImporter = lazy(() => import('./DataImporter').then((m) => ({ default: m.DataImporter })));
+const ReportsView = lazy(() => import('./ReportsView').then((m) => ({ default: m.ReportsView })));
+const InterventionManager = lazy(() => import('./InterventionManager').then((m) => ({ default: m.InterventionManager })));
+const SettingsView = lazy(() => import('./SettingsView').then((m) => ({ default: m.SettingsView })));
+const Chatbot = lazy(() => import('./Chatbot').then((m) => ({ default: m.Chatbot })));
+const ReferralModal = lazy(() => import('./ReferralModal').then((m) => ({ default: m.ReferralModal })));
+
+const LazyViewFallback: React.FC = () => (
+  <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm">
+    <Loader2 size={20} className="animate-spin" />
+    <span className="ml-2 text-sm font-medium">Loading view...</span>
+  </div>
+);
 
 const App: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
@@ -595,26 +603,32 @@ const App: React.FC = () => {
     <div className="flex min-h-screen bg-slate-50/80 font-sans text-slate-900">
       
       {/* Global Chatbot */}
-      <Chatbot 
-        currentUserRole={currentRole}
-        currentUserName={data.userName}
-        documents={ragDocuments}
-        currentSchoolName={data.schoolName}
-        currentClassName={currentRole === UserRole.TEACHER ? 'Class 4-B' : undefined}
-      />
+      <Suspense fallback={null}>
+        <Chatbot 
+          currentUserRole={currentRole}
+          currentUserName={data.userName}
+          documents={ragDocuments}
+          currentSchoolName={data.schoolName}
+          currentClassName={currentRole === UserRole.TEACHER ? 'Class 4-B' : undefined}
+        />
+      </Suspense>
 
-      <StudentDetailModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        studentName={selectedStudent} 
-        onViewFullProfile={handleNavigateToProfile}
-        onMessageParents={() => handleNavigateToMessages('Mrs. Martinez')} // Mock parent name
-      />
+      <Suspense fallback={null}>
+        <StudentDetailModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          studentName={selectedStudent} 
+          onViewFullProfile={handleNavigateToProfile}
+          onMessageParents={() => handleNavigateToMessages('Mrs. Martinez')} // Mock parent name
+        />
+      </Suspense>
 
-      <ReferralModal 
-        isOpen={isReferralModalOpen} 
-        onClose={() => setIsReferralModalOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <ReferralModal 
+          isOpen={isReferralModalOpen} 
+          onClose={() => setIsReferralModalOpen(false)}
+        />
+      </Suspense>
 
       <Sidebar 
         currentRole={currentRole} 
@@ -628,10 +642,15 @@ const App: React.FC = () => {
       />
       
       <main className={`flex-1 transition-all duration-300 ${isMobileMenuOpen ? 'lg:ml-64' : 'lg:ml-64'} p-4 md:p-8 w-full max-w-[1600px] mx-auto`}>
-        {renderActivePage()}
+        <Suspense fallback={<LazyViewFallback />}>
+          {renderActivePage()}
+        </Suspense>
       </main>
     </div>
   );
 };
 
 export default App;
+
+
+
