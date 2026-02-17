@@ -135,10 +135,9 @@ const App: React.FC = () => {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const routePage = useMemo(() => {
-    const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname;
-    if (!currentPath.startsWith("/app")) return null;
-    if (currentPath === "/app" || currentPath === "/app/") return null;
-    const slug = currentPath.replace(/^\/app\//, "").split("/")[0];
+    if (!pathname.startsWith("/app")) return null;
+    if (pathname === "/app" || pathname === "/app/") return null;
+    const slug = pathname.replace(/^\/app\//, "").split("/")[0];
     return slugToPage(slug);
   }, [pathname]);
 
@@ -290,7 +289,7 @@ const App: React.FC = () => {
     if (requestedPage !== normalizedPage) {
       void navigate({ to: buildWorkspacePath(normalizedPage), replace: true });
     }
-  }, [currentRole, navigate, routePage]);
+  }, [closeMobileMenu, currentRole, navigate, routePage]);
 
   // Update data when role changes
   useEffect(() => {
@@ -316,7 +315,7 @@ const App: React.FC = () => {
     setIsMoreMenuOpen(false);
     setMessageRecipient(undefined);
     setIsReferralModalOpen(false);
-  }, [currentRole]);
+  }, [closeMobileMenu, currentRole]);
 
   useEffect(() => {
     if (!dashboardQuery.data?.data) return;
@@ -506,7 +505,7 @@ const App: React.FC = () => {
     return () => {
       mediaQuery.removeEventListener("change", handleViewportChange);
     };
-  }, []);
+  }, [closeMobileMenu]);
 
   const handleRefresh = () => {
     if (isRefreshing) return;
