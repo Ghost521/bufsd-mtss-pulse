@@ -41,7 +41,13 @@ const describeContext = (context: TenantContext): string => {
   return `${context.organizationId}${districtPart}${schoolPart}`;
 };
 
-export function TenantContextSwitcher() {
+type TenantContextSwitcherVariant = "topnav" | "sidebar";
+
+interface TenantContextSwitcherProps {
+  variant?: TenantContextSwitcherVariant;
+}
+
+export function TenantContextSwitcher({ variant = "topnav" }: TenantContextSwitcherProps) {
   const [data, setData] = useState<HealthSessionResponse | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,15 +110,30 @@ export function TenantContextSwitcher() {
     await postSessionChange({ context: target });
   };
 
+  const isSidebar = variant === "sidebar";
+  const containerClass = isSidebar ? "space-y-2" : "flex items-center gap-2";
+  const labelClass = isSidebar ? "block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500" : "sr-only";
+  const inputClass = isSidebar
+    ? "w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200"
+    : "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700";
+  const actionClass = isSidebar
+    ? "rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+    : "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50";
+  const primaryActionClass = isSidebar
+    ? "rounded-md border border-indigo-300 bg-indigo-100 px-2 py-1.5 text-xs text-indigo-900 hover:bg-indigo-200"
+    : "rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-100";
+
   return (
-    <div className="flex items-center gap-2">
+    <div className={containerClass}>
+      <p className={labelClass}>Context</p>
       {canSwitchUsers ? (
         <select
           value={data?.session?.user.id ?? ""}
           onChange={(event) => void onUserChange(event.target.value)}
           disabled={isBusy || !data}
-          className="max-w-[180px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+          className={`${inputClass} ${isSidebar ? "w-full" : "max-w-[180px]"}`}
           title="Active user"
+          aria-label="Active user"
         >
           {(data?.availableUsers ?? []).map((user) => (
             <option key={user.id} value={user.id}>
@@ -126,8 +147,9 @@ export function TenantContextSwitcher() {
         value={activeContextKey}
         onChange={(event) => void onContextChange(event.target.value)}
         disabled={isBusy || !hasSession || availableContexts.length === 0}
-        className="max-w-[240px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+        className={`${inputClass} ${isSidebar ? "w-full" : "max-w-[240px]"}`}
         title="Active tenant context"
+        aria-label="Active tenant context"
       >
         {availableContexts.map((context) => (
           <option key={contextKey(context)} value={contextKey(context)}>
@@ -140,14 +162,14 @@ export function TenantContextSwitcher() {
         type="button"
         onClick={() => void load()}
         disabled={isBusy}
-        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        className={actionClass}
       >
         Refresh
       </button>
       {workosEnabled && hasSession ? (
         <a
           href={logoutHref}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+          className={actionClass}
         >
           Sign out
         </a>
@@ -155,13 +177,13 @@ export function TenantContextSwitcher() {
       {workosEnabled && !hasSession ? (
         <a
           href={loginHref}
-          className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-100"
+          className={primaryActionClass}
         >
           Sign in
         </a>
       ) : null}
 
-      {error ? <span className="max-w-[220px] truncate text-xs text-rose-600">{error}</span> : null}
+      {error ? <span className={`truncate text-xs text-rose-600 ${isSidebar ? "" : "max-w-[220px]"}`}>{error}</span> : null}
     </div>
   );
 }

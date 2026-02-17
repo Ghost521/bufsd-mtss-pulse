@@ -17,20 +17,20 @@ import {
   Menu,
   CalendarPlus,
   BarChart2,
-  ArrowRight,
-  Loader2
+  Loader2,
+  ChevronDown,
+  CheckCircle2
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
 import { MonitoringPulse } from './MonitoringPulse';
-import { RichTextRenderer } from './RichTextRenderer';
 import { PRINCIPAL_DATA, TEACHER_DATA, DISTRICT_DATA, PARENT_DATA, MOCK_RAG_DOCUMENTS } from '../constants';
 import type { DashboardData, RAGDocument} from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-import { generateDashboardBriefingStream } from '../services/geminiService';
+import { generateDashboardBriefing } from '../services/geminiService';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -59,7 +59,6 @@ const LazyViewFallback: React.FC = () => (
 type HeaderAction = {
   id: string;
   label: string;
-  kind: 'primary' | 'secondary' | 'tertiary';
   enabled: boolean;
   tooltip?: string;
   onClick: () => void;
@@ -72,6 +71,13 @@ type FreshnessState = {
   status: 'fresh' | 'stale' | 'unknown';
 };
 
+type DashboardSectionKey = 'quickTasks' | 'metrics' | 'aiBriefing' | 'chart' | 'tierDistribution' | 'monitoring';
+
+type FlashMessage = {
+  tone: 'success' | 'error' | 'info';
+  text: string;
+};
+
 const App: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
   const [data, setData] = useState<DashboardData>(PRINCIPAL_DATA);
@@ -81,6 +87,17 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activePage, setActivePage] = useState('dashboard');
   const [messageRecipient, setMessageRecipient] = useState<string | undefined>(undefined);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [flashMessage, setFlashMessage] = useState<FlashMessage | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const [mobileSections, setMobileSections] = useState<Record<DashboardSectionKey, boolean>>({
+    quickTasks: true,
+    metrics: false,
+    aiBriefing: true,
+    chart: false,
+    tierDistribution: false,
+    monitoring: true,
+  });
 
   // Freshness State
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -95,6 +112,8 @@ const App: React.FC = () => {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showBriefing, setShowBriefing] = useState(false);
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+  const [briefingGeneratedAt, setBriefingGeneratedAt] = useState<string | null>(null);
   
   // Feedback Loop State
   const [feedbackHistory, setFeedbackHistory] = useState<string[]>([]);
@@ -139,6 +158,10 @@ const App: React.FC = () => {
     []
   );
 
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, []);
+
   // Update data when role changes
   useEffect(() => {
     switch (currentRole) {
@@ -154,11 +177,14 @@ const App: React.FC = () => {
     setFeedbackSubmitted(false);
     setFeedbackSentiment(null);
     setFeedbackText('');
+    setBriefingError(null);
+    setBriefingGeneratedAt(null);
     setIsModalOpen(false);
     setSelectedStudent(null);
     setActivePage((current) => (availablePagesByRole[currentRole].includes(current) ? current : 'dashboard'));
     setProfileStudent(null);
     setIsMobileMenuOpen(false);
+    setIsMoreMenuOpen(false);
     setMessageRecipient(undefined);
     setIsReferralModalOpen(false);
   }, [availablePagesByRole, currentRole]);
@@ -200,6 +226,48 @@ const App: React.FC = () => {
     return () => observer.disconnect();
   }, [hasHydrated]);
 
+  useEffect(() => {
+    if (!flashMessage) return;
+    const timer = window.setTimeout(() => setFlashMessage(null), 3200);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [flashMessage]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setIsMobileMenuOpen(false);
+      setIsMoreMenuOpen(false);
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
+      if (!moreMenuRef.current?.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [isMoreMenuOpen]);
+
   const iconMap: Record<string, React.ElementType> = {
     Activity,
     Zap,
@@ -240,9 +308,43 @@ const App: React.FC = () => {
     [timeTick]
   );
 
+  const briefingReviewDeadline = useMemo(
+    () =>
+      new Date(timeTick + 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }),
+    [timeTick]
+  );
+
+  const toggleMobileSection = (section: DashboardSectionKey) => {
+    setMobileSections((previous) => ({
+      ...previous,
+      [section]: !previous[section],
+    }));
+  };
+
+  const renderMobileSectionHeader = (section: DashboardSectionKey, label: string, subtitle: string) => (
+    <button
+      type="button"
+      onClick={() => toggleMobileSection(section)}
+      className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left lg:hidden"
+      aria-expanded={mobileSections[section]}
+    >
+      <span>
+        <span className="block text-sm font-semibold text-slate-800">{label}</span>
+        <span className="block text-xs text-slate-500">{subtitle}</span>
+      </span>
+      <ChevronDown size={16} className={`text-slate-500 transition-transform ${mobileSections[section] ? 'rotate-180' : ''}`} />
+    </button>
+  );
+
   const handleRefresh = () => {
     if (isRefreshing) return;
+    setIsMoreMenuOpen(false);
     setIsRefreshing(true);
+    setFlashMessage({ tone: 'info', text: 'Refreshing dashboard data…' });
     window.setTimeout(() => {
       setFreshness({
         source: 'local',
@@ -250,13 +352,17 @@ const App: React.FC = () => {
         status: 'fresh',
       });
       setIsRefreshing(false);
+      setFlashMessage({ tone: 'success', text: 'Dashboard data is up to date.' });
     }, 450);
   };
 
   const handleGenerateInsight = async () => {
     setIsGenerating(true);
+    setIsMoreMenuOpen(false);
     setShowBriefing(true);
     setBriefing(''); // Clear previous briefing
+    setBriefingError(null);
+    setFlashMessage({ tone: 'info', text: 'Generating AI briefing…' });
     
     // Reset feedback UI for new generation
     setShowFeedbackInput(false);
@@ -264,11 +370,19 @@ const App: React.FC = () => {
     setFeedbackSentiment(null);
     setFeedbackText('');
 
-    await generateDashboardBriefingStream(data, feedbackHistory, (chunk) => {
-      setBriefing(prev => (prev || '') + chunk);
-    });
-    
-    setIsGenerating(false);
+    try {
+      const nextBriefing = await generateDashboardBriefing(data, feedbackHistory);
+      setBriefing(nextBriefing);
+      setBriefingGeneratedAt(new Date().toISOString());
+      setFlashMessage({ tone: 'success', text: 'AI briefing generated.' });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to generate AI briefing.';
+      setBriefing(null);
+      setBriefingError(errorMessage);
+      setFlashMessage({ tone: 'error', text: errorMessage });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleFeedbackClick = (sentiment: 'positive' | 'negative') => {
@@ -356,7 +470,6 @@ const App: React.FC = () => {
       return {
         id: 'message-teacher',
         label: 'Message Teacher',
-        kind: 'primary',
         enabled: true,
         onClick: () => handleNavigateToMessages('Mr. Davis'),
         icon: MessageSquare,
@@ -366,7 +479,6 @@ const App: React.FC = () => {
       return {
         id: 'open-reports',
         label: 'Open Reports',
-        kind: 'primary',
         enabled: true,
         onClick: () => setActivePage('reports'),
         icon: BarChart2,
@@ -375,19 +487,17 @@ const App: React.FC = () => {
     return {
       id: 'new-referral',
       label: 'New Referral',
-      kind: 'primary',
       enabled: true,
       onClick: () => setIsReferralModalOpen(true),
       icon: Plus,
     };
   })();
 
-  const secondaryActions = (() => {
+  const moreActions = (() => {
     const actions: HeaderAction[] = [
       {
         id: 'refresh-local',
         label: isRefreshing ? 'Refreshing…' : 'Refresh Data',
-        kind: 'secondary',
         enabled: !isRefreshing,
         onClick: handleRefresh,
         icon: RefreshCw,
@@ -395,7 +505,6 @@ const App: React.FC = () => {
       {
         id: 'ai-brief',
         label: isGenerating ? 'Generating…' : showBriefing ? 'Refresh AI Brief' : 'Generate AI Brief',
-        kind: 'secondary',
         enabled: !isGenerating,
         onClick: () => {
           void handleGenerateInsight();
@@ -408,7 +517,6 @@ const App: React.FC = () => {
       actions.push({
         id: 'schedule-mtss',
         label: 'Schedule MTSS',
-        kind: 'tertiary',
         enabled: true,
         onClick: () => setActivePage('calendar'),
         icon: CalendarPlus,
@@ -418,7 +526,6 @@ const App: React.FC = () => {
       actions.push({
         id: 'view-roster',
         label: 'View Roster',
-        kind: 'tertiary',
         enabled: true,
         onClick: () => setActivePage('class_roster'),
         icon: Users,
@@ -426,13 +533,11 @@ const App: React.FC = () => {
     }
     if (currentRole === UserRole.DISTRICT) {
       actions.push({
-        id: 'allocate',
-        label: 'Allocate Resources',
-        kind: 'tertiary',
-        enabled: false,
-        tooltip: 'Allocation workflow is not available in this build.',
-        onClick: () => {},
-        icon: CalendarPlus,
+        id: 'district-map',
+        label: 'Open Schools Map',
+        enabled: true,
+        onClick: () => setActivePage('map'),
+        icon: Users,
       });
     }
     return actions;
@@ -460,6 +565,37 @@ const App: React.FC = () => {
         { id: 'task-calendar', label: 'Check Calendar', onClick: () => setActivePage('calendar') },
       ],
     }[currentRole]);
+
+  const structuredBriefing = useMemo(() => {
+    const risksFromData = data.actionItems.slice(0, 3).map((item) => `${item.studentName}: ${item.insight}`);
+    const actionsFromTasks = topTasks.slice(0, 3).map((task) => task.label);
+
+    if (!briefing) {
+      return {
+        keyRisks: risksFromData,
+        recommendedActions: actionsFromTasks,
+      };
+    }
+
+    const cleanSentences = briefing
+      .replace(/\r/g, ' ')
+      .split(/\n+/)
+      .map((line) => line.replace(/^[\s>*-]+/, '').trim())
+      .filter(Boolean);
+
+    const explicitRecommendations = cleanSentences
+      .filter((line) => /recommend|prioritize|schedule|review|follow/i.test(line))
+      .slice(0, 3);
+
+    const explicitRisks = cleanSentences
+      .filter((line) => /risk|critical|urgent|flagged|drop|absence|referral|threshold/i.test(line))
+      .slice(0, 3);
+
+    return {
+      keyRisks: explicitRisks.length > 0 ? explicitRisks : risksFromData,
+      recommendedActions: explicitRecommendations.length > 0 ? explicitRecommendations : actionsFromTasks,
+    };
+  }, [briefing, data.actionItems, topTasks]);
 
   // --- Render Helpers ---
 
@@ -511,103 +647,150 @@ const App: React.FC = () => {
             </button>
           ) : null}
 
-          {secondaryActions.map((action) => (
+          <div className="relative" ref={moreMenuRef}>
             <button
-              key={action.id}
               type="button"
-              onClick={action.onClick}
-              disabled={!action.enabled}
-              title={action.tooltip}
-              className={`flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                action.kind === 'secondary'
-                  ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
+              onClick={() => setIsMoreMenuOpen((previous) => !previous)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              aria-expanded={isMoreMenuOpen}
+              aria-haspopup="menu"
             >
-              <action.icon size={16} />
-              {action.label}
+              More
+              <ChevronDown size={16} className={`transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
-        </div>
-      </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-        {topTasks.map((task) => (
-          <button
-            key={task.id}
-            type="button"
-            onClick={task.onClick}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-          >
-            {task.label}
-          </button>
-        ))}
+            {isMoreMenuOpen ? (
+              <div className="absolute right-0 z-30 mt-2 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-xl" role="menu">
+                {moreActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      action.onClick();
+                      setIsMoreMenuOpen(false);
+                    }}
+                    disabled={!action.enabled}
+                    title={action.tooltip}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <action.icon size={14} />
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
     </header>
   );
 
   const renderAIBriefing = () => (
     showBriefing && (
-      <div className="mb-8 bg-gradient-to-r from-indigo-50 to-white border border-indigo-100 rounded-xl p-6 shadow-sm relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Bot size={120} />
-        </div>
-        
-        <div className="flex justify-between items-start relative z-10">
-          <h3 className="text-indigo-900 font-bold text-lg mb-2 flex items-center gap-2">
-            <Bot size={20} className="text-indigo-600"/>
+      <div className="mb-8 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-indigo-900">
+            <Bot size={20} className="text-indigo-600" />
             AI {currentRole === UserRole.PARENT ? 'Assistant' : 'Executive Summary'}
           </h3>
-          {!isGenerating && briefing && !feedbackSubmitted && !showFeedbackInput && (
+          {!isGenerating && briefing && !feedbackSubmitted && !showFeedbackInput ? (
             <div className="flex items-center gap-2 text-sm text-indigo-400">
-              <span className="text-xs hidden sm:inline">Helpful?</span>
-              <button type="button" aria-label="Mark AI summary as helpful" onClick={() => handleFeedbackClick('positive')} className="p-1 hover:bg-indigo-100 rounded-full transition-colors hover:text-indigo-600"><ThumbsUp size={16} /></button>
-              <button type="button" aria-label="Mark AI summary as not helpful" onClick={() => handleFeedbackClick('negative')} className="p-1 hover:bg-indigo-100 rounded-full transition-colors hover:text-indigo-600"><ThumbsDown size={16} /></button>
+              <span className="hidden text-xs sm:inline">Helpful?</span>
+              <button type="button" aria-label="Mark AI summary as helpful" onClick={() => handleFeedbackClick('positive')} className="rounded-full p-1 transition-colors hover:bg-indigo-100 hover:text-indigo-600"><ThumbsUp size={16} /></button>
+              <button type="button" aria-label="Mark AI summary as not helpful" onClick={() => handleFeedbackClick('negative')} className="rounded-full p-1 transition-colors hover:bg-indigo-100 hover:text-indigo-600"><ThumbsDown size={16} /></button>
             </div>
-          )}
+          ) : null}
         </div>
 
-        <div className="relative z-10">
-          {isGenerating && !briefing ? (
-            <div className="flex items-center gap-3 text-indigo-700 animate-pulse py-2">
-              <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" />
-              <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce delay-100" />
-              <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce delay-200" />
-              Analyzing data...
-            </div>
-          ) : (
-            <>
-              <div className="max-w-4xl">
-                <RichTextRenderer content={briefing || ''} variant="dark" className="text-indigo-900/80" isTyping={isGenerating} />
-              </div>
-              {!isGenerating && (showFeedbackInput || feedbackSubmitted) && (
-                <div className="mt-4 pt-4 border-t border-indigo-100/50 animate-in fade-in slide-in-from-top-2">
-                  {feedbackSubmitted ? (
-                    <div className="flex items-center gap-2 text-emerald-600 text-sm font-medium"><ThumbsUp size={16} /> Thank you for your feedback!</div>
-                  ) : (
-                    <div className="flex flex-col sm:flex-row gap-2 max-w-2xl">
-                       <div className="relative flex-1">
-                         <MessageSquare size={16} className="absolute left-3 top-3 text-indigo-400" />
-                         <input 
-                           type="text" 
-                           placeholder="Improve this briefing?..."
-                           value={feedbackText}
-                           onChange={(e) => setFeedbackText(e.target.value)}
-                           className="w-full pl-9 pr-3 py-2 text-sm border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white/80"
-                           onKeyDown={(e) => e.key === 'Enter' && handleSubmitFeedback()}
-                         />
-                       </div>
-                       <div className="flex gap-2">
-                        <button type="button" onClick={handleSubmitFeedback} className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2">Submit <Send size={14} /></button>
-                        <button type="button" aria-label="Close feedback input" onClick={() => setShowFeedbackInput(false)} className="p-2 text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-100 rounded-lg sm:bg-transparent sm:border-none"><X size={18} /></button>
-                       </div>
-                    </div>
-                  )}
+        {isGenerating ? (
+          <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-700">
+            <Loader2 size={16} className="animate-spin" />
+            Building executive summary from current dashboard context…
+          </div>
+        ) : null}
+
+        {briefingError ? (
+          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+            <p className="font-semibold">AI summary unavailable.</p>
+            <p className="mt-1">{briefingError}</p>
+            <button
+              type="button"
+              onClick={() => void handleGenerateInsight()}
+              className="mt-2 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+            >
+              Retry AI Brief
+            </button>
+          </div>
+        ) : null}
+
+        {!isGenerating && !briefingError ? (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <section className="rounded-lg border border-indigo-100 bg-white/80 p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-indigo-700">Key Risks</h4>
+              <ul className="mt-2 space-y-2 text-sm text-slate-700">
+                {structuredBriefing.keyRisks.map((risk, index) => (
+                  <li key={`risk-${index}`} className="flex items-start gap-2">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-500" />
+                    <span>{risk}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="rounded-lg border border-indigo-100 bg-white/80 p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-indigo-700">Recommended Actions</h4>
+              <ul className="mt-2 space-y-2 text-sm text-slate-700">
+                {structuredBriefing.recommendedActions.map((action, index) => (
+                  <li key={`action-${index}`} className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+                    <span>{action}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        ) : null}
+
+        {!isGenerating && !briefingError ? (
+          <div className="mt-4 rounded-lg border border-indigo-100 bg-white/80 p-4 text-xs text-slate-600">
+            <p><span className="font-semibold text-slate-700">Owner:</span> {data.userName}</p>
+            <p><span className="font-semibold text-slate-700">Due Date:</span> {briefingReviewDeadline}</p>
+            <p>
+              <span className="font-semibold text-slate-700">Generated:</span>{' '}
+              {briefingGeneratedAt
+                ? new Date(briefingGeneratedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                : 'Not generated yet'}
+            </p>
+            <p><span className="font-semibold text-slate-700">Source Confidence:</span> AI + local workspace data</p>
+          </div>
+        ) : null}
+
+        {!isGenerating && (showFeedbackInput || feedbackSubmitted) ? (
+          <div className="mt-4 border-t border-indigo-100/70 pt-4">
+            {feedbackSubmitted ? (
+              <div className="flex items-center gap-2 text-sm font-medium text-emerald-600"><ThumbsUp size={16} /> Thank you for your feedback!</div>
+            ) : (
+              <div className="flex max-w-2xl flex-col gap-2 sm:flex-row">
+                <div className="relative flex-1">
+                  <MessageSquare size={16} className="absolute left-3 top-3 text-indigo-400" />
+                  <input
+                    type="text"
+                    placeholder="Improve this briefing?..."
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    className="w-full rounded-lg border border-indigo-200 bg-white/80 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSubmitFeedback()}
+                  />
                 </div>
-              )}
-            </>
-          )}
-        </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={handleSubmitFeedback} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 sm:flex-none">Submit <Send size={14} /></button>
+                  <button type="button" aria-label="Close feedback input" onClick={() => setShowFeedbackInput(false)} className="rounded-lg border border-indigo-100 bg-white p-2 text-indigo-400 hover:text-indigo-600 sm:border-none sm:bg-transparent"><X size={18} /></button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
     )
   );
@@ -615,12 +798,52 @@ const App: React.FC = () => {
   const renderDashboard = () => (
     <>
       {renderHeader()}
-      
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {data.metrics.map((metric) => (
-          <MetricCard key={metric.label} {...metric} icon={iconMap[metric.icon] || Activity} />
-        ))}
+
+      {flashMessage ? (
+        <div
+          className={`mb-4 rounded-lg border px-4 py-2.5 text-sm font-medium ${
+            flashMessage.tone === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : flashMessage.tone === 'error'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : 'border-indigo-200 bg-indigo-50 text-indigo-700'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {flashMessage.text}
+        </div>
+      ) : null}
+
+      <div className="mb-6 space-y-2">
+        {renderMobileSectionHeader('quickTasks', 'Top Tasks', 'Quick actions for this role')}
+        <div className={`${mobileSections.quickTasks ? 'block' : 'hidden'} lg:block`}>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              {topTasks.map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={task.onClick}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {task.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6 space-y-2">
+        {renderMobileSectionHeader('metrics', 'Performance Metrics', 'Current intervention and attendance indicators')}
+        <div className={`${mobileSections.metrics ? 'block' : 'hidden'} lg:block`}>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {data.metrics.map((metric) => (
+              <MetricCard key={metric.label} {...metric} icon={iconMap[metric.icon] || Activity} />
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Main Content Grid */}
@@ -637,56 +860,74 @@ const App: React.FC = () => {
             />
           </div>
 
-          {renderAIBriefing()}
+          {showBriefing ? (
+            <div className="space-y-2">
+              {renderMobileSectionHeader('aiBriefing', 'AI Executive Summary', 'Top risks and recommended actions')}
+              <div className={`${mobileSections.aiBriefing ? 'block' : 'hidden'} lg:block`}>{renderAIBriefing()}</div>
+            </div>
+          ) : null}
 
           {/* Dynamic Chart Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                 <h3 className="font-bold text-slate-800">{data.chartTitle}</h3>
-                 <p className="text-sm text-slate-500">Performance Visualization</p>
+          <div className="space-y-2">
+            {renderMobileSectionHeader('chart', data.chartTitle, 'Performance visualization')}
+            <div className={`${mobileSections.chart ? 'block' : 'hidden'} lg:block`}>
+              <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800">{data.chartTitle}</h3>
+                    <p className="text-sm text-slate-500">Performance Visualization</p>
+                  </div>
+                </div>
+
+                <div ref={chartContainerRef} className="h-56 w-full min-w-0 md:h-64">
+                  {hasHydrated && chartDimensions.width > 0 && chartDimensions.height > 0 ? (
+                    <ReBarChart data={data.chartData} barSize={60} width={chartDimensions.width} height={chartDimensions.height}>
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#64748b', fontSize: 12 }}
+                        dy={10}
+                        interval={0}
+                      />
+                      <YAxis hide />
+                      <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="value" radius={[6, 6, 6, 6]}>
+                        {data.chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </ReBarChart>
+                  ) : (
+                    <div className="h-full w-full animate-pulse rounded-lg bg-slate-100" />
+                  )}
+                </div>
               </div>
-            </div>
-            
-            <div ref={chartContainerRef} className="h-56 md:h-64 w-full min-w-0">
-              {hasHydrated && chartDimensions.width > 0 && chartDimensions.height > 0 ? (
-                <ReBarChart data={data.chartData} barSize={60} width={chartDimensions.width} height={chartDimensions.height}>
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#64748b', fontSize: 12 }} 
-                    dy={10}
-                    interval={0}
-                  />
-                  <YAxis hide />
-                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Bar dataKey="value" radius={[6, 6, 6, 6]}>
-                    {data.chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </ReBarChart>
-              ) : (
-                <div className="h-full w-full animate-pulse rounded-lg bg-slate-100" />
-              )}
             </div>
           </div>
         </div>
 
         {/* Right Column (Side Panels) */}
         <div className={`col-span-12 ${currentRole === UserRole.PARENT ? 'lg:col-span-5' : 'lg:col-span-4'} space-y-6 md:space-y-8`}>
-          {currentRole !== UserRole.PARENT && data.tierDistribution && (
-            <TierDistribution data={data.tierDistribution} />
-          )}
+          {currentRole !== UserRole.PARENT && data.tierDistribution ? (
+            <div className="space-y-2">
+              {renderMobileSectionHeader('tierDistribution', 'Tier Distribution', 'Student support mix by tier')}
+              <div className={`${mobileSections.tierDistribution ? 'block' : 'hidden'} lg:block`}>
+                <TierDistribution data={data.tierDistribution} />
+              </div>
+            </div>
+          ) : null}
 
-          <div className="md:sticky md:top-8">
-              <MonitoringPulse 
-                  students={data.monitoringPulse} 
-                  onStudentClick={handleStudentClick}
-                  onViewAll={() => setActivePage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'class_roster' : 'reports')}
-                  freshnessLabel={freshnessLabel}
+          <div className="space-y-2 md:sticky md:top-8">
+            {renderMobileSectionHeader('monitoring', 'Monitoring Pulse', freshnessLabel)}
+            <div className={`${mobileSections.monitoring ? 'block' : 'hidden'} lg:block`}>
+              <MonitoringPulse
+                students={data.monitoringPulse}
+                onStudentClick={handleStudentClick}
+                onViewAll={() => setActivePage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'class_roster' : 'reports')}
+                freshnessLabel={freshnessLabel}
               />
+            </div>
           </div>
           
           {currentRole === UserRole.PARENT && (
@@ -701,21 +942,6 @@ const App: React.FC = () => {
         </div>
       </div>
     </>
-  );
-
-  const renderUnavailableView = (title: string, description: string) => (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
-      <h3 className="text-lg font-bold">{title}</h3>
-      <p className="mt-2 text-sm">{description}</p>
-      <button
-        type="button"
-        onClick={() => setActivePage('dashboard')}
-        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"
-      >
-        Back to Workspace
-        <ArrowRight size={14} />
-      </button>
-    </div>
   );
 
   const renderActivePage = () => {
@@ -832,10 +1058,6 @@ const App: React.FC = () => {
             currentSchoolName={data.schoolName}
           />
         );
-      case 'staffing':
-        return renderUnavailableView('Staffing Workspace Not Enabled', 'Staffing workflows are not enabled in this environment yet.');
-      case 'assignments':
-        return renderUnavailableView('Assignments Not Enabled', 'Assignments are not enabled for this parent workspace build yet.');
       default:
         return renderDashboard();
     }

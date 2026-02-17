@@ -6,7 +6,6 @@ import {
   Calendar,
   BarChart2,
   Settings,
-  LogOut,
   GraduationCap,
   BookOpen,
   School,
@@ -18,6 +17,7 @@ import {
   BookCopy,
 } from "lucide-react";
 import { UserRole } from "../types";
+import { TenantContextSwitcher } from "./TenantContextSwitcher";
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -108,112 +108,116 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {isOpen ? <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity lg:hidden" onClick={onClose} /> : null}
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      ) : null}
 
       <div
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 transform flex-col bg-slate-900 text-white shadow-xl transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-slate-900 text-white shadow-xl transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
+        } lg:translate-x-0 lg:pointer-events-auto`}
       >
-        <div className="flex items-center justify-between border-b border-slate-800 p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-brand-600 p-2">
-              <GraduationCap size={24} className="text-white" />
-            </div>
-            <div className="overflow-hidden">
-              <h1 className="whitespace-nowrap text-lg font-bold leading-tight">BUFSD MTSS</h1>
-              <p className="max-w-[140px] truncate text-xs font-medium tracking-wide text-slate-400">{schoolName}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-white lg:hidden"
-            aria-label="Close workspace menu"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="px-4 pt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Workspace</p>
-          <p className="text-xs font-semibold text-slate-300">Role Tools</p>
-        </div>
-
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {menuItems.map((item) => {
-            const isActive = activePage === item.id;
-            return (
+        <div className="flex h-full flex-col">
+          <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-brand-600 p-2">
+                  <GraduationCap size={24} className="text-white" />
+                </div>
+                <div className="overflow-hidden">
+                  <h1 className="whitespace-nowrap text-lg font-bold leading-tight">BUFSD MTSS</h1>
+                  <p className="max-w-[140px] truncate text-xs font-medium tracking-wide text-slate-400">{schoolName}</p>
+                </div>
+              </div>
               <button
-                key={item.id}
                 type="button"
-                onClick={() => {
-                  onNavigate(item.id);
-                  onClose();
-                }}
-                className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
-                  isActive ? "bg-brand-600 text-white shadow-lg shadow-brand-900/50" : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                }`}
-                aria-current={isActive ? "page" : undefined}
-                aria-label={`Open ${item.label}`}
+                onClick={onClose}
+                className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:hidden"
+                aria-label="Close workspace menu"
               >
-                <span className="flex items-center gap-3">
-                  <item.icon size={20} />
-                  {item.label}
-                </span>
+                <X size={18} />
               </button>
-            );
-          })}
-        </nav>
-
-        <div className="border-t border-slate-800 p-4">
-          <div className="mb-4">
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">Demo Role</label>
-            <select
-              value={currentRole}
-              onChange={(event) => onRoleChange(event.target.value as UserRole)}
-              className="w-full rounded border border-slate-700 bg-slate-800 p-2 text-xs text-slate-300 focus:border-brand-500 focus:outline-none"
-              aria-label="Switch workspace role"
-            >
-              {Object.values(UserRole).map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              onNavigate("settings");
-              onClose();
-            }}
-            className={`mb-2 flex w-full items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
-              activePage === "settings" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Settings size={20} />
-            <span className="text-sm font-medium">Settings</span>
-          </button>
+          <div className="px-4 pt-4">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Workspace</p>
+            <p className="text-xs font-semibold text-slate-300">Role Tools</p>
+          </div>
 
-          <div className="mt-2 flex items-center gap-3 rounded-xl bg-slate-800/50 p-3">
-            <div className="h-10 w-10 shrink-0 rounded-full bg-brand-500 text-center text-white shadow-md">
-              <span className="inline-flex h-10 items-center justify-center font-bold">{userName.substring(0, 2).toUpperCase()}</span>
+          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+            {menuItems.map((item) => {
+              const isActive = activePage === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onNavigate(item.id);
+                    onClose();
+                  }}
+                  className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+                    isActive ? "bg-brand-600 text-white shadow-lg shadow-brand-900/50" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  }`}
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={`Open ${item.label}`}
+                >
+                  <span className="flex items-center gap-3">
+                    <item.icon size={20} />
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="space-y-4 border-t border-slate-800 p-4">
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">Demo Role</label>
+              <select
+                value={currentRole}
+                onChange={(event) => onRoleChange(event.target.value as UserRole)}
+                className="w-full rounded border border-slate-700 bg-slate-800 p-2 text-xs text-slate-300 focus:border-brand-500 focus:outline-none"
+                aria-label="Switch workspace role"
+              >
+                {Object.values(UserRole).map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="truncate text-sm font-semibold text-white">{userName}</p>
-              <p className="truncate text-xs text-slate-400">{currentRole}</p>
-            </div>
+
             <button
               type="button"
-              className="rounded p-1 text-slate-500"
-              aria-label="Sign out coming soon"
-              title="Sign out coming soon"
-              disabled
+              onClick={() => {
+                onNavigate("settings");
+                onClose();
+              }}
+              className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+                activePage === "settings" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
             >
-              <LogOut size={16} />
+              <Settings size={20} />
+              <span className="text-sm font-medium">Settings</span>
             </button>
+
+            <div className="rounded-xl bg-slate-800/50 p-3">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="h-10 w-10 shrink-0 rounded-full bg-brand-500 text-center text-white shadow-md">
+                  <span className="inline-flex h-10 items-center justify-center font-bold">{userName.substring(0, 2).toUpperCase()}</span>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <p className="truncate text-sm font-semibold text-white">{userName}</p>
+                  <p className="truncate text-xs text-slate-400">{currentRole}</p>
+                </div>
+              </div>
+              <TenantContextSwitcher variant="sidebar" />
+            </div>
           </div>
         </div>
       </div>

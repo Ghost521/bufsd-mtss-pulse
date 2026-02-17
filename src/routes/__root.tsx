@@ -3,7 +3,6 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import appCss from "../styles.css?url";
 import type { AppRouterContext } from "../lib/query-client";
 import type { ReactNode } from "react";
-import { TenantContextSwitcher } from "../components/TenantContextSwitcher";
 
 export const Route = createRootRouteWithContext<AppRouterContext>()({
   head: () => ({
@@ -44,7 +43,6 @@ function RootDocument({ children }: { children: ReactNode }) {
                 <NavLink to="/roster-table">Student Grid</NavLink>
               </div>
             </div>
-            <TenantContextSwitcher />
           </div>
         </nav>
         {children}
