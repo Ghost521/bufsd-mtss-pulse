@@ -32,11 +32,17 @@ function RootDocument({ children }: { children: ReactNode }) {
       </head>
       <body>
         <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-8">
-            <div className="flex items-center gap-2">
-              <NavLink to="/">Dashboard</NavLink>
-              <NavLink to="/query-health">Query Health</NavLink>
-              <NavLink to="/roster-table">Roster Table</NavLink>
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:block">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Global</p>
+                <p className="text-xs font-semibold text-slate-600">Navigation</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <NavLink to="/">Workspace</NavLink>
+                <NavLink to="/query-health">System Health</NavLink>
+                <NavLink to="/roster-table">Student Grid</NavLink>
+              </div>
             </div>
             <TenantContextSwitcher />
           </div>

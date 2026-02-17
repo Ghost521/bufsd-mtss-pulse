@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { ActionItem } from '../types';
-import { Sparkles, ArrowRight, X, CheckCircle2, AlertTriangle, Loader2, BrainCircuit, Edit, Eye } from 'lucide-react';
+import { Sparkles, ArrowRight, X, CheckCircle2, AlertTriangle, Loader2, BrainCircuit, Edit, Eye, Undo2 } from 'lucide-react';
 import { generateActionItemPlan } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { DraggableModal } from './DraggableModal';
@@ -9,13 +9,16 @@ import { DraggableModal } from './DraggableModal';
 interface ActionItemsListProps {
   items: ActionItem[];
   onStudentClick: (studentName: string) => void;
+  onViewAll?: () => void;
+  totalCount?: number;
 }
 
-export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStudentClick }) => {
+export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStudentClick, onViewAll, totalCount }) => {
   const [localItems, setLocalItems] = useState<ActionItem[]>(items);
   const [selectedItem, setSelectedItem] = useState<ActionItem | null>(null);
   const [reviewMode, setReviewMode] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [lastDismissed, setLastDismissed] = useState<{ item: ActionItem; index: number } | null>(null);
   
   // Plan Edit State
   const [planTitle, setPlanTitle] = useState("");
@@ -26,7 +29,18 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
   // Sync props to state when role/data changes
   useEffect(() => {
     setLocalItems(items);
+    setLastDismissed(null);
   }, [items]);
+
+  useEffect(() => {
+    if (!lastDismissed) return;
+    const timer = window.setTimeout(() => {
+      setLastDismissed(null);
+    }, 6000);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [lastDismissed]);
 
   const getBadgeColor = (category: string) => {
     switch (category) {
@@ -39,7 +53,24 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
 
   const handleDismiss = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setLocalItems(prev => prev.filter(item => item.id !== id));
+    setLocalItems((prev) => {
+      const index = prev.findIndex((item) => item.id === id);
+      if (index < 0) return prev;
+      setLastDismissed({ item: prev[index], index });
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
+  const handleUndoDismiss = () => {
+    if (!lastDismissed) return;
+    setLocalItems((prev) => {
+      if (prev.some((item) => item.id === lastDismissed.item.id)) return prev;
+      const restored = [...prev];
+      const insertIndex = Math.min(lastDismissed.index, restored.length);
+      restored.splice(insertIndex, 0, lastDismissed.item);
+      return restored;
+    });
+    setLastDismissed(null);
   };
 
   const handleReviewClick = async (item: ActionItem) => {
@@ -80,6 +111,8 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
     }, 1500);
   };
 
+  const visibleTotal = typeof totalCount === 'number' ? Math.max(totalCount, localItems.length) : localItems.length;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden">
       
@@ -89,7 +122,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
             Priority Action Items
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-             {localItems.length} AI-detected anomalies requiring attention.
+             {localItems.length} priority cases requiring attention.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
@@ -134,6 +167,8 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                 </div>
                 <button 
                     onClick={(e) => handleDismiss(item.id, e)}
+                    type="button"
+                    aria-label={`Dismiss case for ${item.studentName}`}
                     className="text-xs font-medium text-slate-400 hover:text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
                 >
                   <X size={14} /> Dismiss
@@ -155,6 +190,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
               <div className="flex justify-end">
                  <button 
                     onClick={() => handleReviewClick(item)}
+                    type="button"
                     className="bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 group/btn"
                  >
                    <Sparkles size={16} className="text-indigo-500 group-hover/btn:animate-pulse" />
@@ -168,11 +204,30 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
       
       {localItems.length > 0 && (
         <div className="p-3 border-t border-slate-100 bg-white text-center">
-            <button className="text-xs font-semibold text-slate-400 hover:text-indigo-600 transition-colors">
-            View all {localItems.length + 12} flagged cases in reports
+            <button
+              type="button"
+              onClick={onViewAll}
+              disabled={!onViewAll}
+              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+            View all flagged cases in reports ({visibleTotal})
             </button>
         </div>
       )}
+
+      {lastDismissed ? (
+        <div className="absolute bottom-4 right-4 z-30 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
+          <span className="text-slate-600">Case dismissed.</span>
+          <button
+            type="button"
+            onClick={handleUndoDismiss}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 font-semibold text-indigo-600 hover:bg-indigo-50"
+          >
+            <Undo2 size={14} />
+            Undo
+          </button>
+        </div>
+      ) : null}
 
       {/* --- Review Modal Overlay --- */}
       <DraggableModal

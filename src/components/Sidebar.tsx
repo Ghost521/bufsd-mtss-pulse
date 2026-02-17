@@ -1,11 +1,10 @@
-
-import React from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  Calendar, 
-  BarChart2, 
+import React from "react";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  Calendar,
+  BarChart2,
   Settings,
   LogOut,
   GraduationCap,
@@ -16,9 +15,9 @@ import {
   X,
   Database,
   HardDriveUpload,
-  BookCopy
-} from 'lucide-react';
-import { UserRole } from '../types';
+  BookCopy,
+} from "lucide-react";
+import { UserRole } from "../types";
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -31,162 +30,190 @@ interface SidebarProps {
   onNavigate: (page: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-  currentRole, 
-  onRoleChange, 
-  userName, 
-  schoolName, 
-  isOpen, 
+type WorkspaceNavItem = {
+  id: string;
+  icon: React.ComponentType<{ size?: number }>;
+  label: string;
+  implemented: boolean;
+};
+
+const getMenuItems = (role: UserRole): WorkspaceNavItem[] => {
+  const knowledgeBaseItem: WorkspaceNavItem = { id: "documents", icon: Database, label: "Knowledge Base", implemented: true };
+  const messagesItem: WorkspaceNavItem = { id: "messages", icon: MessageCircle, label: "Messages", implemented: true };
+  const calendarItem: WorkspaceNavItem = { id: "calendar", icon: Calendar, label: "Calendar", implemented: true };
+  const importItem: WorkspaceNavItem = { id: "import", icon: HardDriveUpload, label: "Data Import", implemented: true };
+  const lessonPlansItem: WorkspaceNavItem = { id: "lesson_plans", icon: BookCopy, label: "Lesson Plans", implemented: true };
+
+  switch (role) {
+    case UserRole.PRINCIPAL:
+      return [
+        { id: "dashboard", icon: LayoutDashboard, label: "Command Center", implemented: true },
+        { id: "rosters", icon: Users, label: "Rosters", implemented: true },
+        lessonPlansItem,
+        { id: "interventions", icon: FileText, label: "Intervention Plans", implemented: true },
+        calendarItem,
+        { id: "reports", icon: BarChart2, label: "District Reports", implemented: true },
+        messagesItem,
+        knowledgeBaseItem,
+        importItem,
+      ];
+    case UserRole.TEACHER:
+      return [
+        { id: "dashboard", icon: LayoutDashboard, label: "My Classroom", implemented: true },
+        { id: "class_roster", icon: Users, label: "Roster", implemented: true },
+        { id: "gradebook", icon: BookOpen, label: "Gradebook", implemented: true },
+        lessonPlansItem,
+        { id: "interventions", icon: FileText, label: "Interventions", implemented: true },
+        calendarItem,
+        messagesItem,
+        knowledgeBaseItem,
+        importItem,
+      ];
+    case UserRole.DISTRICT:
+      return [
+        { id: "dashboard", icon: LayoutDashboard, label: "District Pulse", implemented: true },
+        { id: "map", icon: School, label: "Schools Map", implemented: true },
+        { id: "reports", icon: BarChart2, label: "System Reports", implemented: true },
+        { id: "staffing", icon: Users, label: "Staffing", implemented: false },
+        calendarItem,
+        messagesItem,
+        knowledgeBaseItem,
+        importItem,
+      ];
+    case UserRole.PARENT:
+      return [
+        { id: "dashboard", icon: LayoutDashboard, label: "My Child", implemented: true },
+        { id: "assignments", icon: ClipboardList, label: "Assignments", implemented: false },
+        { id: "reports", icon: FileText, label: "Report Cards", implemented: true },
+        calendarItem,
+        messagesItem,
+        knowledgeBaseItem,
+      ];
+    default:
+      return [];
+  }
+};
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentRole,
+  onRoleChange,
+  userName,
+  schoolName,
+  isOpen,
   onClose,
   activePage,
-  onNavigate
+  onNavigate,
 }) => {
-  
-  const getMenuItems = (role: UserRole) => {
-    // Common items can be added here if needed, but keeping role specific structure
-    const knowledgeBaseItem = { id: 'documents', icon: Database, label: 'Knowledge Base' };
-    const messagesItem = { id: 'messages', icon: MessageCircle, label: 'Messages' };
-    const calendarItem = { id: 'calendar', icon: Calendar, label: 'Calendar' };
-    const importItem = { id: 'import', icon: HardDriveUpload, label: 'Data Import' };
-    const lessonPlansItem = { id: 'lesson_plans', icon: BookCopy, label: 'Lesson Plans' };
-
-    switch(role) {
-      case UserRole.PRINCIPAL:
-        return [
-          { id: 'dashboard', icon: LayoutDashboard, label: 'Command Center' },
-          { id: 'rosters', icon: Users, label: 'Rosters' },
-          lessonPlansItem,
-          { id: 'interventions', icon: FileText, label: 'Intervention Plans' },
-          calendarItem,
-          { id: 'reports', icon: BarChart2, label: 'District Reports' },
-          messagesItem,
-          knowledgeBaseItem,
-          importItem
-        ];
-      case UserRole.TEACHER:
-        return [
-          { id: 'dashboard', icon: LayoutDashboard, label: 'My Classroom' },
-          { id: 'class_roster', icon: Users, label: 'Roster' },
-          { id: 'gradebook', icon: BookOpen, label: 'Gradebook' },
-          lessonPlansItem,
-          { id: 'interventions', icon: FileText, label: 'Interventions' },
-          calendarItem,
-          messagesItem,
-          knowledgeBaseItem,
-          importItem
-        ];
-      case UserRole.DISTRICT:
-        return [
-          { id: 'dashboard', icon: LayoutDashboard, label: 'District Pulse' },
-          { id: 'map', icon: School, label: 'Schools Map' },
-          { id: 'reports', icon: BarChart2, label: 'System Reports' },
-          { id: 'staffing', icon: Users, label: 'Staffing' },
-          calendarItem,
-          messagesItem,
-          knowledgeBaseItem,
-          importItem
-        ];
-      case UserRole.PARENT:
-        return [
-          { id: 'dashboard', icon: LayoutDashboard, label: 'My Child' },
-          { id: 'assignments', icon: ClipboardList, label: 'Assignments' },
-          { id: 'reports', icon: FileText, label: 'Report Cards' },
-          calendarItem,
-          messagesItem,
-          knowledgeBaseItem
-        ];
-      default: return [];
-    }
-  };
-
-  const menuItems = getMenuItems(currentRole);
+  const menuItems = getMenuItems(currentRole).filter((item) => item.implemented);
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden transition-opacity"
-          onClick={onClose}
-        />
-      )}
+      {isOpen ? <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity lg:hidden" onClick={onClose} /> : null}
 
-      {/* Sidebar Container */}
-      <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col shadow-xl transform transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
-      `}>
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+      <div
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 transform flex-col bg-slate-900 text-white shadow-xl transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        } lg:translate-x-0`}
+      >
+        <div className="flex items-center justify-between border-b border-slate-800 p-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-brand-600 rounded-lg">
-               <GraduationCap size={24} className="text-white" />
+            <div className="rounded-lg bg-brand-600 p-2">
+              <GraduationCap size={24} className="text-white" />
             </div>
             <div className="overflow-hidden">
-              <h1 className="font-bold text-lg leading-tight whitespace-nowrap">BUFSD MTSS</h1>
-              <p className="text-xs text-slate-400 font-medium tracking-wide truncate max-w-[140px]">{schoolName}</p>
+              <h1 className="whitespace-nowrap text-lg font-bold leading-tight">BUFSD MTSS</h1>
+              <p className="max-w-[140px] truncate text-xs font-medium tracking-wide text-slate-400">{schoolName}</p>
             </div>
           </div>
-          {/* Mobile Close Button */}
-          <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-white">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white lg:hidden"
+            aria-label="Close workspace menu"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
+        <div className="px-4 pt-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Workspace</p>
+          <p className="text-xs font-semibold text-slate-300">Role Tools</p>
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {menuItems.map((item) => {
             const isActive = activePage === item.id;
             return (
               <button
-                key={item.label}
+                key={item.id}
+                type="button"
                 onClick={() => {
                   onNavigate(item.id);
                   onClose();
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive 
-                    ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/50' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                className={`w-full rounded-lg px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+                  isActive ? "bg-brand-600 text-white shadow-lg shadow-brand-900/50" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                 }`}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={`Open ${item.label}`}
               >
-                <item.icon size={20} />
-                {item.label}
+                <span className="flex items-center gap-3">
+                  <item.icon size={20} />
+                  {item.label}
+                </span>
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          {/* Role Switcher for Demo */}
+        <div className="border-t border-slate-800 p-4">
           <div className="mb-4">
-            <label className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-2 block">View As</label>
-            <select 
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">Demo Role</label>
+            <select
               value={currentRole}
-              onChange={(e) => onRoleChange(e.target.value as UserRole)}
-              className="w-full bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded p-2 focus:outline-none focus:border-brand-500"
+              onChange={(event) => onRoleChange(event.target.value as UserRole)}
+              className="w-full rounded border border-slate-700 bg-slate-800 p-2 text-xs text-slate-300 focus:border-brand-500 focus:outline-none"
+              aria-label="Switch workspace role"
             >
               {Object.values(UserRole).map((role) => (
-                <option key={role} value={role}>{role}</option>
+                <option key={role} value={role}>
+                  {role}
+                </option>
               ))}
             </select>
           </div>
 
-          <button 
-            onClick={() => { onNavigate('settings'); onClose(); }}
-            className={`flex items-center gap-3 px-4 py-3 w-full rounded-lg transition-colors mb-2 ${activePage === 'settings' ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate("settings");
+              onClose();
+            }}
+            className={`mb-2 flex w-full items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+              activePage === "settings" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+            }`}
           >
             <Settings size={20} />
             <span className="text-sm font-medium">Settings</span>
           </button>
-          
-          <div className="flex items-center gap-3 mt-2 p-3 bg-slate-800/50 rounded-xl">
-            <div className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white font-bold shadow-md shrink-0">
-              {userName.substring(0,2).toUpperCase()}
+
+          <div className="mt-2 flex items-center gap-3 rounded-xl bg-slate-800/50 p-3">
+            <div className="h-10 w-10 shrink-0 rounded-full bg-brand-500 text-center text-white shadow-md">
+              <span className="inline-flex h-10 items-center justify-center font-bold">{userName.substring(0, 2).toUpperCase()}</span>
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-semibold text-white truncate">{userName}</p>
-              <p className="text-xs text-slate-400 truncate">{currentRole}</p>
+              <p className="truncate text-sm font-semibold text-white">{userName}</p>
+              <p className="truncate text-xs text-slate-400">{currentRole}</p>
             </div>
-            <LogOut size={16} className="text-slate-500 hover:text-white cursor-pointer" />
+            <button
+              type="button"
+              className="rounded p-1 text-slate-500"
+              aria-label="Sign out coming soon"
+              title="Sign out coming soon"
+              disabled
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </div>

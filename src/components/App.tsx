@@ -1,5 +1,5 @@
 
-import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Activity, 
   Zap, 
@@ -16,8 +16,9 @@ import {
   Send,
   Menu,
   CalendarPlus,
-  Loader2,
-  CheckCircle2
+  BarChart2,
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { MetricCard } from './MetricCard';
@@ -55,6 +56,22 @@ const LazyViewFallback: React.FC = () => (
   </div>
 );
 
+type HeaderAction = {
+  id: string;
+  label: string;
+  kind: 'primary' | 'secondary' | 'tertiary';
+  enabled: boolean;
+  tooltip?: string;
+  onClick: () => void;
+  icon: React.ElementType;
+};
+
+type FreshnessState = {
+  source: 'local' | 'server';
+  lastUpdatedAt: string | null;
+  status: 'fresh' | 'stale' | 'unknown';
+};
+
 const App: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
   const [data, setData] = useState<DashboardData>(PRINCIPAL_DATA);
@@ -65,10 +82,14 @@ const App: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const [messageRecipient, setMessageRecipient] = useState<string | undefined>(undefined);
 
-  // Sync State
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'success'>('idle');
-  const [lastSyncedLabel, setLastSyncedLabel] = useState('Not yet synced');
+  // Freshness State
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [freshness, setFreshness] = useState<FreshnessState>({
+    source: 'local',
+    lastUpdatedAt: null,
+    status: 'unknown',
+  });
+  const [timeTick, setTimeTick] = useState(() => Date.now());
 
   // AI & Feedback State
   const [briefing, setBriefing] = useState<string | null>(null);
@@ -97,6 +118,27 @@ const App: React.FC = () => {
   // RAG Document State
   const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>(MOCK_RAG_DOCUMENTS);
 
+  const availablePagesByRole: Record<UserRole, string[]> = useMemo(
+    () => ({
+      [UserRole.PRINCIPAL]: ['dashboard', 'rosters', 'lesson_plans', 'interventions', 'calendar', 'reports', 'messages', 'documents', 'import', 'settings', 'profile'],
+      [UserRole.TEACHER]: ['dashboard', 'class_roster', 'gradebook', 'lesson_plans', 'interventions', 'calendar', 'messages', 'documents', 'import', 'settings', 'profile'],
+      [UserRole.DISTRICT]: ['dashboard', 'map', 'reports', 'calendar', 'messages', 'documents', 'import', 'settings', 'profile'],
+      [UserRole.PARENT]: ['dashboard', 'reports', 'calendar', 'messages', 'documents', 'settings', 'profile'],
+    }),
+    []
+  );
+
+  const roleHeadline = useMemo(
+    () =>
+      ({
+        [UserRole.PRINCIPAL]: 'Principal Command Center',
+        [UserRole.TEACHER]: 'Classroom Command Center',
+        [UserRole.DISTRICT]: 'District Operations Workspace',
+        [UserRole.PARENT]: 'Family Progress Workspace',
+      }) as Record<UserRole, string>,
+    []
+  );
+
   // Update data when role changes
   useEffect(() => {
     switch (currentRole) {
@@ -114,16 +156,29 @@ const App: React.FC = () => {
     setFeedbackText('');
     setIsModalOpen(false);
     setSelectedStudent(null);
-    setActivePage('dashboard');
+    setActivePage((current) => (availablePagesByRole[currentRole].includes(current) ? current : 'dashboard'));
     setProfileStudent(null);
     setIsMobileMenuOpen(false);
     setMessageRecipient(undefined);
     setIsReferralModalOpen(false);
-  }, [currentRole]);
+  }, [availablePagesByRole, currentRole]);
 
   useEffect(() => {
     setHasHydrated(true);
-    setLastSyncedLabel(new Date().toLocaleTimeString());
+    setFreshness({
+      source: 'local',
+      lastUpdatedAt: new Date().toISOString(),
+      status: 'fresh',
+    });
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setTimeTick(Date.now());
+    }, 60000);
+    return () => {
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -153,22 +208,49 @@ const App: React.FC = () => {
     Calendar
   };
 
-  const handleSync = () => {
-    if (isSyncing) return;
-    setIsSyncing(true);
-    setSyncStatus('idle');
-    
-    // Simulate data synchronization delay
-    setTimeout(() => {
-      setIsSyncing(false);
-      setSyncStatus('success');
-      setLastSyncedLabel(new Date().toLocaleTimeString());
-      
-      // Revert to idle after 3 seconds
-      setTimeout(() => {
-        setSyncStatus('idle');
-      }, 3000);
-    }, 2000);
+  const computedFreshness = useMemo(() => {
+    if (!freshness.lastUpdatedAt) {
+      return { ...freshness, status: 'unknown' as const };
+    }
+    const lastUpdatedTime = new Date(freshness.lastUpdatedAt).getTime();
+    const ageMs = Math.max(0, timeTick - lastUpdatedTime);
+    const status = ageMs > 15 * 60 * 1000 ? 'stale' : 'fresh';
+    return {
+      ...freshness,
+      status,
+    };
+  }, [freshness, timeTick]);
+
+  const freshnessLabel = useMemo(() => {
+    if (!computedFreshness.lastUpdatedAt) return 'Update status unavailable';
+    const lastUpdatedTime = new Date(computedFreshness.lastUpdatedAt).getTime();
+    const ageMinutes = Math.floor(Math.max(0, timeTick - lastUpdatedTime) / 60000);
+    if (ageMinutes <= 0) return 'Updated just now';
+    if (ageMinutes === 1) return 'Updated 1 minute ago';
+    return `Updated ${ageMinutes} minutes ago`;
+  }, [computedFreshness.lastUpdatedAt, timeTick]);
+
+  const currentDateLabel = useMemo(
+    () =>
+      new Date(timeTick).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      }),
+    [timeTick]
+  );
+
+  const handleRefresh = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    window.setTimeout(() => {
+      setFreshness({
+        source: 'local',
+        lastUpdatedAt: new Date().toISOString(),
+        status: 'fresh',
+      });
+      setIsRefreshing(false);
+    }, 450);
   };
 
   const handleGenerateInsight = async () => {
@@ -269,92 +351,197 @@ const App: React.FC = () => {
     }));
   };
 
+  const primaryAction: HeaderAction | null = (() => {
+    if (currentRole === UserRole.PARENT) {
+      return {
+        id: 'message-teacher',
+        label: 'Message Teacher',
+        kind: 'primary',
+        enabled: true,
+        onClick: () => handleNavigateToMessages('Mr. Davis'),
+        icon: MessageSquare,
+      };
+    }
+    if (currentRole === UserRole.DISTRICT) {
+      return {
+        id: 'open-reports',
+        label: 'Open Reports',
+        kind: 'primary',
+        enabled: true,
+        onClick: () => setActivePage('reports'),
+        icon: BarChart2,
+      };
+    }
+    return {
+      id: 'new-referral',
+      label: 'New Referral',
+      kind: 'primary',
+      enabled: true,
+      onClick: () => setIsReferralModalOpen(true),
+      icon: Plus,
+    };
+  })();
+
+  const secondaryActions = (() => {
+    const actions: HeaderAction[] = [
+      {
+        id: 'refresh-local',
+        label: isRefreshing ? 'Refreshing…' : 'Refresh Data',
+        kind: 'secondary',
+        enabled: !isRefreshing,
+        onClick: handleRefresh,
+        icon: RefreshCw,
+      },
+      {
+        id: 'ai-brief',
+        label: isGenerating ? 'Generating…' : showBriefing ? 'Refresh AI Brief' : 'Generate AI Brief',
+        kind: 'secondary',
+        enabled: !isGenerating,
+        onClick: () => {
+          void handleGenerateInsight();
+        },
+        icon: Bot,
+      },
+    ];
+
+    if (currentRole === UserRole.PRINCIPAL) {
+      actions.push({
+        id: 'schedule-mtss',
+        label: 'Schedule MTSS',
+        kind: 'tertiary',
+        enabled: true,
+        onClick: () => setActivePage('calendar'),
+        icon: CalendarPlus,
+      });
+    }
+    if (currentRole === UserRole.TEACHER) {
+      actions.push({
+        id: 'view-roster',
+        label: 'View Roster',
+        kind: 'tertiary',
+        enabled: true,
+        onClick: () => setActivePage('class_roster'),
+        icon: Users,
+      });
+    }
+    if (currentRole === UserRole.DISTRICT) {
+      actions.push({
+        id: 'allocate',
+        label: 'Allocate Resources',
+        kind: 'tertiary',
+        enabled: false,
+        tooltip: 'Allocation workflow is not available in this build.',
+        onClick: () => {},
+        icon: CalendarPlus,
+      });
+    }
+    return actions;
+  })();
+
+  const topTasks: Array<{ id: string; label: string; onClick: () => void }> = ({
+      [UserRole.PRINCIPAL]: [
+        { id: 'task-referral', label: 'Create Referral', onClick: () => setIsReferralModalOpen(true) },
+        { id: 'task-interventions', label: 'Review Interventions', onClick: () => setActivePage('interventions') },
+        { id: 'task-calendar', label: 'Open MTSS Calendar', onClick: () => setActivePage('calendar') },
+      ],
+      [UserRole.TEACHER]: [
+        { id: 'task-roster', label: 'Open Class Roster', onClick: () => setActivePage('class_roster') },
+        { id: 'task-messages', label: 'Message Family', onClick: () => handleNavigateToMessages('Mrs. Martinez') },
+        { id: 'task-gradebook', label: 'Update Gradebook', onClick: () => setActivePage('gradebook') },
+      ],
+      [UserRole.DISTRICT]: [
+        { id: 'task-map', label: 'View Schools Map', onClick: () => setActivePage('map') },
+        { id: 'task-reports', label: 'Review System Reports', onClick: () => setActivePage('reports') },
+        { id: 'task-messages', label: 'Send District Message', onClick: () => setActivePage('messages') },
+      ],
+      [UserRole.PARENT]: [
+        { id: 'task-report', label: 'Review Progress Report', onClick: () => setActivePage('reports') },
+        { id: 'task-message', label: 'Message Teacher', onClick: () => handleNavigateToMessages('Mr. Davis') },
+        { id: 'task-calendar', label: 'Check Calendar', onClick: () => setActivePage('calendar') },
+      ],
+    }[currentRole]);
+
   // --- Render Helpers ---
 
   const renderHeader = () => (
-    <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-8">
-      <div className="flex items-center gap-3">
-        <button 
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-        >
-          <Menu size={24} />
-        </button>
-        <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-            {currentRole === UserRole.PARENT ? 'Welcome' : 'Good Morning'}, {data.userName}
-          </h2>
-          <p className="text-sm md:text-base text-slate-500 mt-1 md:mt-2 font-medium">
-            {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} pulse for Thursday, Nov 21.
-          </p>
+    <header className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="-ml-2 rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+              aria-label="Open workspace menu"
+              type="button"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
+              <h2 className="truncate text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">{roleHeadline[currentRole]}</h2>
+              <p className="mt-1 text-sm font-medium text-slate-600">
+                {data.userName} • {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} • {currentDateLabel}
+              </p>
+              <p
+                className={`mt-1 text-xs font-semibold ${
+                  computedFreshness.status === 'stale'
+                    ? 'text-amber-700'
+                    : computedFreshness.status === 'fresh'
+                      ? 'text-emerald-700'
+                      : 'text-slate-500'
+                }`}
+              >
+                {freshnessLabel} • Local workspace source
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {primaryAction ? (
+            <button
+              type="button"
+              onClick={primaryAction.onClick}
+              disabled={!primaryAction.enabled}
+              title={primaryAction.tooltip}
+              className="flex items-center justify-center gap-2 rounded-lg border border-transparent bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <primaryAction.icon size={16} />
+              {primaryAction.label}
+            </button>
+          ) : null}
+
+          {secondaryActions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={action.onClick}
+              disabled={!action.enabled}
+              title={action.tooltip}
+              className={`flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                action.kind === 'secondary'
+                  ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <action.icon size={16} />
+              {action.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 md:gap-3">
-          <button 
-          onClick={handleGenerateInsight}
-          disabled={isGenerating}
-          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors font-medium border border-transparent disabled:opacity-70 disabled:cursor-not-allowed text-sm"
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+        {topTasks.map((task) => (
+          <button
+            key={task.id}
+            type="button"
+            onClick={task.onClick}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
           >
-            <Bot size={18} />
-            {isGenerating ? 'Generating...' : (showBriefing ? 'Refresh AI' : 'AI Brief')}
-        </button>
-
-        <button 
-          onClick={handleSync}
-          disabled={isSyncing}
-          className={`hidden md:flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-sm border transition-all font-medium text-sm ${
-            syncStatus === 'success' 
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-          }`}
-          title={hasHydrated ? `Last synced: ${lastSyncedLabel}` : 'Last synced: --'}
-        >
-          {isSyncing ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : syncStatus === 'success' ? (
-            <CheckCircle2 size={18} />
-          ) : (
-            <RefreshCw size={18} />
-          )}
-          {isSyncing ? 'Syncing...' : syncStatus === 'success' ? 'Synced' : 'Sync'}
-        </button>
-
-        {currentRole === UserRole.PRINCIPAL && (
-          <button 
-            onClick={() => setActivePage('calendar')}
-            className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-white text-slate-700 rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors font-medium text-sm"
-          >
-            <CalendarPlus size={18} />
-            Schedule MTSS
+            {task.label}
           </button>
-        )}
-
-        {currentRole === UserRole.TEACHER && (
-          <button 
-            onClick={() => setActivePage('class_roster')}
-            className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-white text-slate-700 rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors font-medium text-sm"
-          >
-            <Users size={18} />
-            View Roster
-          </button>
-        )}
-
-        {currentRole !== UserRole.PARENT && (
-          <button 
-            onClick={() => {
-              if (currentRole === UserRole.DISTRICT) {
-                alert("Allocation feature not implemented in this demo.");
-              } else {
-                setIsReferralModalOpen(true);
-              }
-            }}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors font-medium hover:shadow-lg transform active:scale-95 duration-100 text-sm"
-          >
-            <Plus size={18} />
-            {currentRole === UserRole.DISTRICT ? 'Allocate' : 'New Referral'}
-          </button>
-        )}
+        ))}
       </div>
     </header>
   );
@@ -374,8 +561,8 @@ const App: React.FC = () => {
           {!isGenerating && briefing && !feedbackSubmitted && !showFeedbackInput && (
             <div className="flex items-center gap-2 text-sm text-indigo-400">
               <span className="text-xs hidden sm:inline">Helpful?</span>
-              <button onClick={() => handleFeedbackClick('positive')} className="p-1 hover:bg-indigo-100 rounded-full transition-colors hover:text-indigo-600"><ThumbsUp size={16} /></button>
-              <button onClick={() => handleFeedbackClick('negative')} className="p-1 hover:bg-indigo-100 rounded-full transition-colors hover:text-indigo-600"><ThumbsDown size={16} /></button>
+              <button type="button" aria-label="Mark AI summary as helpful" onClick={() => handleFeedbackClick('positive')} className="p-1 hover:bg-indigo-100 rounded-full transition-colors hover:text-indigo-600"><ThumbsUp size={16} /></button>
+              <button type="button" aria-label="Mark AI summary as not helpful" onClick={() => handleFeedbackClick('negative')} className="p-1 hover:bg-indigo-100 rounded-full transition-colors hover:text-indigo-600"><ThumbsDown size={16} /></button>
             </div>
           )}
         </div>
@@ -411,8 +598,8 @@ const App: React.FC = () => {
                          />
                        </div>
                        <div className="flex gap-2">
-                        <button onClick={handleSubmitFeedback} className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2">Submit <Send size={14} /></button>
-                        <button onClick={() => setShowFeedbackInput(false)} className="p-2 text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-100 rounded-lg sm:bg-transparent sm:border-none"><X size={18} /></button>
+                        <button type="button" onClick={handleSubmitFeedback} className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2">Submit <Send size={14} /></button>
+                        <button type="button" aria-label="Close feedback input" onClick={() => setShowFeedbackInput(false)} className="p-2 text-indigo-400 hover:text-indigo-600 bg-white border border-indigo-100 rounded-lg sm:bg-transparent sm:border-none"><X size={18} /></button>
                        </div>
                     </div>
                   )}
@@ -428,7 +615,6 @@ const App: React.FC = () => {
   const renderDashboard = () => (
     <>
       {renderHeader()}
-      {renderAIBriefing()}
       
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -443,8 +629,15 @@ const App: React.FC = () => {
         <div className={`col-span-12 ${currentRole === UserRole.PARENT ? 'lg:col-span-7' : 'lg:col-span-8'} space-y-6 md:space-y-8 min-w-0`}>
           {/* Action Items */}
           <div className="h-[400px] md:h-[420px]">
-            <ActionItemsList items={data.actionItems} onStudentClick={handleStudentClick} />
+            <ActionItemsList
+              items={data.actionItems}
+              onStudentClick={handleStudentClick}
+              onViewAll={() => setActivePage('reports')}
+              totalCount={data.actionItems.length}
+            />
           </div>
+
+          {renderAIBriefing()}
 
           {/* Dynamic Chart Section */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
@@ -491,7 +684,8 @@ const App: React.FC = () => {
               <MonitoringPulse 
                   students={data.monitoringPulse} 
                   onStudentClick={handleStudentClick}
-                  onViewAll={() => setActivePage('class_roster')}
+                  onViewAll={() => setActivePage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'class_roster' : 'reports')}
+                  freshnessLabel={freshnessLabel}
               />
           </div>
           
@@ -507,6 +701,21 @@ const App: React.FC = () => {
         </div>
       </div>
     </>
+  );
+
+  const renderUnavailableView = (title: string, description: string) => (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+      <h3 className="text-lg font-bold">{title}</h3>
+      <p className="mt-2 text-sm">{description}</p>
+      <button
+        type="button"
+        onClick={() => setActivePage('dashboard')}
+        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"
+      >
+        Back to Workspace
+        <ArrowRight size={14} />
+      </button>
+    </div>
   );
 
   const renderActivePage = () => {
@@ -623,6 +832,10 @@ const App: React.FC = () => {
             currentSchoolName={data.schoolName}
           />
         );
+      case 'staffing':
+        return renderUnavailableView('Staffing Workspace Not Enabled', 'Staffing workflows are not enabled in this environment yet.');
+      case 'assignments':
+        return renderUnavailableView('Assignments Not Enabled', 'Assignments are not enabled for this parent workspace build yet.');
       default:
         return renderDashboard();
     }
@@ -670,7 +883,7 @@ const App: React.FC = () => {
         onNavigate={setActivePage}
       />
       
-      <main className={`flex-1 transition-all duration-300 ${isMobileMenuOpen ? 'lg:ml-64' : 'lg:ml-64'} p-4 md:p-8 w-full max-w-[1600px] mx-auto`}>
+      <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 lg:ml-64">
         <Suspense fallback={<LazyViewFallback />}>
           {renderActivePage()}
         </Suspense>
