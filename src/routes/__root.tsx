@@ -15,7 +15,7 @@ export const Route = createRootRouteWithContext<AppRouterContext>()({
       { rel: "stylesheet", href: appCss },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap",
       },
     ],
   }),
@@ -57,3 +57,4 @@ function NavLink({ to, children }: { to: string; children: ReactNode }) {
     </Link>
   );
 }
+

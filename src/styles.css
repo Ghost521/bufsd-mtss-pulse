@@ -3,7 +3,8 @@
 @import "tw-animate-css";
 
 @theme {
-  --font-sans: "Inter", sans-serif;
+  --font-sans: "Manrope", sans-serif;
+  --font-heading: "Poppins", sans-serif;
   --color-brand-50: #ecfdf5;
   --color-brand-100: #d1fae5;
   --color-brand-500: #10b981;
@@ -27,6 +28,15 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   background-color: #f8fafc;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
 }
 
 /* Custom scrollbar for webkit */
