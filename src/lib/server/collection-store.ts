@@ -1,12 +1,35 @@
 import { readTenantCollection, writeTenantCollection, toTenantKey } from "./persistence";
 import type { SessionContext } from "./tenant-types";
+import { dataDomainCollectionSchemaMap, dataDomainRowSchemaMap } from "../schemas/data";
 
-export type DataDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson-plans" | "imports" | "settings";
+export type DataDomain =
+  | "calendar"
+  | "messages"
+  | "documents"
+  | "interventions"
+  | "lesson-plans"
+  | "imports"
+  | "settings"
+  | "staff"
+  | "gradebook-assignments"
+  | "gradebook-grades";
 
-type PersistedDomain = "calendar" | "messages" | "documents" | "interventions" | "lesson_plans" | "imports" | "settings";
+type PersistedDomain =
+  | "calendar"
+  | "messages"
+  | "documents"
+  | "interventions"
+  | "lesson_plans"
+  | "imports"
+  | "settings"
+  | "staff"
+  | "gradebook_assignments"
+  | "gradebook_grades";
 
 const toPersistedDomain = (domain: DataDomain): PersistedDomain => {
   if (domain === "lesson-plans") return "lesson_plans";
+  if (domain === "gradebook-assignments") return "gradebook_assignments";
+  if (domain === "gradebook-grades") return "gradebook_grades";
   return domain;
 };
 
@@ -20,15 +43,43 @@ const ensureId = (row: Record<string, unknown>): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
+const formatValidationMessage = (message: string): string => message.replace(/Invalid input:/g, "").trim() || "Invalid payload.";
+
+const parseRowsForDomain = <T>(domain: DataDomain, rows: unknown, status = 400): T[] => {
+  const parsed = dataDomainCollectionSchemaMap[domain].safeParse(rows);
+  if (!parsed.success) {
+    throw new CollectionStoreError(formatValidationMessage(parsed.error.issues[0]?.message ?? "Invalid row collection."), status);
+  }
+  return parsed.data as unknown as T[];
+};
+
+const parseRowForDomain = <T>(domain: DataDomain, row: unknown, status = 400): T => {
+  const parsed = dataDomainRowSchemaMap[domain].safeParse(row);
+  if (!parsed.success) {
+    throw new CollectionStoreError(formatValidationMessage(parsed.error.issues[0]?.message ?? "Invalid row payload."), status);
+  }
+  return parsed.data as unknown as T;
+};
+
+export class CollectionStoreError extends Error {
+  status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "CollectionStoreError";
+    this.status = status;
+  }
+}
+
 export const listDomainRows = async <T>(session: SessionContext, domain: DataDomain): Promise<T[]> => {
   const tenantKey = toTenantKey(session.activeContext);
   const rows = await readTenantCollection<T>(tenantKey, toPersistedDomain(domain), () => []);
-  return ensureArray<T>(rows);
+  return parseRowsForDomain<T>(domain, ensureArray<T>(rows), 500);
 };
 
 export const replaceDomainRows = async <T>(session: SessionContext, domain: DataDomain, rows: T[]): Promise<T[]> => {
   const tenantKey = toTenantKey(session.activeContext);
-  const next = ensureArray<T>(rows);
+  const next = parseRowsForDomain<T>(domain, ensureArray<T>(rows));
   await writeTenantCollection<T>(tenantKey, toPersistedDomain(domain), next);
   return next;
 };
@@ -38,9 +89,9 @@ export const createDomainRow = async <T extends object>(
   domain: DataDomain,
   row: T
 ): Promise<T> => {
-  const rows = await listDomainRows<Record<string, unknown>>(session, domain);
   const sourceRow = row as Record<string, unknown>;
-  const nextRow = { ...sourceRow, id: ensureId(sourceRow) };
+  const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...sourceRow, id: ensureId(sourceRow) });
+  const rows = await listDomainRows<Record<string, unknown>>(session, domain);
   const nextRows = [nextRow, ...rows];
   await replaceDomainRows(session, domain, nextRows);
   return nextRow as unknown as T;
@@ -57,7 +108,11 @@ export const updateDomainRow = async <T extends object>(
   if (index < 0) return null;
   const current = asRecord(rows[index]);
   if (!current) return null;
-  const nextRow = { ...current, ...(patch as Record<string, unknown>), id };
+  const patchRecord = asRecord(patch);
+  if (!patchRecord) {
+    throw new CollectionStoreError("Patch payload must be an object.");
+  }
+  const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...current, ...patchRecord, id });
   const nextRows = [...rows];
   nextRows[index] = nextRow;
   await replaceDomainRows(session, domain, nextRows);

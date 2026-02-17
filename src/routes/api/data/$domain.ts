@@ -1,12 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createDomainRow, deleteDomainRow, listDomainRows, replaceDomainRows, updateDomainRow, type DataDomain } from "../../../lib/server/collection-store";
+import {
+  CollectionStoreError,
+  createDomainRow,
+  deleteDomainRow,
+  listDomainRows,
+  replaceDomainRows,
+  updateDomainRow,
+  type DataDomain,
+} from "../../../lib/server/collection-store";
 import { getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
 import { newRequestId } from "../../../lib/server/audit-log";
 import { SettingsStoreError, getOrCreateUserSettings, updateUserSettingsSection } from "../../../lib/server/settings-store";
 import { sectionUpdateRequestSchema } from "../../../lib/schemas/settings";
 
-type DomainResource = "calendar" | "messages" | "documents" | "interventions" | "lesson_plans" | "imports" | "settings";
+type DomainResource =
+  | "calendar"
+  | "messages"
+  | "documents"
+  | "interventions"
+  | "lesson_plans"
+  | "imports"
+  | "settings"
+  | "students";
 
 const parseDomain = (value: string): DataDomain | null => {
   if (value === "calendar") return "calendar";
@@ -16,10 +32,17 @@ const parseDomain = (value: string): DataDomain | null => {
   if (value === "lesson-plans") return "lesson-plans";
   if (value === "imports") return "imports";
   if (value === "settings") return "settings";
+  if (value === "staff") return "staff";
+  if (value === "gradebook-assignments") return "gradebook-assignments";
+  if (value === "gradebook-grades") return "gradebook-grades";
   return null;
 };
 
-const toResource = (domain: DataDomain): DomainResource => (domain === "lesson-plans" ? "lesson_plans" : domain);
+const toResource = (domain: DataDomain): DomainResource => {
+  if (domain === "lesson-plans") return "lesson_plans";
+  if (domain === "staff" || domain === "gradebook-assignments" || domain === "gradebook-grades") return "students";
+  return domain;
+};
 
 const parseBody = async (request: Request): Promise<Record<string, unknown> | null> => {
   const body = (await request.json().catch(() => null)) as unknown;
@@ -53,8 +76,15 @@ export const Route = createFileRoute("/api/data/$domain")({
           return Response.json({ ok: true, rows: [settings], total: 1, requestId });
         }
 
-        const rows = await listDomainRows<Record<string, unknown>>(session, domain);
-        return Response.json({ ok: true, rows, total: rows.length, requestId });
+        try {
+          const rows = await listDomainRows<Record<string, unknown>>(session, domain);
+          return Response.json({ ok: true, rows, total: rows.length, requestId });
+        } catch (error) {
+          if (error instanceof CollectionStoreError) {
+            return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+          }
+          return Response.json({ ok: false, error: "Unable to read records.", requestId }, { status: 500 });
+        }
       },
       PUT: async ({ request, params }) => {
         const requestId = newRequestId();
@@ -80,8 +110,15 @@ export const Route = createFileRoute("/api/data/$domain")({
         const rows = Array.isArray(body?.rows) ? (body?.rows as Record<string, unknown>[]) : null;
         if (!rows) return Response.json({ ok: false, error: "Invalid payload. Expected rows array.", requestId }, { status: 400 });
 
-        const next = await replaceDomainRows(session, domain, rows);
-        return Response.json({ ok: true, rows: next, total: next.length, requestId });
+        try {
+          const next = await replaceDomainRows(session, domain, rows);
+          return Response.json({ ok: true, rows: next, total: next.length, requestId });
+        } catch (error) {
+          if (error instanceof CollectionStoreError) {
+            return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+          }
+          return Response.json({ ok: false, error: "Unable to replace records.", requestId }, { status: 500 });
+        }
       },
       POST: async ({ request, params }) => {
         const requestId = newRequestId();
@@ -107,8 +144,15 @@ export const Route = createFileRoute("/api/data/$domain")({
         const row = parseRow(body?.row);
         if (!row) return Response.json({ ok: false, error: "Invalid payload. Expected row object.", requestId }, { status: 400 });
 
-        const created = await createDomainRow(session, domain, row);
-        return Response.json({ ok: true, row: created, requestId }, { status: 201 });
+        try {
+          const created = await createDomainRow(session, domain, row);
+          return Response.json({ ok: true, row: created, requestId }, { status: 201 });
+        } catch (error) {
+          if (error instanceof CollectionStoreError) {
+            return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+          }
+          return Response.json({ ok: false, error: "Unable to create record.", requestId }, { status: 500 });
+        }
       },
       PATCH: async ({ request, params }) => {
         const requestId = newRequestId();
@@ -168,10 +212,17 @@ export const Route = createFileRoute("/api/data/$domain")({
         const patch = parseRow(body?.patch);
         if (!patch) return Response.json({ ok: false, error: "Invalid payload. Expected patch object.", requestId }, { status: 400 });
 
-        const updated = await updateDomainRow(session, domain, id, patch);
-        if (!updated) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
+        try {
+          const updated = await updateDomainRow(session, domain, id, patch);
+          if (!updated) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
 
-        return Response.json({ ok: true, row: updated, requestId });
+          return Response.json({ ok: true, row: updated, requestId });
+        } catch (error) {
+          if (error instanceof CollectionStoreError) {
+            return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+          }
+          return Response.json({ ok: false, error: "Unable to update record.", requestId }, { status: 500 });
+        }
       },
       DELETE: async ({ request, params }) => {
         const requestId = newRequestId();
@@ -197,10 +248,17 @@ export const Route = createFileRoute("/api/data/$domain")({
         const id = url.searchParams.get("id");
         if (!id) return Response.json({ ok: false, error: "Missing id query parameter.", requestId }, { status: 400 });
 
-        const deleted = await deleteDomainRow(session, domain, id);
-        if (!deleted) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
+        try {
+          const deleted = await deleteDomainRow(session, domain, id);
+          if (!deleted) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
 
-        return Response.json({ ok: true, row: deleted, requestId });
+          return Response.json({ ok: true, row: deleted, requestId });
+        } catch (error) {
+          if (error instanceof CollectionStoreError) {
+            return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+          }
+          return Response.json({ ok: false, error: "Unable to delete record.", requestId }, { status: 500 });
+        }
       },
     },
   },

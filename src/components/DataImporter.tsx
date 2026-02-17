@@ -19,6 +19,7 @@ import {
 import type { ImportAnalysisResult} from '../services/geminiService';
 import { analyzeImportedBatch, extractDataFromDocument } from '../services/geminiService';
 import { Tier, UserRole } from '../types';
+import type { StaffRosterItem } from '../types';
 import { SidebarToggleButton } from './SidebarToggleButton';
 
 interface DataImporterProps {
@@ -251,6 +252,47 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
         .filter((row) => row.name.length > 0);
   };
 
+  const mapPreviewRowsToStaffPayload = (): StaffRosterItem[] => {
+    return previewData
+      .map((row, index) => {
+        const getValue = (...keys: string[]): string => {
+          for (const key of keys) {
+            const value = row[key];
+            if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+            if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+          }
+          return '';
+        };
+
+        const name = getValue('name', 'staffName', 'teacher');
+        const roleRaw = getValue('role').toLowerCase();
+        const role: StaffRosterItem['role'] =
+          roleRaw.includes('consult') ? 'Consultant' :
+          roleRaw.includes('special') ? 'Specialist' :
+          'Teacher';
+        const attendanceRaw = Number(getValue('attendanceRate', 'attendance'));
+        const fidelityRaw = Number(getValue('mtssFidelityScore', 'fidelity'));
+        const interventionRaw = Number(getValue('activeInterventions', 'interventions'));
+        const flaggedRaw = Number(getValue('flaggedStudents', 'flags'));
+        const studentCountRaw = Number(getValue('studentCount', 'caseload'));
+
+        return {
+          id: getValue('id', 'staffId') || `staff-${Date.now()}-${index}`,
+          name,
+          role,
+          grade: getValue('grade', 'department') || undefined,
+          studentCount: Number.isFinite(studentCountRaw) ? Math.max(0, Math.round(studentCountRaw)) : 0,
+          attendanceRate: Number.isFinite(attendanceRaw) ? Math.max(0, Math.min(100, Math.round(attendanceRaw))) : 95,
+          performanceMetric: getValue('performanceMetric', 'performance') || 'Imported staff record',
+          mtssFidelityScore: Number.isFinite(fidelityRaw) ? Math.max(0, Math.min(100, Math.round(fidelityRaw))) : 85,
+          activeInterventions: Number.isFinite(interventionRaw) ? Math.max(0, Math.round(interventionRaw)) : 0,
+          flaggedStudents: Number.isFinite(flaggedRaw) ? Math.max(0, Math.round(flaggedRaw)) : 0,
+          avatarSeed: name ? name.replace(/\s+/g, '') : `Staff${index + 1}`,
+        };
+      })
+      .filter((row) => row.name.length > 0);
+  };
+
   const handleFinishImport = async () => {
       if (dataType === 'STUDENTS') {
           const payloadRows = mapPreviewRowsToStudentsPayload();
@@ -270,6 +312,31 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
                   }
               } catch (error) {
                   alert(error instanceof Error ? error.message : 'Student import commit failed.');
+                  setIsCommitting(false);
+                  return;
+              }
+              setIsCommitting(false);
+          }
+      }
+
+      if (dataType === 'STAFF' && canImportStaff) {
+          const payloadRows = mapPreviewRowsToStaffPayload();
+          if (payloadRows.length > 0) {
+              setIsCommitting(true);
+              try {
+                  for (const row of payloadRows) {
+                      const response = await fetch('/api/data/staff', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ row }),
+                      });
+                      if (!response.ok) {
+                          const body = await response.json().catch(() => null) as { error?: string } | null;
+                          throw new Error(body?.error || 'Staff import commit failed.');
+                      }
+                  }
+              } catch (error) {
+                  alert(error instanceof Error ? error.message : 'Staff import commit failed.');
                   setIsCommitting(false);
                   return;
               }

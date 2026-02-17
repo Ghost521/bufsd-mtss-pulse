@@ -138,7 +138,7 @@ const toMonitoringPulse = (
 };
 
 export const getDashboardData = async (session: SessionContext, role: UserRole): Promise<DashboardData> => {
-  const students = listStudents({
+  const students = await listStudents({
     scope: role === UserRole.DISTRICT || role === UserRole.PRINCIPAL ? "master" : "class",
     context: session.activeContext,
     requesterUserId: session.user.id,

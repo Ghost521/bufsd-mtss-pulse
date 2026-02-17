@@ -1,26 +1,12 @@
 import { CLASS_ROSTER_DATA, generateMasterRoster } from "../../constants";
-import { Tier, type StudentRosterItem } from "../../types";
+import { Tier } from "../../types";
+import { tenantStudentCollectionSchema, tenantStudentRecordSchema, type CreateStudentInput, type TenantStudentRecord, type UpdateStudentInput } from "../schemas/students";
 import { getDistricts, getSchools } from "./tenant-store";
+import { readTenantCollection, toTenantKey, writeTenantCollection } from "./persistence";
 import type { TenantContext } from "./tenant-types";
 
 export type StudentScope = "master" | "class";
-
-export type CreateStudentInput = Pick<
-  StudentRosterItem,
-  "name" | "grade" | "tier" | "gpa" | "attendance" | "readingLevel"
-> & {
-  schoolId?: string;
-};
-
-export type UpdateStudentInput = Partial<CreateStudentInput>;
-
-export type TenantStudentRecord = StudentRosterItem & {
-  organizationId: string;
-  districtId: string;
-  schoolId: string;
-  teacherUserId?: string;
-  guardianUserIds: string[];
-};
+export type { CreateStudentInput, UpdateStudentInput, TenantStudentRecord };
 
 type StudentListOptions = {
   scope: StudentScope;
@@ -28,6 +14,9 @@ type StudentListOptions = {
   requesterUserId: string;
   requesterRoles: string[];
 };
+
+const STUDENTS_MASTER_DOMAIN = "students_master";
+const STUDENTS_CLASS_DOMAIN = "students_class";
 
 const getDistrictById = (districtId: string) => getDistricts().find((district) => district.id === districtId) ?? null;
 const getSchoolById = (schoolId: string) => getSchools().find((school) => school.id === schoolId) ?? null;
@@ -45,7 +34,7 @@ const tierScore = (tier: Tier): number => {
 };
 
 const sortMasterRoster = (rows: TenantStudentRecord[]): TenantStudentRecord[] =>
-  rows.sort((a, b) => {
+  [...rows].sort((a, b) => {
     const tierDiff = tierScore(b.tier) - tierScore(a.tier);
     if (tierDiff !== 0) return tierDiff;
     return a.name.localeCompare(b.name);
@@ -61,7 +50,18 @@ const extractNumericId = (id: string): number => {
 
 const toAvatarSeed = (name: string): string => name.trim().replace(/\s+/g, "-").toLowerCase();
 
-const assignTenantMetadata = (student: StudentRosterItem, schoolId: string): TenantStudentRecord | null => {
+const parseStoredRows = (rows: unknown): TenantStudentRecord[] => {
+  const parsed = tenantStudentCollectionSchema.safeParse(rows);
+  if (parsed.success) return parsed.data;
+
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => tenantStudentRecordSchema.safeParse(row))
+    .filter((candidate): candidate is { success: true; data: TenantStudentRecord } => candidate.success)
+    .map((candidate) => candidate.data);
+};
+
+const assignTenantMetadata = (student: Omit<TenantStudentRecord, "organizationId" | "districtId" | "schoolId" | "teacherUserId" | "guardianUserIds">, schoolId: string): TenantStudentRecord | null => {
   const school = getSchoolById(schoolId);
   if (!school) return null;
   const district = getDistrictById(school.districtId);
@@ -119,14 +119,27 @@ const seedClassRoster = (): TenantStudentRecord[] =>
     };
   });
 
-let masterRosterStore = seedMasterRoster();
-let classRosterStore = seedClassRoster();
-let nextMasterId = masterRosterStore.reduce((max, item) => Math.max(max, extractNumericId(item.id)), 1000) + 1;
+const readMasterRoster = async (context: TenantContext): Promise<TenantStudentRecord[]> => {
+  const tenantKey = toTenantKey(context);
+  const rows = await readTenantCollection<unknown>(tenantKey, STUDENTS_MASTER_DOMAIN, seedMasterRoster);
+  return sortMasterRoster(parseStoredRows(rows));
+};
 
-const makeMasterId = (): string => {
-  const id = `STU-M-${nextMasterId}`;
-  nextMasterId += 1;
-  return id;
+const readClassRoster = async (context: TenantContext): Promise<TenantStudentRecord[]> => {
+  const tenantKey = toTenantKey(context);
+  const rows = await readTenantCollection<unknown>(tenantKey, STUDENTS_CLASS_DOMAIN, seedClassRoster);
+  return parseStoredRows(rows);
+};
+
+const writeMasterRoster = async (context: TenantContext, rows: TenantStudentRecord[]): Promise<void> => {
+  const tenantKey = toTenantKey(context);
+  const validRows = tenantStudentCollectionSchema.parse(sortMasterRoster(rows));
+  await writeTenantCollection(tenantKey, STUDENTS_MASTER_DOMAIN, validRows);
+};
+
+const makeMasterId = (rows: TenantStudentRecord[]): string => {
+  const nextId = rows.reduce((max, item) => Math.max(max, extractNumericId(item.id)), 1000) + 1;
+  return `STU-M-${nextId}`;
 };
 
 const contextContainsStudent = (context: TenantContext, student: TenantStudentRecord): boolean => {
@@ -148,18 +161,6 @@ const filterByRole = (
     return rows.filter((student) => student.teacherUserId === requesterUserId || student.schoolId === "sch-ne");
   }
   return rows;
-};
-
-export const listStudents = (options: StudentListOptions): TenantStudentRecord[] => {
-  const baseStore = options.scope === "master" ? masterRosterStore : classRosterStore;
-  const scoped = baseStore.filter((student) => contextContainsStudent(options.context, student));
-  const roleScoped = filterByRole(scoped, options.requesterUserId, options.requesterRoles);
-  return cloneStudents(roleScoped);
-};
-
-export const getStudentById = (studentId: string): TenantStudentRecord | null => {
-  const found = masterRosterStore.find((student) => student.id === studentId) ?? classRosterStore.find((student) => student.id === studentId);
-  return found ? cloneStudent(found) : null;
 };
 
 const resolveTargetSchoolForCreate = (context: TenantContext, explicitSchoolId?: string): string | null => {
@@ -185,11 +186,24 @@ const resolveTargetSchoolForCreate = (context: TenantContext, explicitSchoolId?:
   return school?.id ?? null;
 };
 
-export const createMasterStudent = (
+export const listStudents = async (options: StudentListOptions): Promise<TenantStudentRecord[]> => {
+  const baseStore = options.scope === "master" ? await readMasterRoster(options.context) : await readClassRoster(options.context);
+  const scoped = baseStore.filter((student) => contextContainsStudent(options.context, student));
+  const roleScoped = filterByRole(scoped, options.requesterUserId, options.requesterRoles);
+  return cloneStudents(roleScoped);
+};
+
+export const getStudentById = async (studentId: string, context: TenantContext): Promise<TenantStudentRecord | null> => {
+  const [masterRows, classRows] = await Promise.all([readMasterRoster(context), readClassRoster(context)]);
+  const found = masterRows.find((student) => student.id === studentId) ?? classRows.find((student) => student.id === studentId);
+  return found ? cloneStudent(found) : null;
+};
+
+export const createMasterStudent = async (
   input: CreateStudentInput,
   context: TenantContext,
   actorUserId: string
-): TenantStudentRecord | null => {
+): Promise<TenantStudentRecord | null> => {
   const targetSchoolId = resolveTargetSchoolForCreate(context, input.schoolId);
   if (!targetSchoolId) return null;
   const school = getSchoolById(targetSchoolId);
@@ -197,8 +211,9 @@ export const createMasterStudent = (
   const district = getDistrictById(school.districtId);
   if (!district) return null;
 
+  const rows = await readMasterRoster(context);
   const created: TenantStudentRecord = {
-    id: makeMasterId(),
+    id: makeMasterId(rows),
     name: input.name,
     grade: input.grade,
     tier: input.tier,
@@ -215,18 +230,19 @@ export const createMasterStudent = (
     guardianUserIds: [],
   };
 
-  masterRosterStore = sortMasterRoster([...masterRosterStore, created]);
+  await writeMasterRoster(context, [...rows, created]);
   return cloneStudent(created);
 };
 
-export const updateMasterStudent = (
+export const updateMasterStudent = async (
   studentId: string,
   patch: UpdateStudentInput,
   context: TenantContext
-): TenantStudentRecord | null => {
-  const index = masterRosterStore.findIndex((student) => student.id === studentId);
+): Promise<TenantStudentRecord | null> => {
+  const rows = await readMasterRoster(context);
+  const index = rows.findIndex((student) => student.id === studentId);
   if (index < 0) return null;
-  const current = masterRosterStore[index];
+  const current = rows[index];
   if (!contextContainsStudent(context, current)) return null;
 
   const updated: TenantStudentRecord = {
@@ -235,16 +251,18 @@ export const updateMasterStudent = (
     avatarSeed: patch.name ? toAvatarSeed(patch.name) : current.avatarSeed,
   };
 
-  masterRosterStore = cloneStudents(masterRosterStore);
-  masterRosterStore[index] = updated;
-  masterRosterStore = sortMasterRoster(masterRosterStore);
+  const nextRows = [...rows];
+  nextRows[index] = updated;
+  await writeMasterRoster(context, nextRows);
   return cloneStudent(updated);
 };
 
-export const deleteMasterStudent = (studentId: string, context: TenantContext): TenantStudentRecord | null => {
-  const existing = masterRosterStore.find((student) => student.id === studentId);
+export const deleteMasterStudent = async (studentId: string, context: TenantContext): Promise<TenantStudentRecord | null> => {
+  const rows = await readMasterRoster(context);
+  const existing = rows.find((student) => student.id === studentId);
   if (!existing || !contextContainsStudent(context, existing)) return null;
 
-  masterRosterStore = masterRosterStore.filter((student) => student.id !== studentId);
+  const nextRows = rows.filter((student) => student.id !== studentId);
+  await writeMasterRoster(context, nextRows);
   return cloneStudent(existing);
 };

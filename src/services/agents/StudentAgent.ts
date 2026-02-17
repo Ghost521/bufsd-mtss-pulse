@@ -1,10 +1,12 @@
 import { BaseAgent } from "./BaseAgent";
-import { Tier, type StudentDetails } from "../../types";
-import { CLASS_ROSTER_DATA, GLOBAL_ASSIGNMENTS, GLOBAL_GRADES, STAFF_ROSTER_DATA, getStudentDetails } from "../../constants";
+import { Tier, type StaffRosterItem, type StudentDetails } from "../../types";
+import { GLOBAL_ASSIGNMENTS, GLOBAL_GRADES, STAFF_ROSTER_DATA, getStudentDetails } from "../../constants";
 import type { Tool } from "@google/genai";
 import { Type } from "@google/genai";
 import { listStudents, type TenantStudentRecord } from "../../lib/server/student-store";
 import type { AgentRequestContext } from "./requestContext";
+import { readTenantCollection, toTenantKey } from "../../lib/server/persistence";
+import { gradebookAssignmentRowSchema, gradebookGradeRowSchema, staffRosterRowSchema } from "../../lib/schemas/data";
 
 type StudentToolResult = {
   ok: boolean;
@@ -14,6 +16,12 @@ type StudentToolResult = {
 };
 
 type HistoricalMetric = "attendance" | "gpa" | "reading_level" | "behavior_incidents";
+type PersistedGradeEntry = {
+  id: string;
+  studentId: string;
+  assignmentId: string;
+  score: string | number | null;
+};
 
 const safeNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -50,6 +58,17 @@ const hashSeed = (value: string): number => {
 const pseudoRandom = (seed: number, step: number): number => {
   const x = Math.sin(seed + step * 17.371) * 10000;
   return x - Math.floor(x);
+};
+
+const toGradeEntryId = (studentId: string, assignmentId: string): string => `${studentId}::${assignmentId}`;
+
+const toNumericGradeScore = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  if (!normalized || normalized === "M" || normalized === "E" || normalized === "L") return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const redactSensitiveStudentFields = (student: StudentDetails): StudentDetails => ({
@@ -154,8 +173,8 @@ export class StudentAgent extends BaseAgent {
     },
   ];
 
-  private listScopedStudents(context: AgentRequestContext, scope: "master" | "class"): TenantStudentRecord[] {
-    return listStudents({
+  private async listScopedStudents(context: AgentRequestContext, scope: "master" | "class"): Promise<TenantStudentRecord[]> {
+    return await listStudents({
       scope,
       context: context.tenantContext,
       requesterUserId: context.sessionUserId,
@@ -163,40 +182,67 @@ export class StudentAgent extends BaseAgent {
     });
   }
 
-  private findAccessibleStudentByName(studentName: string, context: AgentRequestContext): TenantStudentRecord | null {
+  private async findAccessibleStudentByName(studentName: string, context: AgentRequestContext): Promise<TenantStudentRecord | null> {
     const query = normalizeString(studentName).toLowerCase();
     if (!query) return null;
 
-    const scoped = this.listScopedStudents(context, "master");
+    const scoped = await this.listScopedStudents(context, "master");
     const exact = scoped.find((student) => student.name.toLowerCase() === query);
     if (exact) return exact;
 
     const partial = scoped.find((student) => matchesName(student.name, query));
     if (partial) return partial;
 
-    const classScoped = this.listScopedStudents(context, "class");
+    const classScoped = await this.listScopedStudents(context, "class");
     return classScoped.find((student) => matchesName(student.name, query)) ?? null;
   }
 
-  private resolveAllowedClassStudentIds(context: AgentRequestContext): string[] {
-    const accessibleNames = new Set(this.listScopedStudents(context, "class").map((student) => student.name.toLowerCase()));
-    return CLASS_ROSTER_DATA.filter((student) => accessibleNames.has(student.name.toLowerCase())).map((student) => student.id);
+  private async resolveAllowedClassStudentIds(context: AgentRequestContext): Promise<string[]> {
+    const classScoped = await this.listScopedStudents(context, "class");
+    return classScoped.map((student) => student.id);
   }
 
-  public executeTool(name: string, args: unknown, context: AgentRequestContext): string {
+  private async listStaffRoster(context: AgentRequestContext): Promise<StaffRosterItem[]> {
+    const tenantKey = toTenantKey(context.tenantContext);
+    const rows = await readTenantCollection<unknown>(tenantKey, "staff", () => STAFF_ROSTER_DATA);
+    const parsed = staffRosterRowSchema.array().safeParse(rows);
+    return parsed.success ? parsed.data : STAFF_ROSTER_DATA;
+  }
+
+  private async listGradebookAssignments(context: AgentRequestContext): Promise<typeof GLOBAL_ASSIGNMENTS> {
+    const tenantKey = toTenantKey(context.tenantContext);
+    const rows = await readTenantCollection<unknown>(tenantKey, "gradebook_assignments", () => GLOBAL_ASSIGNMENTS);
+    const parsed = gradebookAssignmentRowSchema.array().safeParse(rows);
+    return parsed.success ? parsed.data : GLOBAL_ASSIGNMENTS;
+  }
+
+  private async listGradebookGrades(context: AgentRequestContext): Promise<PersistedGradeEntry[]> {
+    const tenantKey = toTenantKey(context.tenantContext);
+    const seedRows: PersistedGradeEntry[] = GLOBAL_GRADES.map((entry) => ({
+      id: toGradeEntryId(entry.studentId, entry.assignmentId),
+      studentId: entry.studentId,
+      assignmentId: entry.assignmentId,
+      score: entry.score,
+    }));
+    const rows = await readTenantCollection<unknown>(tenantKey, "gradebook_grades", () => seedRows);
+    const parsed = gradebookGradeRowSchema.array().safeParse(rows);
+    return parsed.success ? parsed.data : seedRows;
+  }
+
+  public async executeTool(name: string, args: unknown, context: AgentRequestContext): Promise<string> {
     const normalizedArgs = normalizeArgs(args);
 
     let result: StudentToolResult;
     if (name === "get_student_details") {
-      result = this.fetchStudentDataSecurely(normalizedArgs.studentName, context);
+      result = await this.fetchStudentDataSecurely(normalizedArgs.studentName, context);
     } else if (name === "query_student_stats") {
-      result = this.executeRosterQuery(normalizedArgs, context);
+      result = await this.executeRosterQuery(normalizedArgs, context);
     } else if (name === "get_intervention_fidelity_stats") {
-      result = this.executeFidelityQuery(normalizedArgs, context);
+      result = await this.executeFidelityQuery(normalizedArgs, context);
     } else if (name === "get_historical_metrics") {
-      result = this.executeHistoricalQuery(normalizedArgs, context);
+      result = await this.executeHistoricalQuery(normalizedArgs, context);
     } else if (name === "query_gradebook") {
-      result = this.executeGradebookQuery(normalizedArgs, context);
+      result = await this.executeGradebookQuery(normalizedArgs, context);
     } else {
       result = { ok: false, error: `Unsupported student tool: ${name}`, code: "UNSUPPORTED_TOOL" };
     }
@@ -204,7 +250,7 @@ export class StudentAgent extends BaseAgent {
     return JSON.stringify(result);
   }
 
-  public fetchStudentDataSecurely(targetStudentName: unknown, context: AgentRequestContext): StudentToolResult {
+  public async fetchStudentDataSecurely(targetStudentName: unknown, context: AgentRequestContext): Promise<StudentToolResult> {
     if (!context.toolPolicy.canReadStudentDetails) {
       return { ok: false, error: "Access denied for student detail lookups.", code: "ACCESS_DENIED" };
     }
@@ -214,7 +260,7 @@ export class StudentAgent extends BaseAgent {
       return { ok: false, error: "Missing required field: studentName.", code: "INVALID_ARGS" };
     }
 
-    const student = this.findAccessibleStudentByName(query, context);
+    const student = await this.findAccessibleStudentByName(query, context);
     if (!student) {
       return { ok: false, error: "Student not found in your authorized scope.", code: "NOT_FOUND" };
     }
@@ -240,7 +286,7 @@ export class StudentAgent extends BaseAgent {
     };
   }
 
-  public executeRosterQuery(args: Record<string, unknown>, context: AgentRequestContext): StudentToolResult {
+  public async executeRosterQuery(args: Record<string, unknown>, context: AgentRequestContext): Promise<StudentToolResult> {
     if (!context.toolPolicy.canReadRoster) {
       return { ok: false, error: "Access denied for roster statistics.", code: "ACCESS_DENIED" };
     }
@@ -252,7 +298,7 @@ export class StudentAgent extends BaseAgent {
     }
 
     const scope = context.toolPolicy.canQueryAcrossSchool ? "master" : "class";
-    let filtered = this.listScopedStudents(context, scope);
+    let filtered = await this.listScopedStudents(context, scope);
 
     const tier = normalizeTier(args.filter_tier);
     if (args.filter_tier !== undefined && !tier) {
@@ -329,13 +375,13 @@ export class StudentAgent extends BaseAgent {
     };
   }
 
-  public executeFidelityQuery(args: Record<string, unknown>, context: AgentRequestContext): StudentToolResult {
+  public async executeFidelityQuery(args: Record<string, unknown>, context: AgentRequestContext): Promise<StudentToolResult> {
     if (!context.toolPolicy.canReadFidelity) {
       return { ok: false, error: "Access denied for intervention fidelity analytics.", code: "ACCESS_DENIED" };
     }
 
     const gradeLevel = normalizeString(args.grade_level);
-    let targetStaff = [...STAFF_ROSTER_DATA];
+    let targetStaff = await this.listStaffRoster(context);
     if (gradeLevel) {
       targetStaff = targetStaff.filter((staff) => (staff.grade ?? "").toLowerCase().includes(gradeLevel.toLowerCase()));
     }
@@ -361,7 +407,7 @@ export class StudentAgent extends BaseAgent {
     };
   }
 
-  public executeHistoricalQuery(args: Record<string, unknown>, context: AgentRequestContext): StudentToolResult {
+  public async executeHistoricalQuery(args: Record<string, unknown>, context: AgentRequestContext): Promise<StudentToolResult> {
     if (!context.toolPolicy.canReadHistorical) {
       return { ok: false, error: "Access denied for historical metrics.", code: "ACCESS_DENIED" };
     }
@@ -380,7 +426,7 @@ export class StudentAgent extends BaseAgent {
 
     let student: TenantStudentRecord | null = null;
     if (studentName) {
-      student = this.findAccessibleStudentByName(studentName, context);
+      student = await this.findAccessibleStudentByName(studentName, context);
       if (!student) {
         return { ok: false, error: "Requested student is outside your authorized scope.", code: "ACCESS_DENIED" };
       }
@@ -425,7 +471,7 @@ export class StudentAgent extends BaseAgent {
     };
   }
 
-  public executeGradebookQuery(args: Record<string, unknown>, context: AgentRequestContext): StudentToolResult {
+  public async executeGradebookQuery(args: Record<string, unknown>, context: AgentRequestContext): Promise<StudentToolResult> {
     if (!context.toolPolicy.canReadGradebook) {
       return { ok: false, error: "Access denied for gradebook queries.", code: "ACCESS_DENIED" };
     }
@@ -439,17 +485,20 @@ export class StudentAgent extends BaseAgent {
     const subject = normalizeString(args.subject).toLowerCase();
     const studentName = normalizeString(args.student_name);
 
-    const allowedStudentIds = new Set(this.resolveAllowedClassStudentIds(context));
+    const allowedStudentIds = new Set(await this.resolveAllowedClassStudentIds(context));
     if (allowedStudentIds.size === 0) {
       return { ok: false, error: "No gradebook records are available in your current scope.", code: "NOT_FOUND" };
     }
 
-    const rosterMap = new Map(CLASS_ROSTER_DATA.map((student) => [student.id, student]));
-    const assignmentsMap = new Map(GLOBAL_ASSIGNMENTS.map((assignment) => [assignment.id, assignment]));
+    const rosterStudents = await this.listScopedStudents(context, "class");
+    const gradebookAssignments = await this.listGradebookAssignments(context);
+    const gradebookRows = await this.listGradebookGrades(context);
+    const rosterMap = new Map(rosterStudents.map((student) => [student.id, student]));
+    const assignmentsMap = new Map(gradebookAssignments.map((assignment) => [assignment.id, assignment]));
 
     let selectedStudentIds = new Set(allowedStudentIds);
     if (studentName) {
-      const matched = CLASS_ROSTER_DATA.find(
+      const matched = rosterStudents.find(
         (student) =>
           allowedStudentIds.has(student.id) &&
           matchesName(student.name, studentName.toLowerCase())
@@ -461,7 +510,7 @@ export class StudentAgent extends BaseAgent {
       selectedStudentIds = new Set([matched.id]);
     }
 
-    const rows = GLOBAL_GRADES
+    const rows = gradebookRows
       .filter((entry) => selectedStudentIds.has(entry.studentId))
       .map((entry) => {
         const student = rosterMap.get(entry.studentId);
@@ -498,7 +547,7 @@ export class StudentAgent extends BaseAgent {
       }
 
       const numericScores = rows
-        .map((row) => (typeof row.score === "number" ? row.score : null))
+        .map((row) => toNumericGradeScore(row.score))
         .filter((score): score is number => score !== null);
 
       if (numericScores.length === 0) {

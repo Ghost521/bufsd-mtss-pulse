@@ -4,6 +4,8 @@ import type { Assignment, GradeEntry, AssignmentType } from '../constants';
 import { CLASS_ROSTER_DATA, GLOBAL_ASSIGNMENTS, GLOBAL_GRADES, SUBJECTS } from '../constants';
 import type { UserRole } from '../types';
 import { Tier } from '../types';
+import { useTenantCollection } from '../hooks/useTenantCollection';
+import { useStudents } from '../hooks/useStudents';
 import { 
   Search, 
   Plus, 
@@ -52,12 +54,28 @@ const WEIGHT_PRESETS: Record<string, Record<AssignmentType, number>> = {
   'Project Based': { 'Homework': 10, 'Quiz': 10, 'Test': 20, 'Project': 60 }
 };
 
+type PersistedGradeEntry = GradeEntry & { id: string };
+
+const toGradeRowId = (studentId: string, assignmentId: string): string => `${studentId}::${assignmentId}`;
+
+const toPersistedGradeEntry = (entry: GradeEntry): PersistedGradeEntry => ({
+  id: toGradeRowId(entry.studentId, entry.assignmentId),
+  studentId: entry.studentId,
+  assignmentId: entry.assignmentId,
+  score: entry.score,
+});
+
 export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => {
+  const assignmentCollection = useTenantCollection<Assignment>('gradebook-assignments');
+  const gradeCollection = useTenantCollection<PersistedGradeEntry>('gradebook-grades');
+  const studentsApi = useStudents('class');
+  const seededAssignmentsRef = useRef(false);
+  const seededGradesRef = useRef(false);
+
   // Data State
   const [selectedSubject, setSelectedSubject] = useState('Mathematics');
-  // Filter global assignments by subject for initial state
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [grades, setGrades] = useState<GradeEntry[]>(GLOBAL_GRADES);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
+  const [grades, setGrades] = useState<PersistedGradeEntry[]>([]);
   
   // Filter & Sort State
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,13 +118,54 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   // Refs for keyboard nav
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Initialize / Filter Data when Subject Changes
-  useEffect(() => {
-    const subjectAssignments = GLOBAL_ASSIGNMENTS.filter(a => a.subject === selectedSubject);
-    // Sort newest first
+  const rosterStudents = useMemo(
+    () => studentsApi.studentsQuery.data?.rows ?? CLASS_ROSTER_DATA,
+    [studentsApi.studentsQuery.data?.rows]
+  );
+
+  const assignments = useMemo(() => {
+    const subjectAssignments = allAssignments.filter((assignment) => assignment.subject === selectedSubject);
     subjectAssignments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setAssignments(subjectAssignments);
-  }, [selectedSubject]);
+    return subjectAssignments;
+  }, [allAssignments, selectedSubject]);
+
+  useEffect(() => {
+    const rows = assignmentCollection.query.data?.rows;
+    if (!rows) return;
+    if (rows.length > 0) seededAssignmentsRef.current = true;
+    setAllAssignments(rows);
+  }, [assignmentCollection.query.data?.rows]);
+
+  useEffect(() => {
+    if (seededAssignmentsRef.current) return;
+    if (!assignmentCollection.query.isSuccess) return;
+    const rows = assignmentCollection.query.data?.rows ?? [];
+    if (rows.length > 0) {
+      seededAssignmentsRef.current = true;
+      return;
+    }
+    seededAssignmentsRef.current = true;
+    assignmentCollection.replaceMutation.mutate(GLOBAL_ASSIGNMENTS);
+  }, [assignmentCollection.query.isSuccess, assignmentCollection.query.data?.rows, assignmentCollection.replaceMutation]);
+
+  useEffect(() => {
+    const rows = gradeCollection.query.data?.rows;
+    if (!rows) return;
+    if (rows.length > 0) seededGradesRef.current = true;
+    setGrades(rows);
+  }, [gradeCollection.query.data?.rows]);
+
+  useEffect(() => {
+    if (seededGradesRef.current) return;
+    if (!gradeCollection.query.isSuccess) return;
+    const rows = gradeCollection.query.data?.rows ?? [];
+    if (rows.length > 0) {
+      seededGradesRef.current = true;
+      return;
+    }
+    seededGradesRef.current = true;
+    gradeCollection.replaceMutation.mutate(GLOBAL_GRADES.map(toPersistedGradeEntry));
+  }, [gradeCollection.query.isSuccess, gradeCollection.query.data?.rows, gradeCollection.replaceMutation]);
 
   // Handle Click Outside
   useEffect(() => {
@@ -135,9 +194,12 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       if (existingIndex >= 0) {
         const updated = [...prev];
         updated[existingIndex] = { ...updated[existingIndex], score: newScore };
+        gradeCollection.replaceMutation.mutate(updated);
         return updated;
       } else {
-        return [...prev, { studentId, assignmentId, score: newScore }];
+        const next = [...prev, { id: toGradeRowId(studentId, assignmentId), studentId, assignmentId, score: newScore }];
+        gradeCollection.replaceMutation.mutate(next);
+        return next;
       }
     });
   };
@@ -181,16 +243,25 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         description: newAssignmentData.description
     };
     
-    // Prepend assignment (Newest on Left)
-    setAssignments(prev => [newAsn, ...prev]);
+    // Prepend assignment and persist full assignment collection
+    setAllAssignments(prev => {
+      const next = [newAsn, ...prev];
+      assignmentCollection.replaceMutation.mutate(next);
+      return next;
+    });
     
     // Initialize empty grades for all students explicitly
-    const newGradeEntries = CLASS_ROSTER_DATA.map(s => ({
+    const newGradeEntries = rosterStudents.map(s => ({
+        id: toGradeRowId(s.id, newId),
         studentId: s.id,
         assignmentId: newId,
         score: null
     }));
-    setGrades(prev => [...prev, ...newGradeEntries]);
+    setGrades(prev => {
+      const next = [...prev, ...newGradeEntries];
+      gradeCollection.replaceMutation.mutate(next);
+      return next;
+    });
 
     setShowAddAssignmentModal(false);
     setNewAssignmentData({
@@ -204,8 +275,16 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
   const handleDeleteAssignment = (assignmentId: string) => {
     if (window.confirm("Are you sure you want to delete this assignment and all associated grades?")) {
-      setAssignments(prev => prev.filter(a => a.id !== assignmentId));
-      setGrades(prev => prev.filter(g => g.assignmentId !== assignmentId));
+      setAllAssignments(prev => {
+        const next = prev.filter(a => a.id !== assignmentId);
+        assignmentCollection.replaceMutation.mutate(next);
+        return next;
+      });
+      setGrades(prev => {
+        const next = prev.filter(g => g.assignmentId !== assignmentId);
+        gradeCollection.replaceMutation.mutate(next);
+        return next;
+      });
       setColumnMenuId(null);
     }
   };
@@ -213,16 +292,17 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   const handleBulkMissing = (assignmentId: string) => {
     setGrades(prev => {
       const newGrades = [...prev];
-      CLASS_ROSTER_DATA.forEach(student => {
+      rosterStudents.forEach(student => {
         const exists = newGrades.find(g => g.studentId === student.id && g.assignmentId === assignmentId);
         if (!exists || exists.score === null || exists.score === '') {
            if (exists) {
              exists.score = 'M';
            } else {
-             newGrades.push({ studentId: student.id, assignmentId, score: 'M' });
+             newGrades.push({ id: toGradeRowId(student.id, assignmentId), studentId: student.id, assignmentId, score: 'M' });
            }
         }
       });
+      gradeCollection.replaceMutation.mutate(newGrades);
       return newGrades;
     });
     setColumnMenuId(null);
@@ -286,7 +366,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   }, [assignments, dateFilter]);
 
   const filteredAndSortedStudents = useMemo(() => {
-    let students = CLASS_ROSTER_DATA.filter(s => 
+    let students = rosterStudents.filter(s => 
       s.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -303,7 +383,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     });
 
     return students;
-  }, [searchQuery, sortConfig, calculateWeightedAverage]);
+  }, [searchQuery, sortConfig, calculateWeightedAverage, rosterStudents]);
 
   const classAverage = useMemo(() => {
     if (filteredAndSortedStudents.length === 0) return 0;
@@ -316,7 +396,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     const currentAsnIds = assignments.map(a => a.id);
     
     grades.filter(g => g.score === 'M' && currentAsnIds.includes(g.assignmentId)).forEach(g => {
-        const student = CLASS_ROSTER_DATA.find(s => s.id === g.studentId);
+        const student = rosterStudents.find(s => s.id === g.studentId);
         const assign = assignments.find(a => a.id === g.assignmentId);
         if (student && assign) {
             results.push({
@@ -329,7 +409,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         }
     });
     return results;
-  }, [grades, assignments]);
+  }, [grades, assignments, rosterStudents]);
 
   // --- Keyboard Navigation ---
   const handleKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {

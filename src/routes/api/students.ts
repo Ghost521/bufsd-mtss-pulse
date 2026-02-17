@@ -1,60 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Tier } from "../../types";
 import {
   createMasterStudent,
   deleteMasterStudent,
   getStudentById,
   listStudents,
   updateMasterStudent,
-  type CreateStudentInput,
   type StudentScope,
-  type UpdateStudentInput,
 } from "../../lib/server/student-store";
 import { getSessionFromRequest, getSessionSummary } from "../../lib/server/auth-context";
 import { requirePermission } from "../../lib/server/rbac";
 import { newRequestId, writeAuditLog } from "../../lib/server/audit-log";
+import { createStudentInputSchema, updateStudentInputSchema } from "../../lib/schemas/students";
 
 const toScope = (value: string | null): StudentScope => (value === "master" ? "master" : "class");
-
-const isTier = (value: unknown): value is Tier => Object.values(Tier).includes(value as Tier);
-
-const parseCreateStudentBody = (value: unknown): CreateStudentInput | null => {
-  if (!value || typeof value !== "object") return null;
-  const body = value as Record<string, unknown>;
-  if (typeof body.name !== "string" || body.name.trim().length === 0) return null;
-  if (typeof body.grade !== "string" || body.grade.trim().length === 0) return null;
-  if (!isTier(body.tier)) return null;
-  if (typeof body.gpa !== "string" || body.gpa.trim().length === 0) return null;
-  if (typeof body.attendance !== "number" || Number.isNaN(body.attendance)) return null;
-  if (typeof body.readingLevel !== "string" || body.readingLevel.trim().length === 0) return null;
-
-  return {
-    name: body.name.trim(),
-    grade: body.grade.trim(),
-    tier: body.tier,
-    gpa: body.gpa.trim(),
-    attendance: Math.max(0, Math.min(100, Math.round(body.attendance))),
-    readingLevel: body.readingLevel.trim(),
-    schoolId: typeof body.schoolId === "string" ? body.schoolId.trim() : undefined,
-  };
-};
-
-const parseUpdateStudentBody = (value: unknown): UpdateStudentInput | null => {
-  if (!value || typeof value !== "object") return null;
-  const body = value as Record<string, unknown>;
-  const patch: UpdateStudentInput = {};
-
-  if (typeof body.name === "string") patch.name = body.name.trim();
-  if (typeof body.grade === "string") patch.grade = body.grade.trim();
-  if (isTier(body.tier)) patch.tier = body.tier;
-  if (typeof body.gpa === "string") patch.gpa = body.gpa.trim();
-  if (typeof body.attendance === "number" && !Number.isNaN(body.attendance)) {
-    patch.attendance = Math.max(0, Math.min(100, Math.round(body.attendance)));
-  }
-  if (typeof body.readingLevel === "string") patch.readingLevel = body.readingLevel.trim();
-
-  return Object.keys(patch).length > 0 ? patch : null;
-};
 
 export const Route = createFileRoute("/api/students")({
   server: {
@@ -72,7 +30,7 @@ export const Route = createFileRoute("/api/students")({
 
         const url = new URL(request.url);
         const scope = toScope(url.searchParams.get("scope"));
-        const rows = listStudents({
+        const rows = await listStudents({
           scope,
           context: session.activeContext,
           requesterUserId: session.user.id,
@@ -97,9 +55,12 @@ export const Route = createFileRoute("/api/students")({
         }
 
         const body = (await request.json().catch(() => null)) as unknown;
-        const parsed = parseCreateStudentBody(body);
-        if (!parsed) {
-          return Response.json({ ok: false, error: "Invalid student payload.", requestId }, { status: 400 });
+        const parsed = createStudentInputSchema.safeParse(body);
+        if (!parsed.success) {
+          return Response.json(
+            { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid student payload.", requestId },
+            { status: 400 }
+          );
         }
 
         const permission = requirePermission(session, {
@@ -111,7 +72,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
         }
 
-        const created = createMasterStudent(parsed, session.activeContext, session.user.id);
+        const created = await createMasterStudent(parsed.data, session.activeContext, session.user.id);
         if (!created) {
           return Response.json({ ok: false, error: "Could not resolve target school for create.", requestId }, { status: 400 });
         }
@@ -149,17 +110,20 @@ export const Route = createFileRoute("/api/students")({
         }
 
         const body = (await request.json().catch(() => null)) as unknown;
-        const patch = parseUpdateStudentBody(body);
-        if (!patch) {
-          return Response.json({ ok: false, error: "Invalid update payload.", requestId }, { status: 400 });
+        const patch = updateStudentInputSchema.safeParse(body);
+        if (!patch.success) {
+          return Response.json(
+            { ok: false, error: patch.error.issues[0]?.message ?? "Invalid update payload.", requestId },
+            { status: 400 }
+          );
         }
 
-        const existing = getStudentById(studentId);
+        const existing = await getStudentById(studentId, session.activeContext);
         if (!existing) {
           return Response.json({ ok: false, error: "Student not found.", requestId }, { status: 404 });
         }
 
-        const changedFields = Object.keys(patch);
+        const changedFields = Object.keys(patch.data);
         const permission = requirePermission(session, {
           resource: "students",
           action: "update",
@@ -170,7 +134,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
         }
 
-        const updated = updateMasterStudent(studentId, patch, session.activeContext);
+        const updated = await updateMasterStudent(studentId, patch.data, session.activeContext);
         if (!updated) {
           return Response.json({ ok: false, error: "Student is outside active tenant context.", requestId }, { status: 403 });
         }
@@ -203,7 +167,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: "Missing student id.", requestId }, { status: 400 });
         }
 
-        const existing = getStudentById(studentId);
+        const existing = await getStudentById(studentId, session.activeContext);
         if (!existing) {
           return Response.json({ ok: false, error: "Student not found.", requestId }, { status: 404 });
         }
@@ -217,7 +181,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
         }
 
-        const deleted = deleteMasterStudent(studentId, session.activeContext);
+        const deleted = await deleteMasterStudent(studentId, session.activeContext);
         if (!deleted) {
           return Response.json({ ok: false, error: "Student is outside active tenant context.", requestId }, { status: 403 });
         }

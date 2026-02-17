@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { STAFF_ROSTER_DATA } from '../constants';
 import type { StaffRosterItem} from '../types';
 import { UserRole } from '../types';
 import { StudentRosterView } from './StudentRosterView';
 import type { WorkspacePageId } from '../lib/workspaceRoutes';
+import { useTenantCollection } from '../hooks/useTenantCollection';
 import { 
   Users, 
   TrendingUp, 
@@ -77,6 +78,8 @@ const getFidelityBreakdown = (totalScore: number, seed: string) => {
 export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClick, onStudentClick, onNavigate, currentUserRole }) => {
   // Tab State
   const [activeTab, setActiveTab] = useState<'staff' | 'students'>('staff');
+  const staffCollection = useTenantCollection<ExtendedStaffRosterItem>('staff');
+  const seededStaffRef = useRef(false);
 
   // State for data (allows modification for avatar uploads)
   const [staffList, setStaffList] = useState<ExtendedStaffRosterItem[]>(STAFF_ROSTER_DATA);
@@ -100,6 +103,25 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
 
   const canImportStaff = currentUserRole === UserRole.PRINCIPAL || currentUserRole === UserRole.DISTRICT;
+
+  useEffect(() => {
+    const rows = staffCollection.query.data?.rows;
+    if (!rows) return;
+    if (rows.length > 0) seededStaffRef.current = true;
+    setStaffList(rows);
+  }, [staffCollection.query.data?.rows]);
+
+  useEffect(() => {
+    if (seededStaffRef.current) return;
+    if (!staffCollection.query.isSuccess) return;
+    const rows = staffCollection.query.data?.rows ?? [];
+    if (rows.length > 0) {
+      seededStaffRef.current = true;
+      return;
+    }
+    seededStaffRef.current = true;
+    staffCollection.replaceMutation.mutate(STAFF_ROSTER_DATA);
+  }, [staffCollection.query.isSuccess, staffCollection.query.data?.rows, staffCollection.replaceMutation]);
 
   // Derived Data
   const filteredAndSortedStaff = useMemo(() => {
@@ -168,11 +190,23 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && uploadTargetId) {
+        if (!file.type.startsWith('image/')) {
+            alert('Please upload an image file.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Profile image must be 2MB or smaller.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
         const reader = new FileReader();
         reader.onload = () => {
+            const nextAvatar = reader.result as string;
             setStaffList(prev => prev.map(s => 
-                s.id === uploadTargetId ? { ...s, customAvatar: reader.result as string } : s
+                s.id === uploadTargetId ? { ...s, customAvatar: nextAvatar } : s
             ));
+            staffCollection.updateMutation.mutate({ id: uploadTargetId, patch: { customAvatar: nextAvatar } });
             setUploadTargetId(null);
         };
         reader.readAsDataURL(file);
@@ -199,6 +233,9 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
   const handleBulkDelete = () => {
       if (window.confirm(`Remove ${selectedIds.size} staff members from the active roster?`)) {
           setStaffList(prev => prev.filter(s => !selectedIds.has(s.id)));
+          selectedIds.forEach((id) => {
+              staffCollection.deleteMutation.mutate({ id });
+          });
           setSelectedIds(new Set());
           setIsSelectionMode(false);
       }

@@ -204,7 +204,7 @@ export class OrchestratorAgent extends BaseAgent {
         }
 
         const started = Date.now();
-        const toolResultText = this.studentAgent.executeTool(
+        const toolResultText = await this.studentAgent.executeTool(
           turn.functionCallPart.functionCall.name,
           turn.functionCallPart.functionCall.args,
           requestContext
