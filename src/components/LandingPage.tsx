@@ -67,18 +67,26 @@ export function LandingPage() {
             <a href="#support" className="transition-colors hover:text-[#6b5b4e]">Testimonials</a>
             <a href="#how-it-works" className="transition-colors hover:text-[#6b5b4e]">Pricing</a>
           </nav>
-          <a
-            href={buttonDisabled ? undefined : primaryHref}
-            aria-disabled={buttonDisabled}
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold ${
-              buttonDisabled
-                ? "cursor-not-allowed bg-[#c9b9a4] text-[#fdf8f3]"
-                : "bg-[#79533f] text-[#fffaf3] transition-colors hover:bg-[#644432]"
-            }`}
-          >
-            {buttonDisabled ? <Loader2 size={14} className="animate-spin" /> : null}
-            {workosEnabled ? "Sign in" : "Open App"}
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+              href="#support"
+              className="inline-flex items-center gap-2 rounded-full bg-[#79533f] px-4 py-2 text-xs font-bold text-[#fffaf3] transition-colors hover:bg-[#644432]"
+            >
+              Request A Demo
+            </a>
+            <a
+              href={buttonDisabled ? undefined : primaryHref}
+              aria-disabled={buttonDisabled}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold ${
+                buttonDisabled
+                  ? "cursor-not-allowed border-[#d9cdbd] bg-[#f2e7d8] text-[#aa9886]"
+                  : "border-[#cabaa7] bg-[#fffaf2] text-[#725744] transition-colors hover:bg-[#f2e7d9]"
+              }`}
+            >
+              {buttonDisabled ? <Loader2 size={14} className="animate-spin" /> : null}
+              Login
+            </a>
+          </div>
         </div>
       </header>
 
