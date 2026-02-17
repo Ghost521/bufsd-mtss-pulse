@@ -38,6 +38,7 @@ type FailureInfo = {
 };
 
 const TEXT_MODEL = "gemini-3-flash-preview";
+const DEBUG_STREAM = process.env.MTSS_DEBUG_STREAM === "true";
 
 let cachedAgents: Agents | null = null;
 let initError: Error | null = null;
@@ -186,6 +187,7 @@ const createSseResponse = (
 ): Response => {
   const encoder = new TextEncoder();
   let closed = false;
+  let keepAlive: ReturnType<typeof setInterval> | undefined;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -197,10 +199,19 @@ const createSseResponse = (
       const close = () => {
         if (closed) return;
         closed = true;
+        if (keepAlive) {
+          clearInterval(keepAlive);
+          keepAlive = undefined;
+        }
         controller.close();
       };
 
       try {
+        keepAlive = setInterval(() => {
+          if (closed) return;
+          controller.enqueue(encoder.encode(": keepalive\n\n"));
+        }, 15_000);
+        if (DEBUG_STREAM) console.debug("[MTSS stream] opened");
         await run({ emit, isClosed: () => closed });
       } catch (error) {
         const failure = resolveFailure(error, "Streaming endpoint failed.");
@@ -211,11 +222,16 @@ const createSseResponse = (
         };
         emit("error", payload);
       } finally {
+        if (DEBUG_STREAM) console.debug("[MTSS stream] closed");
         close();
       }
     },
     cancel() {
       closed = true;
+      if (keepAlive) {
+        clearInterval(keepAlive);
+        keepAlive = undefined;
+      }
     },
   });
 

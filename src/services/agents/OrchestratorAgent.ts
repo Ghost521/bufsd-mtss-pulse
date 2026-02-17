@@ -278,6 +278,16 @@ export class OrchestratorAgent extends BaseAgent {
     requestContext: AgentRequestContext,
     onChunk: (text: string) => void
   ): Promise<OrchestratorResult> {
-    return this.queryRAGChatInternal(query, history, contextDocuments, requestContext, onChunk);
+    let emitted = false;
+    const result = await this.queryRAGChatInternal(query, history, contextDocuments, requestContext, (chunk) => {
+      emitted = true;
+      onChunk(chunk);
+    });
+
+    if (!emitted && result.text.trim().length > 0) {
+      onChunk(result.text);
+    }
+
+    return result;
   }
 }

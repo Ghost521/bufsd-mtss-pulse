@@ -140,7 +140,8 @@ export const Chatbot: React.FC<ChatbotProps> = ({
           setMessages(prev => prev.map(m => 
               m.id === tempId ? { ...m, text: responseText } : m
           ));
-        }
+        },
+        controller.signal
       );
     } catch {
       if (!controller.signal.aborted) {

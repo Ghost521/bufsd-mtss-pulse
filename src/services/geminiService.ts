@@ -12,6 +12,9 @@ import type {
 export type { AIInterventionPlan, AnalyzedDocumentResult, ImportAnalysisResult } from "./aiContracts";
 
 const API_BASE = (import.meta.env.VITE_AI_API_BASE_URL || "/api/ai").replace(/\/$/, "");
+const DEBUG_STREAM = import.meta.env.VITE_MTSS_DEBUG_STREAM === "true";
+const DEFAULT_IDLE_TIMEOUT_MS = 20_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 90_000;
 
 class ApiError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -76,6 +79,7 @@ const parseSseEventBlock = (block: string): { event: string; data: unknown } | n
 
   for (const rawLine of block.split("\n")) {
     const line = rawLine.trimEnd();
+    if (line.startsWith(":")) continue;
     if (line.startsWith("event:")) {
       event = line.slice(6).trim();
       continue;
@@ -94,11 +98,58 @@ const parseSseEventBlock = (block: string): { event: string; data: unknown } | n
   }
 };
 
+const nextSseBoundaryIndex = (buffer: string): number => buffer.indexOf("\n\n");
+
+const toApiError = (error: unknown, fallback: string): ApiError => {
+  if (error instanceof ApiError) return error;
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return new ApiError(error.message || fallback, 408);
+  }
+  if (error instanceof Error) return new ApiError(error.message || fallback);
+  return new ApiError(fallback);
+};
+
 const streamSse = async <TRequest>(
   path: string,
   body: TRequest,
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  options?: {
+    signal?: AbortSignal;
+    idleTimeoutMs?: number;
+    timeoutMs?: number;
+  }
 ): Promise<AiStreamDoneEvent | undefined> => {
+  const idleTimeoutMs = options?.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  const externalSignal = options?.signal;
+  let linkedAbortCleanup: (() => void) | undefined;
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort(externalSignal.reason);
+    } else {
+      const onAbort = () => controller.abort(externalSignal.reason);
+      externalSignal.addEventListener("abort", onAbort, { once: true });
+      linkedAbortCleanup = () => externalSignal.removeEventListener("abort", onAbort);
+    }
+  }
+
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let requestTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const touchIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      controller.abort(new DOMException(`AI stream idle timeout after ${idleTimeoutMs}ms`, "AbortError"));
+    }, idleTimeoutMs);
+  };
+
+  requestTimer = setTimeout(() => {
+    controller.abort(new DOMException(`AI stream request timeout after ${timeoutMs}ms`, "AbortError"));
+  }, timeoutMs);
+  touchIdleTimer();
+
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
@@ -107,14 +158,24 @@ const streamSse = async <TRequest>(
       "x-ai-stream": "1",
     },
     body: JSON.stringify(body),
+    signal: controller.signal,
+  }).catch((error) => {
+    throw toApiError(error, "Failed to connect to AI stream.");
   });
 
   if (!response.ok) {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (requestTimer) clearTimeout(requestTimer);
+    linkedAbortCleanup?.();
     throw new ApiError(await responseErrorMessage(response), response.status);
   }
 
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/event-stream") || !response.body) {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (requestTimer) clearTimeout(requestTimer);
+    linkedAbortCleanup?.();
+    if (DEBUG_STREAM) console.debug(`[MTSS stream] non-stream fallback for ${path}`);
     const payload = (await response.json()) as unknown;
     if (isEnvelopeResponse(payload) && payload.ok && isRecord(payload.data) && typeof payload.data.text === "string") {
       onChunk(payload.data.text);
@@ -128,10 +189,19 @@ const streamSse = async <TRequest>(
   const decoder = new TextDecoder();
   let buffer = "";
   let donePayload: AiStreamDoneEvent | undefined;
+  let doneEventReceived = false;
+
+  const cleanup = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (requestTimer) clearTimeout(requestTimer);
+    linkedAbortCleanup?.();
+  };
 
   const processEvent = (eventBlock: string) => {
     const parsed = parseSseEventBlock(eventBlock);
     if (!parsed) return;
+    touchIdleTimer();
+    if (DEBUG_STREAM) console.debug(`[MTSS stream] ${path} event`, parsed.event);
 
     if (parsed.event === "chunk" && isRecord(parsed.data) && typeof parsed.data.text === "string") {
       onChunk(parsed.data.text);
@@ -146,30 +216,43 @@ const streamSse = async <TRequest>(
 
     if (parsed.event === "done" && isRecord(parsed.data)) {
       donePayload = parsed.data as AiStreamDoneEvent;
+      doneEventReceived = true;
     }
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
-    let boundaryIndex = buffer.indexOf("\n\n");
+      touchIdleTimer();
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      let boundaryIndex = nextSseBoundaryIndex(buffer);
 
-    while (boundaryIndex >= 0) {
-      const block = buffer.slice(0, boundaryIndex);
-      buffer = buffer.slice(boundaryIndex + 2);
-      processEvent(block);
-      boundaryIndex = buffer.indexOf("\n\n");
+      while (boundaryIndex >= 0) {
+        const block = buffer.slice(0, boundaryIndex);
+        buffer = buffer.slice(boundaryIndex + 2);
+        processEvent(block);
+        if (doneEventReceived) {
+          await reader.cancel("done event received");
+          cleanup();
+          return donePayload;
+        }
+        boundaryIndex = nextSseBoundaryIndex(buffer);
+      }
     }
-  }
 
-  const tail = buffer.trim();
-  if (tail.length > 0) {
-    processEvent(tail);
-  }
+    const tail = buffer.trim();
+    if (tail.length > 0) {
+      processEvent(tail);
+    }
 
-  return donePayload;
+    cleanup();
+    return donePayload;
+  } catch (error) {
+    cleanup();
+    throw toApiError(error, "AI stream failed.");
+  }
 };
 
 const collectFromStream = async (run: (onChunk: (text: string) => void) => Promise<unknown>): Promise<string> => {
@@ -186,10 +269,11 @@ export const queryRAGChatStream = async (
   contextDocuments: RAGDocument[],
   role: UserRole,
   username: string,
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<void> => {
   const request: AiRequestMap["ragChat"] = { query, history, contextDocuments, role, username };
-  await streamSse<AiRequestMap["ragChat"]>("/rag-chat", request, onChunk);
+  await streamSse<AiRequestMap["ragChat"]>("/rag-chat", request, onChunk, { signal });
 };
 
 export const generateDashboardBriefingStream = async (
