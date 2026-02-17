@@ -573,7 +573,6 @@ export const DataImporter: React.FC<DataImporterProps> = ({ onMenuClick, onImpor
                     <button 
                         onClick={() => {
                             setStep('source');
-                            setFile(null);
                             setPastedText('');
                             setPreviewData([]);
                             setAnalysisResult(null);

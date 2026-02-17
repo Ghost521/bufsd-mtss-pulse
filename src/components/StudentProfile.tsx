@@ -34,8 +34,6 @@ import {
 import { getStudentDetails } from '../constants';
 import type { StudentDetails } from '../types';
 import { Tier } from '../types';
-import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
-import type { TooltipProps } from 'recharts';
 import { generateStudentProfileSummaryStream } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { ReferralModal } from './ReferralModal';
@@ -99,7 +97,13 @@ const Confetti = () => {
   );
 };
 
-const CustomChartTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
+type CustomChartTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  payload?: Array<{ value?: string | number }>;
+};
+
+const CustomChartTooltip = ({ active, payload, label }: CustomChartTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-3 border border-slate-200 rounded-lg shadow-lg text-xs">
