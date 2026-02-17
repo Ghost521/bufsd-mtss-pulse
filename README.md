@@ -27,6 +27,14 @@ Dev server is pinned to `http://localhost:3000` (`strictPort` enabled). If port 
 - Query state: TanStack Query
 - Table UI: TanStack Table (see `/roster-table`)
 - API routes: Start server routes (including `/api/ai/*`)
+- Optimistic updates: `/roster-table` now supports optimistic create/update/delete with automatic rollback on failure.
+
+## Student API (Compatibility Layer)
+
+- `GET /api/students?scope=master|class`
+- `POST /api/students` (creates master roster student)
+- `PATCH /api/students?id=<studentId>` (updates master roster student)
+- `DELETE /api/students?id=<studentId>` (deletes master roster student)
 
 ## Quality Checks
 
