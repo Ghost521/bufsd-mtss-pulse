@@ -400,6 +400,10 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
             isOpen={isReferralModalOpen}
             onClose={() => setIsReferralModalOpen(false)}
             defaultStudentId={referralStudentId}
+            onViewQueue={() => {
+              setIsReferralModalOpen(false);
+              onNavigate?.('interventions');
+            }}
         />
 
         {/* Edit Student Modal */}

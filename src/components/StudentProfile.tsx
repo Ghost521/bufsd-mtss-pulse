@@ -228,6 +228,10 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         isOpen={isReferralModalOpen}
         onClose={() => setIsReferralModalOpen(false)}
         defaultStudentId={student.id}
+        onViewQueue={() => {
+          setActiveTab('interventions');
+          setIsReferralModalOpen(false);
+        }}
       />
 
       {/* --- Header --- */}

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { X, GripHorizontal, Scaling } from 'lucide-react';
 
 interface DraggableModalProps {
@@ -14,7 +14,27 @@ interface DraggableModalProps {
   minHeight?: number;
   headerClassName?: string;
   className?: string;
+  titleId?: string;
+  descriptionId?: string;
+  showResizeHandle?: boolean;
 }
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+  '[contenteditable="true"]',
+].join(',');
+
+const getFocusableElements = (container: HTMLElement): HTMLElement[] =>
+  Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.hasAttribute('disabled')) return false;
+    if (element.getAttribute('aria-hidden') === 'true') return false;
+    return element.offsetParent !== null || element === document.activeElement;
+  });
 
 export const DraggableModal: React.FC<DraggableModalProps> = ({
   isOpen,
@@ -27,9 +47,17 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
   minWidth = 400,
   minHeight = 300,
   headerClassName = '',
-  className = ''
+  className = '',
+  titleId,
+  descriptionId,
+  showResizeHandle = true,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+  const generatedTitleId = useId();
+  const generatedDescriptionId = useId();
+  const resolvedTitleId = titleId ?? generatedTitleId;
+  const resolvedDescriptionId = descriptionId ?? generatedDescriptionId;
   
   // Track position and size in refs
   const position = useRef({ x: 0, y: 0 });
@@ -44,6 +72,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
   // Initialize position
   useEffect(() => {
     if (isOpen && modalRef.current) {
+      previouslyFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       const w = initialWidth;
       const h = initialHeight || 0; 
       
@@ -63,8 +92,66 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       modalRef.current.style.height = h ? `${h}px` : 'auto';
       modalRef.current.style.maxHeight = '95vh';
       modalRef.current.style.maxWidth = '95vw';
+
+      window.setTimeout(() => {
+        if (!modalRef.current) return;
+        const focusable = getFocusableElements(modalRef.current);
+        const autofocusTarget = modalRef.current.querySelector<HTMLElement>('[data-autofocus="true"]');
+        const focusTarget = autofocusTarget ?? focusable[0] ?? modalRef.current;
+        focusTarget.focus();
+      }, 0);
     }
   }, [isOpen, initialWidth, initialHeight]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    if (!previouslyFocusedElementRef.current) return;
+    previouslyFocusedElementRef.current.focus();
+    previouslyFocusedElementRef.current = null;
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!modalRef.current) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusableElements(modalRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        modalRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const activeInsideModal = Boolean(active && modalRef.current.contains(active));
+
+      if (event.shiftKey) {
+        if (!activeInsideModal || active === first) {
+          event.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+
+      if (!activeInsideModal || active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -180,6 +267,11 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       <div
         ref={modalRef}
         className={`absolute bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 pointer-events-auto animate-in zoom-in-95 duration-200 will-change-transform ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? resolvedTitleId : undefined}
+        aria-describedby={resolvedDescriptionId}
+        tabIndex={-1}
         style={{ 
             width: initialWidth,
             height: initialHeight || 'auto',
@@ -192,20 +284,21 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
           className={`flex justify-between items-center p-4 border-b border-slate-100 bg-white select-none transition-colors ${isDragging ? 'cursor-grabbing bg-slate-50' : 'cursor-grab'} ${headerClassName}`}
           onMouseDown={handleDragStart}
         >
-          <div className="flex items-center gap-2 font-bold text-slate-800 text-lg truncate pr-4 pointer-events-none">
+          <div id={resolvedTitleId} className="flex items-center gap-2 font-bold text-slate-800 text-lg truncate pr-4 pointer-events-none">
             <GripHorizontal size={20} className="text-slate-300 shrink-0" />
             {title}
           </div>
           <button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors pointer-events-auto"
+            aria-label="Close dialog"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto relative flex flex-col bg-white">
+        <div id={resolvedDescriptionId} className="flex-1 overflow-auto relative flex flex-col bg-white">
           {children}
         </div>
 
@@ -217,12 +310,14 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         )}
 
         {/* Resize Handle */}
-        <div
-          className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-center justify-center z-20 hover:bg-slate-100 rounded-tl transition-colors group"
-          onMouseDown={handleResizeStart}
-        >
-          <Scaling size={14} className="text-slate-300 group-hover:text-indigo-500" />
-        </div>
+        {showResizeHandle ? (
+          <div
+            className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-center justify-center z-20 hover:bg-slate-100 rounded-tl transition-colors group"
+            onMouseDown={handleResizeStart}
+          >
+            <Scaling size={14} className="text-slate-300 group-hover:text-indigo-500" />
+          </div>
+        ) : null}
       </div>
     </div>
   );

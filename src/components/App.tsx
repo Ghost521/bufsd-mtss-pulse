@@ -1091,6 +1091,9 @@ const App: React.FC = () => {
         <ReferralModal 
           isOpen={isReferralModalOpen} 
           onClose={() => setIsReferralModalOpen(false)}
+          onViewQueue={() => {
+            setActivePage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'interventions' : 'reports');
+          }}
         />
       </Suspense>
 
