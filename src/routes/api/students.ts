@@ -61,7 +61,7 @@ export const Route = createFileRoute("/api/students")({
     handlers: {
       GET: async ({ request }) => {
         const requestId = newRequestId();
-        const session = getSessionFromRequest(request);
+        const session = await getSessionFromRequest(request);
         if (!session) {
           return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
         }
@@ -91,7 +91,7 @@ export const Route = createFileRoute("/api/students")({
       },
       POST: async ({ request }) => {
         const requestId = newRequestId();
-        const session = getSessionFromRequest(request);
+        const session = await getSessionFromRequest(request);
         if (!session) {
           return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
         }
@@ -137,7 +137,7 @@ export const Route = createFileRoute("/api/students")({
       },
       PATCH: async ({ request }) => {
         const requestId = newRequestId();
-        const session = getSessionFromRequest(request);
+        const session = await getSessionFromRequest(request);
         if (!session) {
           return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
         }
@@ -192,7 +192,7 @@ export const Route = createFileRoute("/api/students")({
       },
       DELETE: async ({ request }) => {
         const requestId = newRequestId();
-        const session = getSessionFromRequest(request);
+        const session = await getSessionFromRequest(request);
         if (!session) {
           return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
         }

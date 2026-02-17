@@ -1,17 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getSessionFromRequest, getSessionSummary, resolveSessionChange } from "../../lib/server/auth-context";
+import { canSwitchUsersInSession, getSessionFromRequest, getSessionSummary, resolveSessionChange } from "../../lib/server/auth-context";
 import { getAuditCount, newRequestId } from "../../lib/server/audit-log";
 import { getPersistenceDiagnostics } from "../../lib/server/persistence";
 import { getUsers } from "../../lib/server/tenant-store";
+import { getWorkOSConfigSummary, isWorkOSEnabled } from "../../lib/server/workos";
 
 export const Route = createFileRoute("/api/health")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const requestId = newRequestId();
-        const session = getSessionFromRequest(request);
+        const session = await getSessionFromRequest(request);
         const summary = getSessionSummary(session);
         const auditCount = session ? await getAuditCount(session.activeContext) : 0;
+        const canSwitchUsers = canSwitchUsersInSession();
+        const workosEnabled = isWorkOSEnabled();
 
         return Response.json({
           ok: true,
@@ -20,12 +23,20 @@ export const Route = createFileRoute("/api/health")({
           requestId,
           session: summary,
           authConfigured: true,
-          availableUsers: getUsers().map((user) => ({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            primaryRole: user.primaryRole,
-          })),
+          auth: {
+            workosEnabled,
+            signedIn: Boolean(summary),
+            canSwitchUsers,
+            workos: getWorkOSConfigSummary(),
+          },
+          availableUsers: canSwitchUsers
+            ? getUsers().map((user) => ({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                primaryRole: user.primaryRole,
+              }))
+            : [],
           auditCount,
           persistence: getPersistenceDiagnostics(),
         });
@@ -33,7 +44,7 @@ export const Route = createFileRoute("/api/health")({
       POST: async ({ request }) => {
         const requestId = newRequestId();
         const body = (await request.json().catch(() => null)) as unknown;
-        const changed = resolveSessionChange(request, body);
+        const changed = await resolveSessionChange(request, body);
         if ("error" in changed) {
           return Response.json({ ok: false, error: changed.error, requestId }, { status: changed.status });
         }

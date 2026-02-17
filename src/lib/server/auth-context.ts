@@ -1,26 +1,22 @@
 import {
   canUserAccessContext,
+  findUserByEmail,
   findUserById,
   getAccessibleContextsForMemberships,
   getUserGroups,
   getUserMemberships,
   normalizeContext,
 } from "./tenant-store";
+import { clearCookie, parseCookieHeader, serializeCookie } from "./cookies";
+import { authenticateSealedWorkOSSession, isWorkOSEnabled, WORKOS_SESSION_COOKIE } from "./workos";
 import type { SessionContext, TenantContext } from "./tenant-types";
 
-const USER_COOKIE = "mtss_user";
-const CONTEXT_COOKIE = "mtss_ctx";
+export const USER_COOKIE = "mtss_user";
+export const CONTEXT_COOKIE = "mtss_ctx";
 const DEFAULT_USER_ID = "u-principal-ne";
-
-const parseCookieHeader = (cookieHeader: string | null): Record<string, string> => {
-  if (!cookieHeader) return {};
-  return cookieHeader.split(";").reduce<Record<string, string>>((acc, item) => {
-    const [rawKey, ...rawValue] = item.trim().split("=");
-    if (!rawKey) return acc;
-    acc[rawKey] = decodeURIComponent(rawValue.join("="));
-    return acc;
-  }, {});
-};
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const COOKIE_SECURE = process.env.NODE_ENV === "production";
+const ALLOW_IMPERSONATION = process.env.MTSS_ALLOW_IMPERSONATION === "true";
 
 const parseTenantContext = (value: string | null | undefined): TenantContext | null => {
   if (!value) return null;
@@ -31,9 +27,6 @@ const parseTenantContext = (value: string | null | undefined): TenantContext | n
     return null;
   }
 };
-
-const serializeCookie = (name: string, value: string): string =>
-  `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
 
 const contextKey = (context: TenantContext): string => `${context.organizationId}:${context.districtId ?? ""}:${context.schoolId ?? ""}`;
 
@@ -65,11 +58,32 @@ const buildSession = (userId: string, requestedContext: TenantContext | null): S
   };
 };
 
-export const getSessionFromRequest = (request: Request): SessionContext | null => {
+export const buildSessionForUser = (userId: string, requestedContext: TenantContext | null = null): SessionContext | null =>
+  buildSession(userId, requestedContext);
+
+const resolveUserIdFromWorkOS = async (request: Request): Promise<string | null> => {
   const cookies = parseCookieHeader(request.headers.get("cookie"));
-  const headerUserId = request.headers.get("x-mtss-user-id");
-  const userId = headerUserId || cookies[USER_COOKIE] || DEFAULT_USER_ID;
+  const sealedSession = cookies[WORKOS_SESSION_COOKIE];
+  if (!sealedSession) return null;
+
+  const auth = await authenticateSealedWorkOSSession(sealedSession).catch(() => null);
+  if (!auth?.authenticated || !auth.user?.email) return null;
+
+  const mapped = findUserByEmail(auth.user.email);
+  return mapped?.id ?? null;
+};
+
+export const canSwitchUsersInSession = (): boolean => !isWorkOSEnabled() || ALLOW_IMPERSONATION;
+
+export const getSessionFromRequest = async (request: Request): Promise<SessionContext | null> => {
+  const cookies = parseCookieHeader(request.headers.get("cookie"));
   const requestedContext = parseTenantContext(request.headers.get("x-mtss-context") ?? cookies[CONTEXT_COOKIE]);
+
+  const userId = isWorkOSEnabled()
+    ? await resolveUserIdFromWorkOS(request)
+    : request.headers.get("x-mtss-user-id") || cookies[USER_COOKIE] || DEFAULT_USER_ID;
+
+  if (!userId) return null;
   return buildSession(userId, requestedContext);
 };
 
@@ -90,13 +104,57 @@ export const createSessionCookieHeaders = (input: {
   context: TenantContext;
 }): Headers => {
   const headers = new Headers();
-  headers.append("Set-Cookie", serializeCookie(USER_COOKIE, input.userId));
-  headers.append("Set-Cookie", serializeCookie(CONTEXT_COOKIE, JSON.stringify(input.context)));
+  headers.append(
+    "Set-Cookie",
+    serializeCookie(USER_COOKIE, input.userId, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: COOKIE_SECURE,
+      maxAge: COOKIE_MAX_AGE_SECONDS,
+    })
+  );
+  headers.append(
+    "Set-Cookie",
+    serializeCookie(CONTEXT_COOKIE, JSON.stringify(input.context), {
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: COOKIE_SECURE,
+      maxAge: COOKIE_MAX_AGE_SECONDS,
+    })
+  );
   return headers;
 };
 
-export const resolveSessionChange = (request: Request, body: unknown): { session: SessionContext; headers: Headers } | { error: string; status: number } => {
-  const current = getSessionFromRequest(request);
+export const clearSessionCookieHeaders = (): Headers => {
+  const headers = new Headers();
+  headers.append(
+    "Set-Cookie",
+    clearCookie(USER_COOKIE, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: COOKIE_SECURE,
+    })
+  );
+  headers.append(
+    "Set-Cookie",
+    clearCookie(CONTEXT_COOKIE, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: COOKIE_SECURE,
+    })
+  );
+  return headers;
+};
+
+export const resolveSessionChange = async (
+  request: Request,
+  body: unknown
+): Promise<{ session: SessionContext; headers: Headers } | { error: string; status: number }> => {
+  const current = await getSessionFromRequest(request);
   if (!current) return { error: "Session unavailable.", status: 401 };
 
   const input = (body && typeof body === "object" ? body : {}) as {
@@ -104,7 +162,14 @@ export const resolveSessionChange = (request: Request, body: unknown): { session
     context?: TenantContext;
   };
 
-  const userId = typeof input.userId === "string" && input.userId.trim().length > 0 ? input.userId.trim() : current.user.id;
+  if (typeof input.userId === "string" && input.userId.trim().length > 0 && input.userId.trim() !== current.user.id && !canSwitchUsersInSession()) {
+    return { error: "User switching is disabled for external auth sessions.", status: 403 };
+  }
+
+  const userId =
+    typeof input.userId === "string" && input.userId.trim().length > 0 && canSwitchUsersInSession()
+      ? input.userId.trim()
+      : current.user.id;
   const normalizedContext = input.context ? normalizeContext(input.context) : current.activeContext;
   if (!normalizedContext) return { error: "Invalid context payload.", status: 400 };
 

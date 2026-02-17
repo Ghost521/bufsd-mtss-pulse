@@ -94,6 +94,10 @@ export const getGroups = (): GroupRecord[] => groups.map((item) => ({ ...item, p
 export const getInvites = (): InviteRecord[] => invites.map((item) => ({ ...item }));
 
 export const findUserById = (userId: string): TenantUser | null => getUsers().find((user) => user.id === userId) ?? null;
+export const findUserByEmail = (email: string): TenantUser | null => {
+  const normalized = email.trim().toLowerCase();
+  return getUsers().find((user) => user.email.trim().toLowerCase() === normalized) ?? null;
+};
 
 export const getUserMemberships = (userId: string): MembershipRecord[] =>
   getMemberships().filter((membership) => membership.userId === userId && membership.status === "active");

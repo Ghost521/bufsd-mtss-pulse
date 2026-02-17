@@ -18,10 +18,20 @@ This contains everything you need to run your app locally.
    - `CONVEX_USE_BACKEND=true`
    - `CONVEX_CLOUD_URL=https://calculating-rook-861.convex.cloud`
    - `CONVEX_ACTIONS_URL=https://calculating-rook-861.convex.site`
-4. Deploy Convex functions (first time and when schema/functions change):
+4. Configure WorkOS auth in `.env.local` (optional but recommended for production auth):
+   - `WORKOS_API_KEY=...`
+   - `WORKOS_CLIENT_ID=...`
+   - `WORKOS_COOKIE_PASSWORD=...`
+   - `WORKOS_PROVIDER=authkit` (or your provider)
+   - `WORKOS_CONNECTION_ID=...` (optional)
+   - `APP_BASE_URL=http://localhost:3000`
+   - `WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback`
+   - `MTSS_ALLOW_IMPERSONATION=false`
+   - WorkOS user email must match a local tenant user email for access.
+5. Deploy Convex functions (first time and when schema/functions change):
    - `npm run convex:dev` (local dev + codegen)
    - `npm run convex:deploy` (publish to cloud)
-5. Run the app:
+6. Run the app:
    `npm run dev`
 
 TanStack Start now serves both UI routes and API routes in one process.
@@ -50,12 +60,16 @@ All student API operations now enforce active tenant context and field-level RBA
 ## Tenant + Session API
 
 - `GET /api/health`: returns health plus current session, effective roles, contexts, available users, and persistence diagnostics.
-- `POST /api/health`: updates active user/context and sets session cookies.
+- `POST /api/health`: updates active context and sets session cookies.
+- `GET /api/auth/login`: redirects to WorkOS hosted auth.
+- `GET /api/auth/callback`: WorkOS OAuth callback.
+- `GET /api/auth/logout`: clears local cookies and logs out of WorkOS session.
+- When WorkOS is enabled, user switching is disabled by default (`MTSS_ALLOW_IMPERSONATION=false`) and identity is mapped from WorkOS user email.
   - Request body example:
     - `{ "userId": "u-principal-ne" }`
     - `{ "context": { "organizationId": "org-bufsd", "districtId": "dist-bufsd", "schoolId": "sch-ne" } }`
 
-Use the top navigation context switcher to change active user and tenant context in the running app.
+Use the top navigation controls to sign in/out and change active tenant context in the running app.
 
 ## Phase 3 (Convex)
 

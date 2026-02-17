@@ -122,7 +122,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
   server: {
     handlers: {
       POST: async ({ params, request }) => {
-        const session = getSessionFromRequest(request);
+        const session = await getSessionFromRequest(request);
         if (!session) return jsonError("Unauthorized.", 401);
         const permission = requirePermission(session, { resource: "ai", action: "read" });
         if (!permission.ok) return jsonError(permission.error, permission.status);

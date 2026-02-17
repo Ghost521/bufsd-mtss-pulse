@@ -8,6 +8,11 @@ type TenantContext = {
 
 type HealthSessionResponse = {
   ok: boolean;
+  auth?: {
+    workosEnabled: boolean;
+    signedIn: boolean;
+    canSwitchUsers: boolean;
+  };
   session: {
     user: {
       id: string;
@@ -40,6 +45,8 @@ export function TenantContextSwitcher() {
   const [data, setData] = useState<HealthSessionResponse | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loginHref = "/api/auth/login";
+  const logoutHref = "/api/auth/logout";
 
   const load = async () => {
     setIsBusy(true);
@@ -62,6 +69,9 @@ export function TenantContextSwitcher() {
   const availableContexts = useMemo(() => data?.session?.availableContexts ?? [], [data]);
   const activeContext = data?.session?.activeContext;
   const activeContextKey = activeContext ? contextKey(activeContext) : "";
+  const canSwitchUsers = Boolean(data?.auth?.canSwitchUsers);
+  const workosEnabled = Boolean(data?.auth?.workosEnabled);
+  const hasSession = Boolean(data?.session);
 
   const postSessionChange = async (payload: { userId?: string; context?: TenantContext }) => {
     setIsBusy(true);
@@ -96,24 +106,26 @@ export function TenantContextSwitcher() {
 
   return (
     <div className="flex items-center gap-2">
-      <select
-        value={data?.session?.user.id ?? ""}
-        onChange={(event) => void onUserChange(event.target.value)}
-        disabled={isBusy || !data}
-        className="max-w-[180px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-        title="Active user"
-      >
-        {(data?.availableUsers ?? []).map((user) => (
-          <option key={user.id} value={user.id}>
-            {user.name}
-          </option>
-        ))}
-      </select>
+      {canSwitchUsers ? (
+        <select
+          value={data?.session?.user.id ?? ""}
+          onChange={(event) => void onUserChange(event.target.value)}
+          disabled={isBusy || !data}
+          className="max-w-[180px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+          title="Active user"
+        >
+          {(data?.availableUsers ?? []).map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
 
       <select
         value={activeContextKey}
         onChange={(event) => void onContextChange(event.target.value)}
-        disabled={isBusy || availableContexts.length === 0}
+        disabled={isBusy || !hasSession || availableContexts.length === 0}
         className="max-w-[240px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
         title="Active tenant context"
       >
@@ -132,6 +144,22 @@ export function TenantContextSwitcher() {
       >
         Refresh
       </button>
+      {workosEnabled && hasSession ? (
+        <a
+          href={logoutHref}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+        >
+          Sign out
+        </a>
+      ) : null}
+      {workosEnabled && !hasSession ? (
+        <a
+          href={loginHref}
+          className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-100"
+        >
+          Sign in
+        </a>
+      ) : null}
 
       {error ? <span className="max-w-[220px] truncate text-xs text-rose-600">{error}</span> : null}
     </div>
