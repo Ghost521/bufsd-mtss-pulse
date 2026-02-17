@@ -5,6 +5,13 @@ type HealthResponse = {
   ok: boolean;
   timestamp: string;
   environment: "start-server-route";
+  auditCount?: number;
+  persistence?: {
+    mode: "convex" | "memory";
+    convexCloudUrl: string | null;
+    convexActionsUrl: string | null;
+    lastConvexError: string | null;
+  };
 };
 
 export const Route = createFileRoute("/query-health")({
@@ -50,6 +57,19 @@ function QueryHealthRoute() {
             <p>
               <span className="font-semibold text-slate-700">Source:</span> {healthQuery.data.environment}
             </p>
+            <p>
+              <span className="font-semibold text-slate-700">Persistence:</span>{" "}
+              {healthQuery.data.persistence?.mode ?? "memory"}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-700">Audit Count:</span>{" "}
+              {healthQuery.data.auditCount ?? 0}
+            </p>
+            {healthQuery.data.persistence?.lastConvexError ? (
+              <p className="text-amber-700">
+                <span className="font-semibold">Convex fallback:</span> {healthQuery.data.persistence.lastConvexError}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>

@@ -14,7 +14,14 @@ This contains everything you need to run your app locally.
    `npm install`
 2. Add your Gemini key to `.env.local`:
    `GEMINI_API_KEY=your_key_here`
-3. Run the app:
+3. Configure Convex persistence in `.env.local`:
+   - `CONVEX_USE_BACKEND=true`
+   - `CONVEX_CLOUD_URL=https://calculating-rook-861.convex.cloud`
+   - `CONVEX_ACTIONS_URL=https://calculating-rook-861.convex.site`
+4. Deploy Convex functions (first time and when schema/functions change):
+   - `npm run convex:dev` (local dev + codegen)
+   - `npm run convex:deploy` (publish to cloud)
+5. Run the app:
    `npm run dev`
 
 TanStack Start now serves both UI routes and API routes in one process.
@@ -29,6 +36,7 @@ Dev server is pinned to `http://localhost:3000` (`strictPort` enabled). If port 
 - API routes: Start server routes (including `/api/ai/*`)
 - Optimistic updates: `/roster-table` now supports optimistic create/update/delete with automatic rollback on failure.
 - Multi-tenant + RBAC foundation: org/district/school context and server-enforced role checks are now active on student and AI APIs.
+- Persistence: Convex-backed audit persistence with automatic memory fallback if Convex functions are unavailable.
 
 ## Student API (Compatibility Layer)
 
@@ -41,13 +49,23 @@ All student API operations now enforce active tenant context and field-level RBA
 
 ## Tenant + Session API
 
-- `GET /api/health`: returns health plus current session, effective roles, contexts, and available users (dev bootstrap).
+- `GET /api/health`: returns health plus current session, effective roles, contexts, available users, and persistence diagnostics.
 - `POST /api/health`: updates active user/context and sets session cookies.
   - Request body example:
     - `{ "userId": "u-principal-ne" }`
     - `{ "context": { "organizationId": "org-bufsd", "districtId": "dist-bufsd", "schoolId": "sch-ne" } }`
 
 Use the top navigation context switcher to change active user and tenant context in the running app.
+
+## Phase 3 (Convex)
+
+- Convex schema: `convex/schema.ts`
+- Convex functions: `convex/phase3.ts`
+- Backing functions used:
+  - `phase3:getTenantCollection`
+  - `phase3:setTenantCollection`
+  - `phase3:appendAuditEntry`
+  - `phase3:countAuditEntries`
 
 ## Quality Checks
 

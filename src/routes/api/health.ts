@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getSessionFromRequest, getSessionSummary, resolveSessionChange } from "../../lib/server/auth-context";
-import { listAuditLogs, newRequestId } from "../../lib/server/audit-log";
+import { getAuditCount, newRequestId } from "../../lib/server/audit-log";
+import { getPersistenceDiagnostics } from "../../lib/server/persistence";
 import { getUsers } from "../../lib/server/tenant-store";
 
 export const Route = createFileRoute("/api/health")({
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/api/health")({
         const requestId = newRequestId();
         const session = getSessionFromRequest(request);
         const summary = getSessionSummary(session);
+        const auditCount = session ? await getAuditCount(session.activeContext) : 0;
 
         return Response.json({
           ok: true,
@@ -24,7 +26,8 @@ export const Route = createFileRoute("/api/health")({
             email: user.email,
             primaryRole: user.primaryRole,
           })),
-          auditCount: listAuditLogs().length,
+          auditCount,
+          persistence: getPersistenceDiagnostics(),
         });
       },
       POST: async ({ request }) => {
@@ -39,6 +42,8 @@ export const Route = createFileRoute("/api/health")({
           ok: true,
           requestId,
           session: getSessionSummary(changed.session),
+          auditCount: await getAuditCount(changed.session.activeContext),
+          persistence: getPersistenceDiagnostics(),
         });
 
         changed.headers.forEach((value, key) => response.headers.append(key, value));
