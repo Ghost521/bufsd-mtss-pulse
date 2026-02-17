@@ -16,13 +16,14 @@ export class InterventionAgent extends BaseAgent {
       `;
 
       const response = await this.ai.models.generateContent({
-        model: this.model,
+        model: this.getTextModel(),
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
 
       return normalizeActionItemPlan(safeJsonParse<unknown>(response.text, {}));
-    } catch {
+    } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
       return { title: "Draft Plan", notes: "AI unavailable." };
     }
   }
@@ -72,7 +73,7 @@ export class InterventionAgent extends BaseAgent {
       `;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash', // Increased capability for complex plans
+        model: this.getTextModel(),
         contents: prompt,
         config: { responseMimeType: 'application/json' }
       });
@@ -120,22 +121,39 @@ export class InterventionAgent extends BaseAgent {
               : fallback.lessonPlan.differentiation,
         },
       };
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
+      console.error(error);
       throw new Error("Failed to generate plan.");
     }
   }
 
   public async generateParentMessage(studentName: string, assignmentTitle: string, parentName: string): Promise<string> {
+    let text = "";
+    await this.generateParentMessageStream(studentName, assignmentTitle, parentName, (chunk) => {
+      text += chunk;
+    });
+    return text || "Draft unavailable.";
+  }
+
+  public async generateParentMessageStream(
+    studentName: string,
+    assignmentTitle: string,
+    parentName: string,
+    onChunk: (text: string) => void
+  ): Promise<void> {
     try {
       const prompt = `Draft a polite, short email to ${parentName} about ${studentName}'s missing assignment "${assignmentTitle}". Be supportive.`;
-      const response = await this.ai.models.generateContent({
-        model: this.model,
+      const stream = await this.ai.models.generateContentStream({
+        model: this.getTextModel(),
         contents: prompt
       });
-      return response.text || "Draft unavailable.";
-    } catch {
-      return "Error generating message.";
+      for await (const chunk of stream) {
+        if (chunk.text) onChunk(chunk.text);
+      }
+    } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
+      onChunk("Error generating message.");
     }
   }
 }

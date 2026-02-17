@@ -10,6 +10,9 @@ const SUPPORTED_MIME_TYPES = [
   'video/mp4'
 ];
 
+const shouldUseImageModel = (mimeType: string): boolean =>
+  mimeType === "application/pdf" || mimeType.startsWith("image/");
+
 export class KnowledgeAgent extends BaseAgent {
   
   public async generateFileSummary(base64Data: string, mimeType: string): Promise<string> {
@@ -18,18 +21,21 @@ export class KnowledgeAgent extends BaseAgent {
             try {
                 const text = atob(base64Data).substring(0, 8000);
                 const response = await this.ai.models.generateContent({
-                    model: this.model,
+                    model: this.getTextModel(),
                     contents: `Summarize this text:\n\n${text}`
                 });
                 return response.text || "Summary unavailable.";
-            } catch { return "Text decoding failed."; }
+            } catch (error) {
+              if (this.isModelUnavailableError(error)) throw error;
+              return "Text decoding failed.";
+            }
         }
         return "Format not supported for AI analysis.";
     }
 
     try {
       const response = await this.ai.models.generateContent({
-        model: this.model,
+        model: shouldUseImageModel(mimeType) ? this.getImageModel() : this.getTextModel(),
         contents: {
           parts: [
             { inlineData: { mimeType, data: base64Data } },
@@ -39,6 +45,7 @@ export class KnowledgeAgent extends BaseAgent {
       });
       return response.text || "Summary unavailable.";
     } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
       console.error("KnowledgeAgent error:", error);
       return "Analysis failed.";
     }
@@ -51,7 +58,7 @@ export class KnowledgeAgent extends BaseAgent {
         : `Visit ${url}. Provide Title and Summary of the web page content.`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-3-pro-preview', // Use pro for search tools
+        model: this.getTextModel(),
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],
@@ -66,7 +73,8 @@ export class KnowledgeAgent extends BaseAgent {
         title: titleMatch ? titleMatch[1].trim() : "External Resource",
         summary: summaryMatch ? summaryMatch[1].trim() : text.substring(0, 100) + "..."
       };
-    } catch {
+    } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
       return { title: "Resource", summary: "AI summary unavailable." };
     }
   }
@@ -76,7 +84,7 @@ export class KnowledgeAgent extends BaseAgent {
 
     try {
       const response = await this.ai.models.generateContent({
-        model: this.model,
+        model: shouldUseImageModel(mimeType) ? this.getImageModel() : this.getTextModel(),
         contents: {
           parts: [
             { inlineData: { mimeType, data: base64Data } },
@@ -92,6 +100,7 @@ export class KnowledgeAgent extends BaseAgent {
       }
       return [];
     } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
       console.error("Extraction error:", error);
       return [];
     }
@@ -104,7 +113,7 @@ export class KnowledgeAgent extends BaseAgent {
 
     try {
       const response = await this.ai.models.generateContent({
-        model: this.model,
+        model: shouldUseImageModel(mimeType) ? this.getImageModel() : this.getTextModel(),
         contents: {
           parts: [
             { inlineData: { mimeType, data: base64Data } },
@@ -141,7 +150,8 @@ export class KnowledgeAgent extends BaseAgent {
         };
       }
       throw new Error("Empty response");
-    } catch {
+    } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
       return { type: 'Academic', date: 'Unknown', summary: 'AI analysis failed.', suggestedAction: 'Review manually.' };
     }
   }

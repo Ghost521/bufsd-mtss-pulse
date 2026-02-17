@@ -115,7 +115,8 @@ export class OrchestratorAgent extends BaseAgent {
   private async runTurn(
     contents: Content[],
     tools: Tool[],
-    systemInstruction: string
+    systemInstruction: string,
+    onChunk?: (text: string) => void
   ): Promise<{ text: string; functionCall: FunctionCall | null }> {
     const stream = await this.ai.models.generateContentStream({
       model: this.model,
@@ -140,17 +141,19 @@ export class OrchestratorAgent extends BaseAgent {
 
       if (chunk.text) {
         text += chunk.text;
+        if (onChunk) onChunk(chunk.text);
       }
     }
 
     return { text, functionCall };
   }
 
-  public async queryRAGChat(
+  private async queryRAGChatInternal(
     query: string,
     history: ChatMessage[],
     contextDocuments: RAGDocument[],
-    requestContext: AgentRequestContext
+    requestContext: AgentRequestContext,
+    onChunk?: (text: string) => void
   ): Promise<OrchestratorResult> {
     const contents = this.buildInitialContents(query, history, contextDocuments);
     const systemInstruction = this.buildSystemInstruction(requestContext);
@@ -162,7 +165,7 @@ export class OrchestratorAgent extends BaseAgent {
 
     try {
       for (let step = 0; step < 3; step += 1) {
-        const turn = await this.runTurn(contents, tools, systemInstruction);
+        const turn = await this.runTurn(contents, tools, systemInstruction, onChunk);
 
         if (turn.text.trim().length > 0) {
           finalText = turn.text;
@@ -218,7 +221,12 @@ export class OrchestratorAgent extends BaseAgent {
       }
 
       if (!finalText.trim()) {
-        const fallback = await this.runTurn(contents, [], `${systemInstruction}\nProvide a direct answer grounded in available evidence.`);
+        const fallback = await this.runTurn(
+          contents,
+          [],
+          `${systemInstruction}\nProvide a direct answer grounded in available evidence.`,
+          onChunk
+        );
         finalText = fallback.text;
       }
 
@@ -227,6 +235,9 @@ export class OrchestratorAgent extends BaseAgent {
         finalText = "I do not have enough verified information in your accessible scope to answer that confidently.";
       }
     } catch (error) {
+      if (this.isModelUnavailableError(error)) {
+        throw error;
+      }
       console.error(error);
       abstained = true;
       finalText = "The MTSS agent encountered an internal error while processing this request.";
@@ -249,5 +260,24 @@ export class OrchestratorAgent extends BaseAgent {
       abstained,
       tools: trace,
     };
+  }
+
+  public async queryRAGChat(
+    query: string,
+    history: ChatMessage[],
+    contextDocuments: RAGDocument[],
+    requestContext: AgentRequestContext
+  ): Promise<OrchestratorResult> {
+    return this.queryRAGChatInternal(query, history, contextDocuments, requestContext);
+  }
+
+  public async queryRAGChatStream(
+    query: string,
+    history: ChatMessage[],
+    contextDocuments: RAGDocument[],
+    requestContext: AgentRequestContext,
+    onChunk: (text: string) => void
+  ): Promise<OrchestratorResult> {
+    return this.queryRAGChatInternal(query, history, contextDocuments, requestContext, onChunk);
   }
 }

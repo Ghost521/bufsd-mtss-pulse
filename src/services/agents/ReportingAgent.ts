@@ -22,14 +22,15 @@ export class ReportingAgent extends BaseAgent {
         `;
 
         const stream = await this.ai.models.generateContentStream({
-            model: this.model,
+            model: this.getTextModel(),
             contents: prompt
         });
 
         for await (const chunk of stream) {
             if (chunk.text) onChunk(chunk.text);
         }
-    } catch {
+    } catch (error) {
+        if (this.isModelUnavailableError(error)) throw error;
         onChunk("Briefing unavailable.");
     }
   }
@@ -43,14 +44,15 @@ export class ReportingAgent extends BaseAgent {
         `;
         
         const stream = await this.ai.models.generateContentStream({
-            model: this.model,
+            model: this.getTextModel(),
             contents: prompt
         });
 
         for await (const chunk of stream) {
             if (chunk.text) onChunk(chunk.text);
         }
-    } catch {
+    } catch (error) {
+        if (this.isModelUnavailableError(error)) throw error;
         onChunk("Summary unavailable.");
     }
   }
@@ -65,14 +67,15 @@ export class ReportingAgent extends BaseAgent {
         `;
 
         const response = await this.ai.models.generateContent({
-            model: this.model,
+            model: this.getTextModel(),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
 
         const parsed = safeJsonParse<unknown>(response.text, {});
         return normalizeImportAnalysisResult(parsed);
-    } catch {
+    } catch (error) {
+        if (this.isModelUnavailableError(error)) throw error;
         return { summary: "Analysis failed.", anomalies: [], recommendations: [] };
     }
   }
@@ -85,37 +88,54 @@ export class ReportingAgent extends BaseAgent {
         Format: Markdown.
       `;
       const stream = await this.ai.models.generateContentStream({
-        model: this.model,
+        model: this.getTextModel(),
         contents: prompt
       });
 
       for await (const chunk of stream) {
         if (chunk.text) onChunk(chunk.text);
       }
-    } catch {
+    } catch (error) {
+      if (this.isModelUnavailableError(error)) throw error;
       onChunk("Notes summary unavailable.");
     }
   }
 
   public async refineDraftNote(draft: string, category: string): Promise<string> {
+      let text = "";
+      await this.refineDraftNoteStream(draft, category, (chunk) => {
+        text += chunk;
+      });
+      return text || draft;
+  }
+
+  public async refineDraftNoteStream(draft: string, category: string, onChunk: (text: string) => void): Promise<void> {
       try {
-          const response = await this.ai.models.generateContent({
-              model: this.model,
+          const stream = await this.ai.models.generateContentStream({
+              model: this.getTextModel(),
               contents: `Rewrite this student note to be professional and objective. Category: ${category}. Draft: "${draft}"`
           });
-          return response.text || draft;
-      } catch { return draft; }
+          for await (const chunk of stream) {
+            if (chunk.text) onChunk(chunk.text);
+          }
+      } catch (error) {
+        if (this.isModelUnavailableError(error)) throw error;
+        onChunk(draft);
+      }
   }
 
   public async suggestTagsForNote(note: string): Promise<string[]> {
       try {
           const response = await this.ai.models.generateContent({
-              model: this.model,
+              model: this.getTextModel(),
               contents: `Suggest 3-5 short JSON string tags for this student note: "${note}". Return JSON array.`,
               config: { responseMimeType: 'application/json' }
           });
           const parsed = safeJsonParse<unknown>(response.text, []);
           return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
-      } catch { return []; }
+      } catch (error) {
+        if (this.isModelUnavailableError(error)) throw error;
+        return [];
+      }
   }
 }

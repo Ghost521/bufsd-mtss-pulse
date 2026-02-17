@@ -5,11 +5,18 @@ import { OrchestratorAgent } from "../../../services/agents/OrchestratorAgent";
 import { ReportingAgent } from "../../../services/agents/ReportingAgent";
 import { StudentAgent } from "../../../services/agents/StudentAgent";
 import { buildAgentRequestContext } from "../../../services/agents/requestContext";
-import type { CalendarEvent } from "../../../types";
+import type {
+  AiErrorCode,
+  AiResponseMeta,
+  AiStreamChunkEvent,
+  AiStreamDoneEvent,
+  AiStreamErrorEvent,
+  AiStreamMetaEvent,
+} from "../../../services/aiContracts";
+import { newRequestId } from "../../../lib/server/audit-log";
 import { getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
-import { newRequestId } from "../../../lib/server/audit-log";
-import type { AiErrorCode, AiResponseMeta } from "../../../services/aiContracts";
+import type { CalendarEvent } from "../../../types";
 
 type Agents = {
   studentAgent: StudentAgent;
@@ -18,6 +25,19 @@ type Agents = {
   reportingAgent: ReportingAgent;
   orchestrator: OrchestratorAgent;
 };
+
+type SseEventName = "meta" | "chunk" | "done" | "error";
+
+type SseEmit = (event: SseEventName, payload: unknown) => void;
+
+type FailureInfo = {
+  status: number;
+  code: AiErrorCode;
+  message: string;
+  retryable: boolean;
+};
+
+const TEXT_MODEL = "gemini-3-flash-preview";
 
 let cachedAgents: Agents | null = null;
 let initError: Error | null = null;
@@ -95,6 +115,52 @@ const aiError = (
     { status }
   );
 
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
+  return "AI service error.";
+};
+
+const isModelUnavailableError = (error: unknown): boolean => {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("quota") ||
+    message.includes("resource exhausted") ||
+    message.includes("rate limit") ||
+    message.includes("model not found") ||
+    (message.includes("model") && message.includes("not available")) ||
+    message.includes("unsupported model")
+  );
+};
+
+const resolveFailure = (error: unknown, fallbackMessage: string, fallbackCode: AiErrorCode = "INTERNAL_ERROR"): FailureInfo => {
+  const message = getErrorMessage(error);
+
+  if (isModelUnavailableError(error)) {
+    return {
+      status: 503,
+      code: "MODEL_UNAVAILABLE",
+      message,
+      retryable: true,
+    };
+  }
+
+  if (fallbackCode === "BAD_REQUEST") {
+    return {
+      status: 400,
+      code: fallbackCode,
+      message: fallbackMessage,
+      retryable: false,
+    };
+  }
+
+  return {
+    status: 500,
+    code: fallbackCode,
+    message: fallbackMessage || message,
+    retryable: true,
+  };
+};
+
 const withEndpoint = async <TPayload extends Record<string, unknown>>(input: {
   requestId: string;
   endpoint: string;
@@ -108,9 +174,91 @@ const withEndpoint = async <TPayload extends Record<string, unknown>>(input: {
     return aiSuccess(input.requestId, input.endpoint, payload, input.meta);
   } catch (error) {
     console.error(error);
-    return aiError(input.requestId, input.endpoint, input.failureMessage, 500, input.failureCode ?? "INTERNAL_ERROR", true);
+    const failure = resolveFailure(error, input.failureMessage, input.failureCode ?? "INTERNAL_ERROR");
+    return aiError(input.requestId, input.endpoint, failure.message, failure.status, failure.code, failure.retryable);
   }
 };
+
+const encodeSse = (event: SseEventName, payload: unknown): string => `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+
+const createSseResponse = (
+  run: (helpers: { emit: SseEmit; isClosed: () => boolean }) => Promise<void>
+): Response => {
+  const encoder = new TextEncoder();
+  let closed = false;
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emit: SseEmit = (event, payload) => {
+        if (closed) return;
+        controller.enqueue(encoder.encode(encodeSse(event, payload)));
+      };
+
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        controller.close();
+      };
+
+      try {
+        await run({ emit, isClosed: () => closed });
+      } catch (error) {
+        const failure = resolveFailure(error, "Streaming endpoint failed.");
+        const payload: AiStreamErrorEvent = {
+          code: failure.code,
+          message: failure.message,
+          retryable: failure.retryable,
+        };
+        emit("error", payload);
+      } finally {
+        close();
+      }
+    },
+    cancel() {
+      closed = true;
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+};
+
+const requestWantsStream = (request: Request): boolean => {
+  const accept = request.headers.get("accept") ?? "";
+  const streamHeader = request.headers.get("x-ai-stream");
+  return accept.includes("text/event-stream") || streamHeader === "1";
+};
+
+const streamTextEndpoint = (input: {
+  requestId: string;
+  endpoint: string;
+  model: string;
+  run: (onChunk: (chunk: string) => void) => Promise<AiStreamDoneEvent | void>;
+}): Response =>
+  createSseResponse(async ({ emit, isClosed }) => {
+    const metaPayload: AiStreamMetaEvent = {
+      requestId: input.requestId,
+      endpoint: input.endpoint,
+      model: input.model,
+    };
+    emit("meta", metaPayload);
+
+    const done = await input.run((chunk) => {
+      if (isClosed()) return;
+      const payload: AiStreamChunkEvent = { text: chunk };
+      emit("chunk", payload);
+    });
+
+    if (!isClosed()) {
+      emit("done", done ?? ({} as AiStreamDoneEvent));
+    }
+  });
 
 const suggestMeetingSlots = (
   attendees: string[],
@@ -181,6 +329,8 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           return aiError(requestId, endpoint, "AI server not configured. Set GEMINI_API_KEY.", 503, "UNAVAILABLE", true);
         }
 
+        const wantsStream = requestWantsStream(request);
+
         if (endpoint === "rag-chat") {
           const body = await parseJsonBody<{
             query: string;
@@ -192,37 +342,63 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
 
-          try {
-            const context = buildAgentRequestContext(session, requestId);
-            const result = await agents.orchestrator.queryRAGChat(
-              body.query,
-              body.history as never[],
-              body.contextDocuments as never[],
-              context
-            );
-
-            return aiSuccess(
+          if (wantsStream) {
+            return streamTextEndpoint({
               requestId,
               endpoint,
-              { text: result.text },
-              {
-                model: "gemini-2.5-flash",
-                citations: result.citations,
-                confidence: result.confidence,
-                abstained: result.abstained,
-                tools: result.tools,
-              }
-            );
-          } catch (error) {
-            console.error(error);
-            return aiError(requestId, endpoint, "Failed to process chat request.", 500, "INTERNAL_ERROR", true);
+              model: TEXT_MODEL,
+              run: async (onChunk) => {
+                const context = buildAgentRequestContext(session, requestId);
+                const result = await agents.orchestrator.queryRAGChatStream(
+                  body.query,
+                  body.history as never[],
+                  body.contextDocuments as never[],
+                  context,
+                  onChunk
+                );
+
+                return {
+                  citations: result.citations,
+                  confidence: result.confidence,
+                  abstained: result.abstained,
+                  tools: result.tools,
+                };
+              },
+            });
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => {
+              const context = buildAgentRequestContext(session, requestId);
+              const result = await agents.orchestrator.queryRAGChat(
+                body.query,
+                body.history as never[],
+                body.contextDocuments as never[],
+                context
+              );
+
+              return { text: result.text };
+            },
+            failureMessage: "Failed to process chat request.",
+            meta: { model: TEXT_MODEL },
+          });
         }
 
         if (endpoint === "dashboard-briefing") {
           const body = await parseJsonBody<{ data: unknown; previousFeedback: string[] }>(request);
           if (!body || !body.data || !Array.isArray(body.previousFeedback)) {
             return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+          }
+
+          if (wantsStream) {
+            return streamTextEndpoint({
+              requestId,
+              endpoint,
+              model: TEXT_MODEL,
+              run: (onChunk) => agents.reportingAgent.generateDashboardBriefingStream(body.data as never, body.previousFeedback, onChunk),
+            });
           }
 
           return withEndpoint({
@@ -236,6 +412,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
               return { text };
             },
             failureMessage: "Failed to generate dashboard briefing.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
@@ -243,6 +420,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           const body = await parseJsonBody<{ student: unknown; previousFeedback: string[] }>(request);
           if (!body || !body.student || !Array.isArray(body.previousFeedback)) {
             return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+          }
+
+          if (wantsStream) {
+            return streamTextEndpoint({
+              requestId,
+              endpoint,
+              model: TEXT_MODEL,
+              run: (onChunk) => agents.reportingAgent.generateStudentProfileSummaryStream(body.student as never, body.previousFeedback, onChunk),
+            });
           }
 
           return withEndpoint({
@@ -256,12 +442,22 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
               return { text };
             },
             failureMessage: "Failed to generate student summary.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
         if (endpoint === "notes-summary") {
           const body = await parseJsonBody<{ notes: unknown[] }>(request);
           if (!body || !Array.isArray(body.notes)) return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+
+          if (wantsStream) {
+            return streamTextEndpoint({
+              requestId,
+              endpoint,
+              model: TEXT_MODEL,
+              run: (onChunk) => agents.reportingAgent.generateNotesSummaryStream(body.notes as never[], onChunk),
+            });
+          }
 
           return withEndpoint({
             requestId,
@@ -274,6 +470,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
               return { text };
             },
             failureMessage: "Failed to summarize notes.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
@@ -283,6 +480,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
 
+          if (wantsStream) {
+            return streamTextEndpoint({
+              requestId,
+              endpoint,
+              model: TEXT_MODEL,
+              run: (onChunk) => agents.reportingAgent.refineDraftNoteStream(body.draft, body.category, onChunk),
+            });
+          }
+
           return withEndpoint({
             requestId,
             endpoint,
@@ -290,6 +496,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
               text: await agents.reportingAgent.refineDraftNote(body.draft, body.category),
             }),
             failureMessage: "Failed to refine note.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
@@ -316,6 +523,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             endpoint,
             run: async () => agents.interventionAgent.generateActionItemPlan(body.studentName, body.grade, body.category, body.insight),
             failureMessage: "Failed to generate action item plan.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
@@ -349,6 +557,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
               ),
             }),
             failureMessage: "Failed to generate intervention plan.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
@@ -358,6 +567,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
 
+          if (wantsStream) {
+            return streamTextEndpoint({
+              requestId,
+              endpoint,
+              model: TEXT_MODEL,
+              run: (onChunk) => agents.interventionAgent.generateParentMessageStream(body.studentName, body.assignmentTitle, body.parentName, onChunk),
+            });
+          }
+
           return withEndpoint({
             requestId,
             endpoint,
@@ -365,6 +583,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
               text: await agents.interventionAgent.generateParentMessage(body.studentName, body.assignmentTitle, body.parentName),
             }),
             failureMessage: "Failed to generate parent message.",
+            meta: { model: TEXT_MODEL },
           });
         }
 
@@ -435,6 +654,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             endpoint,
             run: async () => ({ result: await agents.reportingAgent.analyzeImportedBatch(body.data, body.source) }),
             failureMessage: "Failed to analyze import batch.",
+            meta: { model: TEXT_MODEL },
           });
         }
 

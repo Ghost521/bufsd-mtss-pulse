@@ -36,6 +36,7 @@ export type AiErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "UNAVAILABLE"
+  | "MODEL_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 export interface AiErrorDetail {
@@ -68,6 +69,33 @@ export interface AiEnvelope<T extends Record<string, unknown>> {
 }
 
 type AiEndpointResponse<T extends Record<string, unknown>> = AiEnvelope<T> & T;
+
+export interface AiStreamMetaEvent {
+  requestId: string;
+  endpoint: string;
+  model: string;
+}
+
+export interface AiStreamChunkEvent {
+  text: string;
+}
+
+export interface AiStreamDoneEvent {
+  citations?: string[];
+  confidence?: "high" | "medium" | "low";
+  abstained?: boolean;
+  tools?: Array<{
+    name: string;
+    ok: boolean;
+    durationMs: number;
+  }>;
+}
+
+export interface AiStreamErrorEvent {
+  code: AiErrorCode;
+  message: string;
+  retryable: boolean;
+}
 
 export interface AiRequestMap {
   ragChat: {

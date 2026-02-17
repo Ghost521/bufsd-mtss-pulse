@@ -1,5 +1,13 @@
 import type { ActivityLog, CalendarEvent, ChatMessage, DashboardData, RAGDocument, StudentDetails, UserRole } from "../types";
-import type { AIInterventionPlan, AiRequestMap, AiResponseMap, AnalyzedDocumentResult, ImportAnalysisResult } from "./aiContracts";
+import type {
+  AIInterventionPlan,
+  AiRequestMap,
+  AiResponseMap,
+  AiStreamDoneEvent,
+  AiStreamErrorEvent,
+  AnalyzedDocumentResult,
+  ImportAnalysisResult,
+} from "./aiContracts";
 
 export type { AIInterventionPlan, AnalyzedDocumentResult, ImportAnalysisResult } from "./aiContracts";
 
@@ -17,6 +25,20 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isEnvelopeResponse = (value: unknown): value is { ok: boolean; data?: unknown; error?: string; errorDetail?: { message?: string } } =>
   isRecord(value) && typeof value.ok === "boolean";
 
+const responseErrorMessage = async (response: Response): Promise<string> => {
+  let detail = response.statusText || "Request failed";
+  try {
+    const payload = (await response.json()) as { error?: string; errorDetail?: { message?: string } };
+    if (typeof payload.error === "string" && payload.error.trim().length > 0) detail = payload.error;
+    if (typeof payload.errorDetail?.message === "string" && payload.errorDetail.message.trim().length > 0) {
+      detail = payload.errorDetail.message;
+    }
+  } catch {
+    // best effort only
+  }
+  return detail;
+};
+
 const postJson = async <TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> => {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -25,17 +47,7 @@ const postJson = async <TRequest, TResponse>(path: string, body: TRequest): Prom
   });
 
   if (!response.ok) {
-    let detail = response.statusText || "Request failed";
-    try {
-      const payload = (await response.json()) as { error?: string; errorDetail?: { message?: string } };
-      if (typeof payload.error === "string" && payload.error.trim().length > 0) detail = payload.error;
-      if (typeof payload.errorDetail?.message === "string" && payload.errorDetail.message.trim().length > 0) {
-        detail = payload.errorDetail.message;
-      }
-    } catch {
-      // Best-effort parsing only.
-    }
-    throw new ApiError(detail, response.status);
+    throw new ApiError(await responseErrorMessage(response), response.status);
   }
 
   const payload = (await response.json()) as unknown;
@@ -56,13 +68,116 @@ const postJson = async <TRequest, TResponse>(path: string, body: TRequest): Prom
   return payload as TResponse;
 };
 
-const streamFromText = async (textPromise: Promise<string>, onChunk: (text: string) => void): Promise<void> => {
-  try {
-    const text = await textPromise;
-    if (text) onChunk(text);
-  } catch {
-    onChunk("\n_AI service unavailable. Please try again._");
+const parseSseEventBlock = (block: string): { event: string; data: unknown } | null => {
+  if (!block.trim()) return null;
+
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const rawLine of block.split("\n")) {
+    const line = rawLine.trimEnd();
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
   }
+
+  if (dataLines.length === 0) return null;
+  const payload = dataLines.join("\n");
+  try {
+    return { event, data: JSON.parse(payload) as unknown };
+  } catch {
+    return { event, data: payload };
+  }
+};
+
+const streamSse = async <TRequest>(
+  path: string,
+  body: TRequest,
+  onChunk: (text: string) => void
+): Promise<AiStreamDoneEvent | undefined> => {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      "x-ai-stream": "1",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await responseErrorMessage(response), response.status);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("text/event-stream") || !response.body) {
+    const payload = (await response.json()) as unknown;
+    if (isEnvelopeResponse(payload) && payload.ok && isRecord(payload.data) && typeof payload.data.text === "string") {
+      onChunk(payload.data.text);
+    } else if (isRecord(payload) && typeof payload.text === "string") {
+      onChunk(payload.text);
+    }
+    return undefined;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let donePayload: AiStreamDoneEvent | undefined;
+
+  const processEvent = (eventBlock: string) => {
+    const parsed = parseSseEventBlock(eventBlock);
+    if (!parsed) return;
+
+    if (parsed.event === "chunk" && isRecord(parsed.data) && typeof parsed.data.text === "string") {
+      onChunk(parsed.data.text);
+      return;
+    }
+
+    if (parsed.event === "error") {
+      const payload = parsed.data as Partial<AiStreamErrorEvent>;
+      const message = typeof payload.message === "string" ? payload.message : "Streaming request failed";
+      throw new ApiError(message, 500);
+    }
+
+    if (parsed.event === "done" && isRecord(parsed.data)) {
+      donePayload = parsed.data as AiStreamDoneEvent;
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let boundaryIndex = buffer.indexOf("\n\n");
+
+    while (boundaryIndex >= 0) {
+      const block = buffer.slice(0, boundaryIndex);
+      buffer = buffer.slice(boundaryIndex + 2);
+      processEvent(block);
+      boundaryIndex = buffer.indexOf("\n\n");
+    }
+  }
+
+  const tail = buffer.trim();
+  if (tail.length > 0) {
+    processEvent(tail);
+  }
+
+  return donePayload;
+};
+
+const collectFromStream = async (run: (onChunk: (text: string) => void) => Promise<unknown>): Promise<string> => {
+  let text = "";
+  await run((chunk) => {
+    text += chunk;
+  });
+  return text;
 };
 
 export const queryRAGChatStream = async (
@@ -74,10 +189,7 @@ export const queryRAGChatStream = async (
   onChunk: (text: string) => void
 ): Promise<void> => {
   const request: AiRequestMap["ragChat"] = { query, history, contextDocuments, role, username };
-  return streamFromText(
-    postJson<AiRequestMap["ragChat"], AiResponseMap["ragChat"]>("/rag-chat", request).then((res) => res.text),
-    onChunk
-  );
+  await streamSse<AiRequestMap["ragChat"]>("/rag-chat", request, onChunk);
 };
 
 export const generateDashboardBriefingStream = async (
@@ -86,19 +198,11 @@ export const generateDashboardBriefingStream = async (
   onChunk: (text: string) => void
 ): Promise<void> => {
   const request: AiRequestMap["dashboardBriefing"] = { data, previousFeedback };
-  return streamFromText(
-    postJson<AiRequestMap["dashboardBriefing"], AiResponseMap["dashboardBriefing"]>("/dashboard-briefing", request).then((res) => res.text),
-    onChunk
-  );
+  await streamSse<AiRequestMap["dashboardBriefing"]>("/dashboard-briefing", request, onChunk);
 };
 
-export const generateDashboardBriefing = async (data: DashboardData, previousFeedback: string[] = []): Promise<string> => {
-  const response = await postJson<AiRequestMap["dashboardBriefing"], AiResponseMap["dashboardBriefing"]>("/dashboard-briefing", {
-    data,
-    previousFeedback,
-  });
-  return response.text;
-};
+export const generateDashboardBriefing = async (data: DashboardData, previousFeedback: string[] = []): Promise<string> =>
+  collectFromStream((onChunk) => generateDashboardBriefingStream(data, previousFeedback, onChunk));
 
 export const generateStudentProfileSummaryStream = async (
   student: StudentDetails,
@@ -106,39 +210,23 @@ export const generateStudentProfileSummaryStream = async (
   onChunk: (text: string) => void
 ): Promise<void> => {
   const request: AiRequestMap["studentProfileSummary"] = { student, previousFeedback };
-  return streamFromText(
-    postJson<AiRequestMap["studentProfileSummary"], AiResponseMap["studentProfileSummary"]>("/student-profile-summary", request).then((res) => res.text),
-    onChunk
-  );
+  await streamSse<AiRequestMap["studentProfileSummary"]>("/student-profile-summary", request, onChunk);
 };
 
-export const generateStudentProfileSummary = async (student: StudentDetails, previousFeedback: string[] = []): Promise<string> => {
-  const response = await postJson<AiRequestMap["studentProfileSummary"], AiResponseMap["studentProfileSummary"]>(
-    "/student-profile-summary",
-    { student, previousFeedback }
-  );
-  return response.text;
-};
+export const generateStudentProfileSummary = async (student: StudentDetails, previousFeedback: string[] = []): Promise<string> =>
+  collectFromStream((onChunk) => generateStudentProfileSummaryStream(student, previousFeedback, onChunk));
 
 export const generateNotesSummaryStream = async (notes: ActivityLog[], onChunk: (text: string) => void): Promise<void> => {
   const request: AiRequestMap["notesSummary"] = { notes };
-  return streamFromText(
-    postJson<AiRequestMap["notesSummary"], AiResponseMap["notesSummary"]>("/notes-summary", request).then((res) => res.text),
-    onChunk
-  );
+  await streamSse<AiRequestMap["notesSummary"]>("/notes-summary", request, onChunk);
 };
 
-export const generateNotesSummary = async (notes: ActivityLog[]): Promise<string> => {
-  const response = await postJson<AiRequestMap["notesSummary"], AiResponseMap["notesSummary"]>("/notes-summary", { notes });
-  return response.text;
-};
+export const generateNotesSummary = async (notes: ActivityLog[]): Promise<string> =>
+  collectFromStream((onChunk) => generateNotesSummaryStream(notes, onChunk));
 
 export const refineDraftNote = async (draft: string, category: string): Promise<string> => {
-  const response = await postJson<AiRequestMap["refineDraftNote"], AiResponseMap["refineDraftNote"]>("/refine-draft-note", {
-    draft,
-    category,
-  });
-  return response.text;
+  const request: AiRequestMap["refineDraftNote"] = { draft, category };
+  return collectFromStream((onChunk) => streamSse<AiRequestMap["refineDraftNote"]>("/refine-draft-note", request, onChunk));
 };
 
 export const suggestTagsForNote = async (note: string): Promise<string[]> => {
@@ -177,12 +265,8 @@ export const generateStructuredIntervention = async (
 };
 
 export const generateParentMessage = async (studentName: string, assignmentTitle: string, parentName: string): Promise<string> => {
-  const response = await postJson<AiRequestMap["parentMessage"], AiResponseMap["parentMessage"]>("/parent-message", {
-    studentName,
-    assignmentTitle,
-    parentName,
-  });
-  return response.text;
+  const request: AiRequestMap["parentMessage"] = { studentName, assignmentTitle, parentName };
+  return collectFromStream((onChunk) => streamSse<AiRequestMap["parentMessage"]>("/parent-message", request, onChunk));
 };
 
 export const analyzeUploadedDocument = async (base64: string, mime: string, name: string): Promise<AnalyzedDocumentResult> => {
