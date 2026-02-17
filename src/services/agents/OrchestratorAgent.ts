@@ -8,6 +8,12 @@ import type { AgentRequestContext } from "./requestContext";
 type FunctionCall = {
   name: string;
   args: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type FunctionCallPart = {
+  functionCall: FunctionCall;
+  thoughtSignature?: string;
 };
 
 type ToolTraceEntry = {
@@ -30,6 +36,30 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isFunctionCall = (value: unknown): value is FunctionCall => {
   if (!isRecord(value)) return false;
   return typeof value.name === "string" && isRecord(value.args);
+};
+
+const extractFunctionCallPart = (chunk: unknown): FunctionCallPart | null => {
+  if (!isRecord(chunk)) return null;
+
+  const candidates = Array.isArray(chunk.candidates) ? chunk.candidates : [];
+  for (const candidate of candidates) {
+    if (!isRecord(candidate)) continue;
+    const content = isRecord(candidate.content) ? candidate.content : null;
+    if (!content) continue;
+    const parts = Array.isArray(content.parts) ? content.parts : [];
+    for (const part of parts) {
+      if (!isRecord(part)) continue;
+      if (!isFunctionCall(part.functionCall)) continue;
+      return {
+        functionCall: part.functionCall,
+        ...(typeof part.thoughtSignature === "string" ? { thoughtSignature: part.thoughtSignature } : {}),
+      };
+    }
+  }
+
+  const functionCalls = Array.isArray(chunk.functionCalls) ? chunk.functionCalls : [];
+  const fallback = functionCalls.find(isFunctionCall);
+  return fallback ? { functionCall: fallback } : null;
 };
 
 const previewText = (value: string, max = 140): string => {
@@ -117,7 +147,7 @@ export class OrchestratorAgent extends BaseAgent {
     tools: Tool[],
     systemInstruction: string,
     onChunk?: (text: string) => void
-  ): Promise<{ text: string; functionCall: FunctionCall | null }> {
+  ): Promise<{ text: string; functionCallPart: FunctionCallPart | null }> {
     const stream = await this.ai.models.generateContentStream({
       model: this.model,
       contents,
@@ -128,14 +158,12 @@ export class OrchestratorAgent extends BaseAgent {
     });
 
     let text = "";
-    let functionCall: FunctionCall | null = null;
+    let functionCallPart: FunctionCallPart | null = null;
 
     for await (const chunk of stream) {
-      if (chunk.functionCalls && chunk.functionCalls.length > 0) {
-        const candidate = chunk.functionCalls[0];
-        if (isFunctionCall(candidate)) {
-          functionCall = candidate;
-        }
+      const candidatePart = extractFunctionCallPart(chunk);
+      if (candidatePart) {
+        functionCallPart = candidatePart;
         break;
       }
 
@@ -145,7 +173,7 @@ export class OrchestratorAgent extends BaseAgent {
       }
     }
 
-    return { text, functionCall };
+    return { text, functionCallPart };
   }
 
   private async queryRAGChatInternal(
@@ -171,12 +199,16 @@ export class OrchestratorAgent extends BaseAgent {
           finalText = turn.text;
         }
 
-        if (!turn.functionCall) {
+        if (!turn.functionCallPart) {
           break;
         }
 
         const started = Date.now();
-        const toolResultText = this.studentAgent.executeTool(turn.functionCall.name, turn.functionCall.args, requestContext);
+        const toolResultText = this.studentAgent.executeTool(
+          turn.functionCallPart.functionCall.name,
+          turn.functionCallPart.functionCall.args,
+          requestContext
+        );
         const durationMs = Date.now() - started;
         const parsedResult = safeJsonParse<{ ok?: boolean; code?: string; error?: string; data?: unknown }>(
           toolResultText,
@@ -193,14 +225,14 @@ export class OrchestratorAgent extends BaseAgent {
         }
 
         trace.push({
-          name: turn.functionCall.name,
+          name: turn.functionCallPart.functionCall.name,
           ok,
           durationMs,
         });
 
         const callContent: Content = {
           role: "model",
-          parts: [{ functionCall: turn.functionCall }],
+          parts: [turn.functionCallPart],
         };
 
         const responsePayload = isRecord(parsedResult) ? parsedResult : { ok: false, error: "Invalid tool response." };
@@ -209,7 +241,7 @@ export class OrchestratorAgent extends BaseAgent {
           parts: [
             {
               functionResponse: {
-                name: turn.functionCall.name,
+                name: turn.functionCallPart.functionCall.name,
                 response: responsePayload,
               },
             },
