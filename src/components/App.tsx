@@ -1,5 +1,5 @@
 
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { 
   Activity, 
   Zap, 
@@ -28,7 +28,7 @@ import { RichTextRenderer } from './RichTextRenderer';
 import { PRINCIPAL_DATA, TEACHER_DATA, DISTRICT_DATA, PARENT_DATA, MOCK_RAG_DOCUMENTS } from '../constants';
 import type { DashboardData, RAGDocument} from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
-import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { generateDashboardBriefingStream } from '../services/geminiService';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
@@ -58,6 +58,7 @@ const LazyViewFallback: React.FC = () => (
 const App: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
   const [data, setData] = useState<DashboardData>(PRINCIPAL_DATA);
+  const [hasHydrated, setHasHydrated] = useState(false);
   
   // UI State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -67,7 +68,7 @@ const App: React.FC = () => {
   // Sync State
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success'>('idle');
-  const [lastSynced, setLastSynced] = useState<Date>(new Date());
+  const [lastSyncedLabel, setLastSyncedLabel] = useState('Not yet synced');
 
   // AI & Feedback State
   const [briefing, setBriefing] = useState<string | null>(null);
@@ -80,6 +81,8 @@ const App: React.FC = () => {
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSentiment, setFeedbackSentiment] = useState<'positive' | 'negative' | null>(null);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartDimensions, setChartDimensions] = useState({ width: 0, height: 0 });
 
   // Navigation State (Student Profile)
   const [profileStudent, setProfileStudent] = useState<string | null>(null);
@@ -118,6 +121,30 @@ const App: React.FC = () => {
     setIsReferralModalOpen(false);
   }, [currentRole]);
 
+  useEffect(() => {
+    setHasHydrated(true);
+    setLastSyncedLabel(new Date().toLocaleTimeString());
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated || !chartContainerRef.current) return;
+
+    const chartContainer = chartContainerRef.current;
+    const updateChartDimensions = () => {
+      const { width, height } = chartContainer.getBoundingClientRect();
+      setChartDimensions({
+        width: Math.max(0, Math.floor(width)),
+        height: Math.max(0, Math.floor(height)),
+      });
+    };
+
+    updateChartDimensions();
+    const observer = new ResizeObserver(updateChartDimensions);
+    observer.observe(chartContainer);
+
+    return () => observer.disconnect();
+  }, [hasHydrated]);
+
   const iconMap: Record<string, React.ElementType> = {
     Activity,
     Zap,
@@ -135,7 +162,7 @@ const App: React.FC = () => {
     setTimeout(() => {
       setIsSyncing(false);
       setSyncStatus('success');
-      setLastSynced(new Date());
+      setLastSyncedLabel(new Date().toLocaleTimeString());
       
       // Revert to idle after 3 seconds
       setTimeout(() => {
@@ -281,7 +308,7 @@ const App: React.FC = () => {
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
-          title={`Last synced: ${lastSynced.toLocaleTimeString()}`}
+          title={hasHydrated ? `Last synced: ${lastSyncedLabel}` : 'Last synced: --'}
         >
           {isSyncing ? (
             <Loader2 size={18} className="animate-spin" />
@@ -428,9 +455,9 @@ const App: React.FC = () => {
               </div>
             </div>
             
-            <div className="h-56 md:h-64 w-full min-w-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <ReBarChart data={data.chartData} barSize={60}>
+            <div ref={chartContainerRef} className="h-56 md:h-64 w-full min-w-0">
+              {hasHydrated && chartDimensions.width > 0 && chartDimensions.height > 0 ? (
+                <ReBarChart data={data.chartData} barSize={60} width={chartDimensions.width} height={chartDimensions.height}>
                   <XAxis 
                     dataKey="name" 
                     axisLine={false} 
@@ -447,7 +474,9 @@ const App: React.FC = () => {
                     ))}
                   </Bar>
                 </ReBarChart>
-              </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full animate-pulse rounded-lg bg-slate-100" />
+              )}
             </div>
           </div>
         </div>

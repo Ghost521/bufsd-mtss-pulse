@@ -18,6 +18,7 @@ This contains everything you need to run your app locally.
    `npm run dev`
 
 TanStack Start now serves both UI routes and API routes in one process.
+Dev server is pinned to `http://localhost:3000` (`strictPort` enabled). If port `3000` is busy, stop the other process first and rerun.
 
 ## Migration Notes
 
