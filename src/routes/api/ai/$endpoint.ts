@@ -4,10 +4,12 @@ import { KnowledgeAgent } from "../../../services/agents/KnowledgeAgent";
 import { OrchestratorAgent } from "../../../services/agents/OrchestratorAgent";
 import { ReportingAgent } from "../../../services/agents/ReportingAgent";
 import { StudentAgent } from "../../../services/agents/StudentAgent";
-import type { CalendarEvent} from "../../../types";
-import { UserRole } from "../../../types";
+import { buildAgentRequestContext } from "../../../services/agents/requestContext";
+import type { CalendarEvent } from "../../../types";
 import { getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
+import { newRequestId } from "../../../lib/server/audit-log";
+import type { AiErrorCode, AiResponseMeta } from "../../../services/aiContracts";
 
 type Agents = {
   studentAgent: StudentAgent;
@@ -21,14 +23,6 @@ let cachedAgents: Agents | null = null;
 let initError: Error | null = null;
 
 const isString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
-
-const mapRoleToUserRole = (role: string): UserRole => {
-  if (role === "teacher") return UserRole.TEACHER;
-  if (role === "principal") return UserRole.PRINCIPAL;
-  if (role === "district_admin" || role === "org_admin") return UserRole.DISTRICT;
-  if (role === "parent") return UserRole.PARENT;
-  return UserRole.TEACHER;
-};
 
 const getAgents = (): Agents | null => {
   if (cachedAgents) return cachedAgents;
@@ -49,8 +43,6 @@ const getAgents = (): Agents | null => {
   }
 };
 
-const jsonError = (message: string, status = 400): Response => Response.json({ error: message }, { status });
-
 const parseJsonBody = async <T>(request: Request): Promise<T | null> => {
   try {
     return (await request.json()) as T;
@@ -59,12 +51,65 @@ const parseJsonBody = async <T>(request: Request): Promise<T | null> => {
   }
 };
 
-const collectStreamText = async (run: (onChunk: (chunk: string) => void) => Promise<void>): Promise<string> => {
-  let text = "";
-  await run((chunk) => {
-    text += chunk;
+const buildMeta = (endpoint: string, overrides: Partial<AiResponseMeta> = {}): AiResponseMeta => ({
+  endpoint,
+  timestamp: new Date().toISOString(),
+  ...overrides,
+});
+
+const aiSuccess = <TPayload extends Record<string, unknown>>(
+  requestId: string,
+  endpoint: string,
+  payload: TPayload,
+  metaOverrides: Partial<AiResponseMeta> = {}
+): Response =>
+  Response.json({
+    ok: true,
+    requestId,
+    data: payload,
+    ...payload,
+    meta: buildMeta(endpoint, metaOverrides),
   });
-  return text;
+
+const aiError = (
+  requestId: string,
+  endpoint: string,
+  message: string,
+  status: number,
+  code: AiErrorCode,
+  retryable = status >= 500
+): Response =>
+  Response.json(
+    {
+      ok: false,
+      requestId,
+      data: null,
+      error: message,
+      errorDetail: {
+        code,
+        message,
+        retryable,
+      },
+      meta: buildMeta(endpoint),
+    },
+    { status }
+  );
+
+const withEndpoint = async <TPayload extends Record<string, unknown>>(input: {
+  requestId: string;
+  endpoint: string;
+  run: () => Promise<TPayload>;
+  failureMessage: string;
+  failureCode?: AiErrorCode;
+  meta?: Partial<AiResponseMeta>;
+}): Promise<Response> => {
+  try {
+    const payload = await input.run();
+    return aiSuccess(input.requestId, input.endpoint, payload, input.meta);
+  } catch (error) {
+    console.error(error);
+    return aiError(input.requestId, input.endpoint, input.failureMessage, 500, input.failureCode ?? "INTERNAL_ERROR", true);
+  }
 };
 
 const suggestMeetingSlots = (
@@ -122,124 +167,156 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
   server: {
     handlers: {
       POST: async ({ params, request }) => {
+        const requestId = newRequestId();
+        const endpoint = params.endpoint;
+
         const session = await getSessionFromRequest(request);
-        if (!session) return jsonError("Unauthorized.", 401);
+        if (!session) return aiError(requestId, endpoint, "Unauthorized.", 401, "UNAUTHORIZED", false);
+
         const permission = requirePermission(session, { resource: "ai", action: "read" });
-        if (!permission.ok) return jsonError(permission.error, permission.status);
+        if (!permission.ok) return aiError(requestId, endpoint, permission.error, permission.status, "FORBIDDEN", false);
 
         const agents = getAgents();
-        if (!agents) return jsonError("AI server not configured. Set GEMINI_API_KEY.", 503);
-
-        const endpoint = params.endpoint;
+        if (!agents) {
+          return aiError(requestId, endpoint, "AI server not configured. Set GEMINI_API_KEY.", 503, "UNAVAILABLE", true);
+        }
 
         if (endpoint === "rag-chat") {
           const body = await parseJsonBody<{
             query: string;
             history: unknown[];
             contextDocuments: unknown[];
-            role?: UserRole;
-            username?: string;
           }>(request);
+
           if (!body || !isString(body.query) || !Array.isArray(body.history) || !Array.isArray(body.contextDocuments)) {
-            return jsonError("Invalid request body.");
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
 
           try {
-            const role = mapRoleToUserRole(session.effectiveRoles[0] ?? session.user.primaryRole);
-            const username = session.user.name;
-            const text = await collectStreamText((onChunk) =>
-              agents.orchestrator.queryRAGChatStream(
-                body.query,
-                body.history as never[],
-                body.contextDocuments as never[],
-                role,
-                username,
-                onChunk
-              )
+            const context = buildAgentRequestContext(session, requestId);
+            const result = await agents.orchestrator.queryRAGChat(
+              body.query,
+              body.history as never[],
+              body.contextDocuments as never[],
+              context
             );
-            return Response.json({ text });
+
+            return aiSuccess(
+              requestId,
+              endpoint,
+              { text: result.text },
+              {
+                model: "gemini-2.5-flash",
+                citations: result.citations,
+                confidence: result.confidence,
+                abstained: result.abstained,
+                tools: result.tools,
+              }
+            );
           } catch (error) {
             console.error(error);
-            return jsonError("Failed to process chat request.", 500);
+            return aiError(requestId, endpoint, "Failed to process chat request.", 500, "INTERNAL_ERROR", true);
           }
         }
 
         if (endpoint === "dashboard-briefing") {
           const body = await parseJsonBody<{ data: unknown; previousFeedback: string[] }>(request);
-          if (!body || !body.data || !Array.isArray(body.previousFeedback)) return jsonError("Invalid request body.");
-          try {
-            const text = await collectStreamText((onChunk) =>
-              agents.reportingAgent.generateDashboardBriefingStream(body.data as never, body.previousFeedback, onChunk)
-            );
-            return Response.json({ text });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to generate dashboard briefing.", 500);
+          if (!body || !body.data || !Array.isArray(body.previousFeedback)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => {
+              let text = "";
+              await agents.reportingAgent.generateDashboardBriefingStream(body.data as never, body.previousFeedback, (chunk) => {
+                text += chunk;
+              });
+              return { text };
+            },
+            failureMessage: "Failed to generate dashboard briefing.",
+          });
         }
 
         if (endpoint === "student-profile-summary") {
           const body = await parseJsonBody<{ student: unknown; previousFeedback: string[] }>(request);
-          if (!body || !body.student || !Array.isArray(body.previousFeedback)) return jsonError("Invalid request body.");
-          try {
-            const text = await collectStreamText((onChunk) =>
-              agents.reportingAgent.generateStudentProfileSummaryStream(body.student as never, body.previousFeedback, onChunk)
-            );
-            return Response.json({ text });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to generate student summary.", 500);
+          if (!body || !body.student || !Array.isArray(body.previousFeedback)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => {
+              let text = "";
+              await agents.reportingAgent.generateStudentProfileSummaryStream(body.student as never, body.previousFeedback, (chunk) => {
+                text += chunk;
+              });
+              return { text };
+            },
+            failureMessage: "Failed to generate student summary.",
+          });
         }
 
         if (endpoint === "notes-summary") {
           const body = await parseJsonBody<{ notes: unknown[] }>(request);
-          if (!body || !Array.isArray(body.notes)) return jsonError("Invalid request body.");
-          try {
-            const text = await collectStreamText((onChunk) => agents.reportingAgent.generateNotesSummaryStream(body.notes as never[], onChunk));
-            return Response.json({ text });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to summarize notes.", 500);
-          }
+          if (!body || !Array.isArray(body.notes)) return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => {
+              let text = "";
+              await agents.reportingAgent.generateNotesSummaryStream(body.notes as never[], (chunk) => {
+                text += chunk;
+              });
+              return { text };
+            },
+            failureMessage: "Failed to summarize notes.",
+          });
         }
 
         if (endpoint === "refine-draft-note") {
           const body = await parseJsonBody<{ draft: string; category: string }>(request);
-          if (!body || !isString(body.draft) || !isString(body.category)) return jsonError("Invalid request body.");
-          try {
-            const text = await agents.reportingAgent.refineDraftNote(body.draft, body.category);
-            return Response.json({ text });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to refine note.", 500);
+          if (!body || !isString(body.draft) || !isString(body.category)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({
+              text: await agents.reportingAgent.refineDraftNote(body.draft, body.category),
+            }),
+            failureMessage: "Failed to refine note.",
+          });
         }
 
         if (endpoint === "suggest-tags") {
           const body = await parseJsonBody<{ note: string }>(request);
-          if (!body || !isString(body.note)) return jsonError("Invalid request body.");
-          try {
-            const tags = await agents.reportingAgent.suggestTagsForNote(body.note);
-            return Response.json({ tags });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to suggest tags.", 500);
-          }
+          if (!body || !isString(body.note)) return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({ tags: await agents.reportingAgent.suggestTagsForNote(body.note) }),
+            failureMessage: "Failed to suggest tags.",
+          });
         }
 
         if (endpoint === "action-item-plan") {
           const body = await parseJsonBody<{ studentName: string; grade: string; category: string; insight: string }>(request);
           if (!body || !isString(body.studentName) || !isString(body.grade) || !isString(body.category) || !isString(body.insight)) {
-            return jsonError("Invalid request body.");
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
-          try {
-            const result = await agents.interventionAgent.generateActionItemPlan(body.studentName, body.grade, body.category, body.insight);
-            return Response.json(result);
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to generate action item plan.", 500);
-          }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => agents.interventionAgent.generateActionItemPlan(body.studentName, body.grade, body.category, body.insight),
+            failureMessage: "Failed to generate action item plan.",
+          });
         }
 
         if (endpoint === "structured-intervention") {
@@ -252,122 +329,144 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
             duration?: string;
             frequency?: string;
           }>(request);
+
           if (!body || !isString(body.studentName) || !isString(body.grade) || !isString(body.tier) || !isString(body.focusArea)) {
-            return jsonError("Invalid request body.");
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
 
-          try {
-            const plan = await agents.interventionAgent.generateStructuredIntervention(
-              body.studentName,
-              body.grade,
-              body.tier,
-              body.focusArea,
-              isString(body.additionalContext) ? body.additionalContext : "",
-              isString(body.duration) ? body.duration : "30 min",
-              isString(body.frequency) ? body.frequency : "Daily"
-            );
-            return Response.json({ plan });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to generate intervention plan.", 500);
-          }
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({
+              plan: await agents.interventionAgent.generateStructuredIntervention(
+                body.studentName,
+                body.grade,
+                body.tier,
+                body.focusArea,
+                isString(body.additionalContext) ? body.additionalContext : "",
+                isString(body.duration) ? body.duration : "30 min",
+                isString(body.frequency) ? body.frequency : "Daily"
+              ),
+            }),
+            failureMessage: "Failed to generate intervention plan.",
+          });
         }
 
         if (endpoint === "parent-message") {
           const body = await parseJsonBody<{ studentName: string; assignmentTitle: string; parentName: string }>(request);
           if (!body || !isString(body.studentName) || !isString(body.assignmentTitle) || !isString(body.parentName)) {
-            return jsonError("Invalid request body.");
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
-          try {
-            const text = await agents.interventionAgent.generateParentMessage(body.studentName, body.assignmentTitle, body.parentName);
-            return Response.json({ text });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to generate parent message.", 500);
-          }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({
+              text: await agents.interventionAgent.generateParentMessage(body.studentName, body.assignmentTitle, body.parentName),
+            }),
+            failureMessage: "Failed to generate parent message.",
+          });
         }
 
         if (endpoint === "analyze-uploaded-document") {
           const body = await parseJsonBody<{ base64: string; mime: string; name: string }>(request);
-          if (!body || !isString(body.base64) || !isString(body.mime) || !isString(body.name)) return jsonError("Invalid request body.");
-          try {
-            const result = await agents.knowledgeAgent.analyzeUploadedDocument(body.base64, body.mime, body.name);
-            return Response.json({ result });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to analyze uploaded document.", 500);
+          if (!body || !isString(body.base64) || !isString(body.mime) || !isString(body.name)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({ result: await agents.knowledgeAgent.analyzeUploadedDocument(body.base64, body.mime, body.name) }),
+            failureMessage: "Failed to analyze uploaded document.",
+          });
         }
 
         if (endpoint === "file-summary") {
           const body = await parseJsonBody<{ base64: string; mime: string }>(request);
-          if (!body || !isString(body.base64) || !isString(body.mime)) return jsonError("Invalid request body.");
-          try {
-            const text = await agents.knowledgeAgent.generateFileSummary(body.base64, body.mime);
-            return Response.json({ text });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to summarize file.", 500);
+          if (!body || !isString(body.base64) || !isString(body.mime)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({ text: await agents.knowledgeAgent.generateFileSummary(body.base64, body.mime) }),
+            failureMessage: "Failed to summarize file.",
+          });
         }
 
         if (endpoint === "resource-summary") {
           const body = await parseJsonBody<{ url: string; type: "WEBSITE" | "YOUTUBE" }>(request);
-          if (!body || !isString(body.url) || (body.type !== "WEBSITE" && body.type !== "YOUTUBE")) return jsonError("Invalid request body.");
-          try {
-            const result = await agents.knowledgeAgent.generateResourceSummary(body.url, body.type);
-            return Response.json(result);
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to summarize resource.", 500);
+          if (!body || !isString(body.url) || (body.type !== "WEBSITE" && body.type !== "YOUTUBE")) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => agents.knowledgeAgent.generateResourceSummary(body.url, body.type),
+            failureMessage: "Failed to summarize resource.",
+          });
         }
 
         if (endpoint === "extract-data-from-document") {
           const body = await parseJsonBody<{ base64: string; mime: string }>(request);
-          if (!body || !isString(body.base64) || !isString(body.mime)) return jsonError("Invalid request body.");
-          try {
-            const rows = await agents.knowledgeAgent.extractDataFromDocument(body.base64, body.mime);
-            return Response.json({ rows });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to extract document data.", 500);
+          if (!body || !isString(body.base64) || !isString(body.mime)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({ rows: await agents.knowledgeAgent.extractDataFromDocument(body.base64, body.mime) }),
+            failureMessage: "Failed to extract document data.",
+          });
         }
 
         if (endpoint === "import-batch-analysis") {
           const body = await parseJsonBody<{ data: unknown[]; source: string }>(request);
-          if (!body || !Array.isArray(body.data) || !isString(body.source)) return jsonError("Invalid request body.");
-          try {
-            const result = await agents.reportingAgent.analyzeImportedBatch(body.data, body.source);
-            return Response.json({ result });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to analyze import batch.", 500);
+          if (!body || !Array.isArray(body.data) || !isString(body.source)) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
+
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({ result: await agents.reportingAgent.analyzeImportedBatch(body.data, body.source) }),
+            failureMessage: "Failed to analyze import batch.",
+          });
         }
 
         if (endpoint === "meeting-times") {
           const body = await parseJsonBody<{ attendees: unknown[]; duration: number; date: string; existing: CalendarEvent[] }>(request);
-          if (!body || !Array.isArray(body.attendees) || typeof body.duration !== "number" || !isString(body.date) || !Array.isArray(body.existing)) {
-            return jsonError("Invalid request body.");
+          if (
+            !body ||
+            !Array.isArray(body.attendees) ||
+            typeof body.duration !== "number" ||
+            !Number.isFinite(body.duration) ||
+            !isString(body.date) ||
+            !Array.isArray(body.existing)
+          ) {
+            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
           }
 
-          try {
-            const suggestions = suggestMeetingSlots(
-              body.attendees.filter((attendee): attendee is string => typeof attendee === "string"),
-              body.duration,
-              body.date,
-              body.existing
-            );
-            return Response.json({ suggestions });
-          } catch (error) {
-            console.error(error);
-            return jsonError("Failed to suggest meeting times.", 500);
-          }
+          return withEndpoint({
+            requestId,
+            endpoint,
+            run: async () => ({
+              suggestions: suggestMeetingSlots(
+                body.attendees.filter((attendee): attendee is string => typeof attendee === "string"),
+                Math.max(15, Math.round(body.duration)),
+                body.date,
+                body.existing
+              ),
+            }),
+            failureMessage: "Failed to suggest meeting times.",
+          });
         }
 
-        return jsonError(`Unknown endpoint: ${endpoint}`, 404);
+        return aiError(requestId, endpoint, `Unknown endpoint: ${endpoint}`, 404, "NOT_FOUND", false);
       },
     },
   },

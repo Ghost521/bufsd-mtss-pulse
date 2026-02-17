@@ -30,6 +30,45 @@ export interface ImportAnalysisResult {
   recommendations: string[];
 }
 
+export type AiErrorCode =
+  | "BAD_REQUEST"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "UNAVAILABLE"
+  | "INTERNAL_ERROR";
+
+export interface AiErrorDetail {
+  code: AiErrorCode;
+  message: string;
+  retryable: boolean;
+}
+
+export interface AiResponseMeta {
+  endpoint: string;
+  timestamp: string;
+  model?: string;
+  citations?: string[];
+  confidence?: "high" | "medium" | "low";
+  abstained?: boolean;
+  tools?: Array<{
+    name: string;
+    ok: boolean;
+    durationMs: number;
+  }>;
+}
+
+export interface AiEnvelope<T extends Record<string, unknown>> {
+  ok: boolean;
+  requestId: string;
+  data: T | null;
+  error?: string;
+  errorDetail?: AiErrorDetail;
+  meta: AiResponseMeta;
+}
+
+type AiEndpointResponse<T extends Record<string, unknown>> = AiEnvelope<T> & T;
+
 export interface AiRequestMap {
   ragChat: {
     query: string;
@@ -106,19 +145,19 @@ export interface AiRequestMap {
 }
 
 export interface AiResponseMap {
-  ragChat: { text: string };
-  dashboardBriefing: { text: string };
-  studentProfileSummary: { text: string };
-  notesSummary: { text: string };
-  refineDraftNote: { text: string };
-  suggestTagsForNote: { tags: string[] };
-  actionItemPlan: { title: string; notes: string };
-  structuredIntervention: { plan: AIInterventionPlan };
-  parentMessage: { text: string };
-  analyzeUploadedDocument: { result: AnalyzedDocumentResult };
-  fileSummary: { text: string };
-  resourceSummary: { title: string; summary: string };
-  extractDataFromDocument: { rows: unknown[] };
-  importBatchAnalysis: { result: ImportAnalysisResult };
-  meetingTimes: { suggestions: Array<{ start: string; end: string; reason: string }> };
+  ragChat: AiEndpointResponse<{ text: string }>;
+  dashboardBriefing: AiEndpointResponse<{ text: string }>;
+  studentProfileSummary: AiEndpointResponse<{ text: string }>;
+  notesSummary: AiEndpointResponse<{ text: string }>;
+  refineDraftNote: AiEndpointResponse<{ text: string }>;
+  suggestTagsForNote: AiEndpointResponse<{ tags: string[] }>;
+  actionItemPlan: AiEndpointResponse<{ title: string; notes: string }>;
+  structuredIntervention: AiEndpointResponse<{ plan: AIInterventionPlan }>;
+  parentMessage: AiEndpointResponse<{ text: string }>;
+  analyzeUploadedDocument: AiEndpointResponse<{ result: AnalyzedDocumentResult }>;
+  fileSummary: AiEndpointResponse<{ text: string }>;
+  resourceSummary: AiEndpointResponse<{ title: string; summary: string }>;
+  extractDataFromDocument: AiEndpointResponse<{ rows: unknown[] }>;
+  importBatchAnalysis: AiEndpointResponse<{ result: ImportAnalysisResult }>;
+  meetingTimes: AiEndpointResponse<{ suggestions: Array<{ start: string; end: string; reason: string }> }>;
 }

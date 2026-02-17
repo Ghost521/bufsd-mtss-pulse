@@ -12,6 +12,11 @@ class ApiError extends Error {
   }
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const isEnvelopeResponse = (value: unknown): value is { ok: boolean; data?: unknown; error?: string; errorDetail?: { message?: string } } =>
+  isRecord(value) && typeof value.ok === "boolean";
+
 const postJson = async <TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> => {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -22,15 +27,33 @@ const postJson = async <TRequest, TResponse>(path: string, body: TRequest): Prom
   if (!response.ok) {
     let detail = response.statusText || "Request failed";
     try {
-      const payload = (await response.json()) as { error?: string };
-      if (payload.error) detail = payload.error;
+      const payload = (await response.json()) as { error?: string; errorDetail?: { message?: string } };
+      if (typeof payload.error === "string" && payload.error.trim().length > 0) detail = payload.error;
+      if (typeof payload.errorDetail?.message === "string" && payload.errorDetail.message.trim().length > 0) {
+        detail = payload.errorDetail.message;
+      }
     } catch {
       // Best-effort parsing only.
     }
     throw new ApiError(detail, response.status);
   }
 
-  return (await response.json()) as TResponse;
+  const payload = (await response.json()) as unknown;
+  if (isEnvelopeResponse(payload)) {
+    if (!payload.ok) {
+      const message =
+        (typeof payload.errorDetail?.message === "string" && payload.errorDetail.message) ||
+        (typeof payload.error === "string" && payload.error) ||
+        "Request failed";
+      throw new ApiError(message, response.status);
+    }
+
+    if (isRecord(payload.data)) {
+      return { ...payload, ...payload.data } as TResponse;
+    }
+  }
+
+  return payload as TResponse;
 };
 
 const streamFromText = async (textPromise: Promise<string>, onChunk: (text: string) => void): Promise<void> => {
