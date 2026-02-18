@@ -25,12 +25,14 @@ import {
   X,
 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { getStudentDetails } from '../constants';
-import type { StudentDetails, Tier } from '../types';
+import { Tier, type StudentDetails, type StudentRosterItem } from '../types';
 import { generateStudentProfileSummaryStream } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { ReferralModal } from './ReferralModal';
 import { SidebarToggleButton } from './SidebarToggleButton';
+import { useTenantCollection } from '../hooks/useTenantCollection';
+import { useStudents } from '../hooks/useStudents';
+import { buildStudentProfileRecord, syncProfileWithRoster, type StudentProfileRecord } from '../lib/student-profile-record';
 
 type ProfileTab = 'overview' | 'interventions' | 'academics' | 'documents';
 type AcademicFilter = 'All' | 'Math' | 'Reading';
@@ -187,10 +189,15 @@ const toLocalTimestamp = (value: Date | null): string =>
     : 'Not yet generated';
 
 export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onBack, onMenuClick, onMessageClick }) => {
-  const [student, setStudent] = useState<StudentDetails | null>(null);
+  const profileCollection = useTenantCollection<StudentProfileRecord>('student-profiles');
+  const seedProfile = profileCollection.createMutation.mutate;
+  const masterStudentsApi = useStudents('master');
+  const classStudentsApi = useStudents('class');
+  const seededProfileIdsRef = useRef<Set<string>>(new Set());
+  const [student, setStudent] = useState<StudentProfileRecord | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [isEditing, setIsEditing] = useState(false);
-  const [draftStudent, setDraftStudent] = useState<StudentDetails | null>(null);
+  const [draftStudent, setDraftStudent] = useState<StudentProfileRecord | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [draftAvatarUrl, setDraftAvatarUrl] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -206,7 +213,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
 
-  const loadProfileSummary = useCallback(async (details: StudentDetails) => {
+  const loadProfileSummary = useCallback(async (details: StudentProfileRecord) => {
     setIsLoadingSummary(true);
     setSummaryError(null);
     setProfileSummary('');
@@ -223,11 +230,65 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
     }
   }, []);
 
+  const students = useMemo(() => {
+    const merged = [
+      ...(masterStudentsApi.studentsQuery.data?.rows ?? []),
+      ...(classStudentsApi.studentsQuery.data?.rows ?? []),
+    ] as Array<StudentRosterItem & { teacher?: string }>;
+    const seen = new Set<string>();
+    return merged.filter((row) => {
+      if (seen.has(row.id)) return false;
+      seen.add(row.id);
+      return true;
+    });
+  }, [classStudentsApi.studentsQuery.data?.rows, masterStudentsApi.studentsQuery.data?.rows]);
+
   useEffect(() => {
     if (!studentName) return;
 
-    const details = getStudentDetails(studentName);
-    const nextStudent = { ...details, name: studentName };
+    const rosterMatch = students.find((row) => row.name === studentName);
+    const existing = profileCollection.query.data?.rows?.find((row) =>
+      rosterMatch ? row.id === rosterMatch.id || row.name === studentName : row.name === studentName
+    );
+    let nextStudent: StudentProfileRecord | null = null;
+
+    if (existing && rosterMatch) {
+      nextStudent = syncProfileWithRoster(existing, {
+        ...rosterMatch,
+        teacher: rosterMatch.teacher ?? existing.teacher,
+      });
+    } else if (existing) {
+      nextStudent = existing;
+    } else if (rosterMatch) {
+      nextStudent = buildStudentProfileRecord({
+        ...rosterMatch,
+        teacher: rosterMatch.teacher ?? 'Assigned Teacher',
+      });
+      if (!seededProfileIdsRef.current.has(nextStudent.id)) {
+        seededProfileIdsRef.current.add(nextStudent.id);
+        seedProfile(nextStudent);
+      }
+    }
+
+    if (!nextStudent) {
+      const syntheticId = `STU-${studentName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      nextStudent = buildStudentProfileRecord({
+        id: syntheticId,
+        name: studentName,
+        grade: '4th',
+        tier: Tier.TIER_1,
+        gpa: '3.0',
+        attendance: 95,
+        readingLevel: 'M',
+        alerts: 0,
+        teacher: 'Assigned Teacher',
+      });
+      if (!seededProfileIdsRef.current.has(nextStudent.id)) {
+        seededProfileIdsRef.current.add(nextStudent.id);
+        seedProfile(nextStudent);
+      }
+    }
+
     setStudent(nextStudent);
 
     setActiveTab('overview');
@@ -236,15 +297,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
 
     setIsEditing(false);
     setDraftStudent(null);
-    setAvatarUrl(null);
-    setDraftAvatarUrl(null);
+    setAvatarUrl(nextStudent.avatarUrl ?? null);
+    setDraftAvatarUrl(nextStudent.avatarUrl ?? null);
 
     setShowSummary(true);
     setIsSummaryExpanded(typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true);
     setSummaryUpdatedAt(null);
 
     void loadProfileSummary(nextStudent);
-  }, [studentName, loadProfileSummary]);
+  }, [studentName, loadProfileSummary, profileCollection.query.data?.rows, seedProfile, students]);
 
   useEffect(() => {
     if (activeTab !== 'academics') return;
@@ -369,8 +430,23 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
 
   const handleSaveEdit = () => {
     if (!draftStudent) return;
-    setStudent(draftStudent);
+    const nextStudent: StudentProfileRecord = {
+      ...draftStudent,
+      name: studentName,
+      avatarUrl: draftAvatarUrl ?? undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    setStudent(nextStudent);
     setAvatarUrl(draftAvatarUrl);
+    const exists = profileCollection.query.data?.rows?.some((row) => row.id === nextStudent.id) ?? false;
+    if (exists) {
+      profileCollection.updateMutation.mutate({
+        id: nextStudent.id,
+        patch: nextStudent,
+      });
+    } else {
+      profileCollection.createMutation.mutate(nextStudent);
+    }
     resetEditState();
   };
 

@@ -14,6 +14,5 @@ const telemetryEnabled = (): boolean => {
 export const trackSidebarEvent = (event: SidebarTelemetryEvent, payload?: SidebarTelemetryPayload): void => {
   if (!telemetryEnabled()) return;
   // This is intentionally a debug-only no-op sink until product analytics is wired.
-  // eslint-disable-next-line no-console
   console.debug("[sidebar]", event, payload ?? {});
 };

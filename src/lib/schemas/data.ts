@@ -174,6 +174,102 @@ export const gradebookGradeRowSchema = z.object({
   score: gradebookScoreSchema,
 });
 
+const profileInterventionDataPointSchema = z.object({
+  date: nonEmptyTrimmedString("Intervention data point date", 80),
+  score: z.number().finite(),
+  notes: z.string().trim().max(2_000).optional(),
+});
+
+const profileInterventionSchema = z.object({
+  id: z.number().int().min(0),
+  name: nonEmptyTrimmedString("Intervention name", 280),
+  date: nonEmptyTrimmedString("Intervention date", 80),
+  status: nonEmptyTrimmedString("Intervention status", 80),
+  progress: z.number().int().min(0).max(100),
+  baselineScore: z.number().finite(),
+  goalScore: z.number().finite(),
+  dataPoints: z.array(profileInterventionDataPointSchema),
+});
+
+const profileActivitySchema = z.object({
+  date: nonEmptyTrimmedString("Activity date", 80),
+  type: nonEmptyTrimmedString("Activity type", 120),
+  note: nonEmptyTrimmedString("Activity note", 4_000),
+  source: z.string().trim().max(120).optional(),
+  isNew: z.boolean().optional(),
+  tags: z.array(nonEmptyTrimmedString("Activity tag", 120)).optional(),
+});
+
+const profileRecommendationSchema = z.object({
+  id: nonEmptyTrimmedString("Recommendation id", 160),
+  name: nonEmptyTrimmedString("Recommendation name", 200),
+  reason: nonEmptyTrimmedString("Recommendation reason", 4_000),
+  action: nonEmptyTrimmedString("Recommendation action", 4_000),
+  confidenceLevel: nonEmptyTrimmedString("Confidence level", 80),
+  confidenceScore: z.number().int().min(0).max(100),
+});
+
+const profileMedicalSchema = z.object({
+  allergies: z.array(nonEmptyTrimmedString("Allergy", 160)),
+  medications: z.array(nonEmptyTrimmedString("Medication", 160)),
+  visionScreening: z.object({
+    status: z.enum(["Pass", "Fail", "Corrected"]),
+    date: nonEmptyTrimmedString("Vision screening date", 80),
+    notes: z.string().trim().max(2_000).optional(),
+  }),
+  hearingScreening: z.object({
+    status: z.enum(["Pass", "Fail"]),
+    date: nonEmptyTrimmedString("Hearing screening date", 80),
+  }),
+  conditions: z.array(nonEmptyTrimmedString("Condition", 200)),
+});
+
+const profileSupportSchema = z.object({
+  planType: z.enum(["IEP", "504 Plan", "None"]),
+  primaryDisability: z.string().trim().max(320).optional(),
+  nextReviewDate: z.string().trim().max(120).optional(),
+  accommodations: z.array(nonEmptyTrimmedString("Accommodation", 500)),
+  behavioralStrategies: z.array(nonEmptyTrimmedString("Behavioral strategy", 500)),
+});
+
+export const studentProfileRowSchema = z.object({
+  id: nonEmptyTrimmedString("Student id", 160),
+  name: nonEmptyTrimmedString("Student name", 200),
+  grade: nonEmptyTrimmedString("Grade", 80),
+  teacher: nonEmptyTrimmedString("Teacher", 200),
+  tier: z.nativeEnum(Tier),
+  attendance: z.number().int().min(0).max(100),
+  gpa: nonEmptyTrimmedString("GPA", 16),
+  readingLevel: nonEmptyTrimmedString("Reading level", 24),
+  interventions: z.array(profileInterventionSchema),
+  recentActivity: z.array(profileActivitySchema),
+  aiRecommendations: z.array(profileRecommendationSchema),
+  medical: profileMedicalSchema,
+  support: profileSupportSchema,
+  avatarUrl: z.string().max(8_000_000).optional(),
+  updatedAt: z.string().datetime("Updated timestamp must be an ISO datetime."),
+});
+
+const referralAttachmentSchema = z.object({
+  name: nonEmptyTrimmedString("Attachment name", 512),
+  size: z.number().int().min(0).optional(),
+  type: z.string().trim().max(160).optional(),
+});
+
+export const referralRowSchema = z.object({
+  id: nonEmptyTrimmedString("Referral id", 160),
+  studentId: nonEmptyTrimmedString("Student id", 160),
+  studentName: nonEmptyTrimmedString("Student name", 200),
+  grade: z.string().trim().max(80).optional(),
+  type: z.enum(["Behavior", "Academic", "Attendance", "Social-Emotional", "Health"]),
+  urgency: z.enum(["Low", "Medium", "High", "Critical"]),
+  notes: nonEmptyTrimmedString("Referral notes", 4_000),
+  attachments: z.array(referralAttachmentSchema).optional(),
+  status: z.literal("Pending Review"),
+  routedTo: nonEmptyTrimmedString("Routed team", 160),
+  createdAt: z.string().datetime("Created timestamp must be an ISO datetime."),
+});
+
 export const dataDomainRowSchemaMap = {
   calendar: calendarEventRowSchema,
   messages: conversationRowSchema,
@@ -185,6 +281,8 @@ export const dataDomainRowSchemaMap = {
   staff: staffRosterRowSchema,
   "gradebook-assignments": gradebookAssignmentRowSchema,
   "gradebook-grades": gradebookGradeRowSchema,
+  "student-profiles": studentProfileRowSchema,
+  referrals: referralRowSchema,
 } as const;
 
 export const dataDomainCollectionSchemaMap = {
@@ -198,4 +296,6 @@ export const dataDomainCollectionSchemaMap = {
   staff: z.array(staffRosterRowSchema),
   "gradebook-assignments": z.array(gradebookAssignmentRowSchema),
   "gradebook-grades": z.array(gradebookGradeRowSchema),
+  "student-profiles": z.array(studentProfileRowSchema),
+  referrals: z.array(referralRowSchema),
 } as const;

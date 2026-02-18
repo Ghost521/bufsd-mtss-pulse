@@ -1,5 +1,4 @@
 import { HeadContent, Link, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import appCss from "../styles.css?url";
 import type { AppRouterContext } from "../lib/query-client";
 import type { ReactNode } from "react";
@@ -32,7 +31,6 @@ function RootDocument({ children }: { children: ReactNode }) {
       </head>
       <body>
         {children}
-        <TanStackRouterDevtools />
         <Scripts />
       </body>
     </html>

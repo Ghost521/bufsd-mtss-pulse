@@ -29,11 +29,12 @@ type RenderHandle = {
   root: Root;
 };
 
-const baseProps = {
+const baseProps: React.ComponentProps<typeof Sidebar> = {
   currentRole: UserRole.PRINCIPAL,
   availableRoles: [UserRole.PRINCIPAL, UserRole.TEACHER],
   onRoleChange: vi.fn(),
   userName: "Nina Principal",
+  userAvatarUrl: null,
   schoolName: "North Elementary",
   isMobileOpen: false,
   onMobileClose: vi.fn(),
@@ -89,6 +90,20 @@ describe("Sidebar containment safeguards", () => {
     expect(contentWrapper?.className).toContain("w-full");
     expect(contentWrapper?.className).toContain("min-w-0");
     expect(contentWrapper?.className).toContain("overflow-hidden");
+    expect(handle.container.textContent).toContain("Nina Principal");
+    expect(handle.container.textContent).not.toContain("Account & Workspace");
+    expect(handle.container.textContent).toContain("NP");
+
+    await cleanupRender(handle);
+  });
+
+  it("renders profile image when a sidebar avatar URL is provided", async () => {
+    const avatarUrl = "https://example.com/avatar.png";
+    const handle = await renderSidebar({ isDesktopCollapsed: false, userAvatarUrl: avatarUrl });
+
+    const avatarImage = handle.container.querySelector('img[alt="Profile photo for Nina Principal"]') as HTMLImageElement | null;
+    expect(avatarImage).toBeInstanceOf(HTMLImageElement);
+    expect(avatarImage?.src).toContain(avatarUrl);
 
     await cleanupRender(handle);
   });
@@ -101,7 +116,7 @@ describe("Sidebar containment safeguards", () => {
     expect((desktopAside as HTMLElement).className).toContain("overflow-hidden");
 
     const collapsedExpandControl = handle.container.querySelector(
-      'button[aria-label="Expand account and workspace controls"]'
+      'button[aria-label="Show profile and settings"]'
     );
     expect(collapsedExpandControl).toBeInstanceOf(HTMLButtonElement);
 

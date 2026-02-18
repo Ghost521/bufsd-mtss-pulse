@@ -28,9 +28,10 @@ import type { AIInterventionPlan } from '../services/geminiService';
 import { generateStructuredIntervention } from '../services/geminiService';
 import { Tier } from '../types';
 import { RichTextRenderer } from './RichTextRenderer';
-import { CLASS_ROSTER_DATA } from '../constants';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
+import { useStudents } from '../hooks/useStudents';
+import type { StudentRosterItem } from '../types';
 
 interface LessonPlanLibraryProps {
   onMenuClick: () => void;
@@ -53,8 +54,10 @@ const VIEW_FILTERS: ViewFilter[] = ['All', 'My Plans', 'Shared'];
 
 export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClick, currentUserRole }) => {
   const lessonPlanCollection = useTenantCollection<LessonPlan>('lesson-plans');
+  const studentsApi = useStudents('class');
   // Assuming current user name is Mr. Davis for this demo context usually, but checking role.
   const currentUserId = currentUserRole === UserRole.TEACHER ? 'Mr. Davis' : 'Rosa Cortese';
+  const classRoster = (studentsApi.studentsQuery.data?.rows ?? []) as StudentRosterItem[];
   
   const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,7 +144,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
       let context = "";
       
       if (generationMode === 'Group') {
-          const selectedStudents = CLASS_ROSTER_DATA.filter(s => selectedStudentIds.has(s.id));
+          const selectedStudents = classRoster.filter(s => selectedStudentIds.has(s.id));
           target = `Small Group (${selectedStudents.length} students)`;
           
           // Build rich context from student data
@@ -172,7 +175,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
     
     let groupNames: string[] | undefined;
     if (generationMode === 'Group') {
-        groupNames = CLASS_ROSTER_DATA.filter(s => selectedStudentIds.has(s.id)).map(s => s.name);
+        groupNames = classRoster.filter(s => selectedStudentIds.has(s.id)).map(s => s.name);
     }
 
     const newLesson: LessonPlan = {
@@ -540,7 +543,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                           <div className="flex-1 flex flex-col h-64">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Select Students</label>
                               <div className="border border-slate-200 rounded-lg flex-1 overflow-y-auto p-2 bg-slate-50">
-                                  {CLASS_ROSTER_DATA.map(student => (
+                                  {classRoster.map(student => (
                                       <div 
                                         key={student.id} 
                                         onClick={() => toggleStudentSelection(student.id)}

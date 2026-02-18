@@ -1,11 +1,13 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, BookOpen, Activity, Clock, FileText, Calendar, Sparkles, Plus, Mail, Smartphone, Loader2, BrainCircuit, Upload, FileUp, CheckCircle2, Eye, Ear, ShieldAlert, FileBadge, Pencil, Save } from 'lucide-react';
-import type { StudentDetails, ActivityLog } from '../types';
+import type { ActivityLog, StudentRosterItem } from '../types';
 import { Tier } from '../types';
 import type { AnalyzedDocumentResult } from '../services/geminiService';
 import { analyzeUploadedDocument } from '../services/geminiService';
-import { getStudentDetails } from '../constants';
+import { useTenantCollection } from '../hooks/useTenantCollection';
+import { useStudents } from '../hooks/useStudents';
+import { buildStudentProfileRecord, syncProfileWithRoster, type StudentProfileRecord } from '../lib/student-profile-record';
 
 interface StudentDetailModalProps {
   isOpen: boolean;
@@ -24,9 +26,14 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   onViewFullProfile,
   onMessageParents
 }) => {
+  const profileCollection = useTenantCollection<StudentProfileRecord>('student-profiles');
+  const seedProfile = profileCollection.createMutation.mutate;
+  const masterStudentsApi = useStudents('master');
+  const classStudentsApi = useStudents('class');
+  const seededProfileIdsRef = useRef<Set<string>>(new Set());
   
   // Initialize with null, will load in effect
-  const [details, setDetails] = useState<StudentDetails | null>(null);
+  const [details, setDetails] = useState<StudentProfileRecord | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
   // State for Timeline
@@ -39,18 +46,80 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
+  const students = useMemo(
+    () =>
+      [
+        ...(masterStudentsApi.studentsQuery.data?.rows ?? []),
+        ...(classStudentsApi.studentsQuery.data?.rows ?? []),
+      ] as Array<StudentRosterItem & { teacher?: string }>,
+    [classStudentsApi.studentsQuery.data?.rows, masterStudentsApi.studentsQuery.data?.rows]
+  );
+
+  const upsertProfile = (nextProfile: StudentProfileRecord) => {
+    const exists = profileCollection.query.data?.rows?.some((row) => row.id === nextProfile.id) ?? false;
+    if (exists) {
+      profileCollection.updateMutation.mutate({
+        id: nextProfile.id,
+        patch: nextProfile,
+      });
+      return;
+    }
+    profileCollection.createMutation.mutate(nextProfile);
+  };
+
   // Load details when studentName changes
   useEffect(() => {
-    if (studentName) {
-        const data = getStudentDetails(studentName);
-        setDetails(data);
-        setActivityLog(data.recentActivity);
-        setHasMoreHistory(true);
-        setIsLoadingHistory(false);
-        setUploadSuccess(null);
-        setIsEditing(false);
+    if (!studentName) return;
+    const rosterMatch = students.find((row) => row.name === studentName);
+    const existing = profileCollection.query.data?.rows?.find((row) =>
+      rosterMatch ? row.id === rosterMatch.id || row.name === studentName : row.name === studentName
+    );
+
+    let next: StudentProfileRecord | null = null;
+    if (existing && rosterMatch) {
+      next = syncProfileWithRoster(existing, {
+        ...rosterMatch,
+        teacher: rosterMatch.teacher ?? existing.teacher,
+      });
+    } else if (existing) {
+      next = existing;
+    } else if (rosterMatch) {
+      next = buildStudentProfileRecord({
+        ...rosterMatch,
+        teacher: rosterMatch.teacher ?? 'Assigned Teacher',
+      });
+      if (!seededProfileIdsRef.current.has(next.id)) {
+        seededProfileIdsRef.current.add(next.id);
+        seedProfile(next);
+      }
     }
-  }, [studentName]);
+
+    if (!next) {
+      const syntheticId = `STU-${studentName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      next = buildStudentProfileRecord({
+        id: syntheticId,
+        name: studentName,
+        grade: '4th',
+        tier: Tier.TIER_1,
+        gpa: '3.0',
+        attendance: 95,
+        readingLevel: 'M',
+        alerts: 0,
+        teacher: 'Assigned Teacher',
+      });
+      if (!seededProfileIdsRef.current.has(next.id)) {
+        seededProfileIdsRef.current.add(next.id);
+        seedProfile(next);
+      }
+    }
+
+    setDetails(next);
+    setActivityLog(next.recentActivity);
+    setHasMoreHistory(true);
+    setIsLoadingHistory(false);
+    setUploadSuccess(null);
+    setIsEditing(false);
+  }, [profileCollection.query.data?.rows, seedProfile, studentName, students]);
 
   if (!isOpen || !studentName || !details) return null;
 
@@ -82,8 +151,15 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   };
 
   const handleSaveDetails = () => {
+      if (!details) return;
+      const next = {
+        ...details,
+        recentActivity: activityLog,
+        updatedAt: new Date().toISOString(),
+      };
+      setDetails(next);
+      upsertProfile(next);
       setIsEditing(false);
-      // In a real app, save to backend here
   };
 
   const loadOlderHistory = () => {
@@ -95,7 +171,17 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
         { date: 'Oct 12', type: 'Intervention', note: 'Started LLI Group B.' },
         { date: 'Sep 30', type: 'Behavior', note: 'Positive referral: Helping peer.' },
       ];
-      setActivityLog(prev => [...prev, ...olderItems]);
+      const nextActivity = [...activityLog, ...olderItems];
+      setActivityLog(nextActivity);
+      if (details) {
+        const next = {
+          ...details,
+          recentActivity: nextActivity,
+          updatedAt: new Date().toISOString(),
+        };
+        setDetails(next);
+        upsertProfile(next);
+      }
       setHasMoreHistory(false); // Simulating end of history
       setIsLoadingHistory(false);
     }, 800);
@@ -114,31 +200,51 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     setUploadSuccess(null);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      
-      reader.onloadend = async () => {
-        const base64String = reader.result as string;
-        const base64Data = base64String.split(',')[1];
-        
-        const result: AnalyzedDocumentResult = await analyzeUploadedDocument(
-          base64Data, 
-          file.type, 
-          studentName
-        );
-
-        const newEntry = {
-          date: result.date,
-          type: result.type,
-          note: `${result.summary} ${result.suggestedAction ? `(Action: ${result.suggestedAction})` : ''}`,
-          isNew: true,
-          source: 'document'
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result;
+          if (typeof result !== 'string') {
+            reject(new Error('Unable to read file.'));
+            return;
+          }
+          const nextBase64 = result.split(',')[1];
+          if (!nextBase64) {
+            reject(new Error('Invalid file payload.'));
+            return;
+          }
+          resolve(nextBase64);
         };
+        reader.onerror = () => reject(new Error('Unable to read file.'));
+        reader.readAsDataURL(file);
+      });
 
-        setActivityLog(prev => [newEntry, ...prev]);
-        setUploadSuccess("Document analyzed and added to history.");
+      const result: AnalyzedDocumentResult = await analyzeUploadedDocument(
+        base64Data,
+        file.type,
+        studentName
+      );
+
+      const newEntry = {
+        date: result.date,
+        type: result.type,
+        note: `${result.summary} ${result.suggestedAction ? `(Action: ${result.suggestedAction})` : ''}`,
+        isNew: true,
+        source: 'document',
       };
 
+      const nextActivity = [newEntry, ...activityLog];
+      setActivityLog(nextActivity);
+      if (details) {
+        const next = {
+          ...details,
+          recentActivity: nextActivity,
+          updatedAt: new Date().toISOString(),
+        };
+        setDetails(next);
+        upsertProfile(next);
+      }
+      setUploadSuccess("Document analyzed and added to history.");
     } catch (error) {
       console.error("Upload failed", error);
       alert("Failed to analyze document.");

@@ -35,7 +35,7 @@ export const Route = createFileRoute("/api/auth/login")({
         const url = new URL(request.url);
         const state = crypto.randomUUID();
         const returnTo = sanitizeReturnTo(url.searchParams.get("returnTo"));
-        const loginUrl = createWorkOSLoginUrl(state);
+        const loginUrl = createWorkOSLoginUrl(state, request.url);
 
         if (!loginUrl) {
           return Response.json({ ok: false, error: "Failed to initialize WorkOS login URL." }, { status: 500 });

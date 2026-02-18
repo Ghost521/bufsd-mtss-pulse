@@ -12,7 +12,9 @@ export type DataDomain =
   | "settings"
   | "staff"
   | "gradebook-assignments"
-  | "gradebook-grades";
+  | "gradebook-grades"
+  | "student-profiles"
+  | "referrals";
 
 type PersistedDomain =
   | "calendar"
@@ -24,12 +26,15 @@ type PersistedDomain =
   | "settings"
   | "staff"
   | "gradebook_assignments"
-  | "gradebook_grades";
+  | "gradebook_grades"
+  | "student_profiles"
+  | "referrals";
 
 const toPersistedDomain = (domain: DataDomain): PersistedDomain => {
   if (domain === "lesson-plans") return "lesson_plans";
   if (domain === "gradebook-assignments") return "gradebook_assignments";
   if (domain === "gradebook-grades") return "gradebook_grades";
+  if (domain === "student-profiles") return "student_profiles";
   return domain;
 };
 

@@ -216,7 +216,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             </div>
             {isDesktopCollapsed && !isMobile ? null : (
               <div className="overflow-hidden">
-                <h1 id={isMobile ? "workspace-menu-title" : undefined} className="whitespace-nowrap text-lg font-bold leading-tight">
+                <h1 id={isMobile ? "workspace-menu-title" : undefined} className="whitespace-nowrap text-lg font-bold leading-tight text-white">
                   BUFSD MTSS
                 </h1>
                 <p className="max-w-[165px] truncate text-xs font-medium tracking-wide text-slate-400">{schoolName}</p>
@@ -253,7 +253,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         {isDesktopCollapsed && !isMobile ? null : (
           <>
             <div className="mt-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">MTSS Workspace</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">MTSS Workspace</p>
               <p className="text-xs font-semibold text-slate-300">Your role view</p>
             </div>
             <div className="mt-3">
@@ -261,7 +261,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 Search navigation
               </label>
               <div className="relative">
-                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   id={`sidebar-search-${mode}`}
                   ref={searchInputRef}
@@ -290,7 +290,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <button
                     type="button"
                     onClick={() => onGroupToggle(group.id, group.defaultExpanded ?? true)}
-                    className="flex w-full items-center justify-between rounded-md px-3 py-1 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                    className="flex w-full items-center justify-between rounded-md px-3 py-1 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-300"
                     aria-expanded={isExpanded}
                   >
                     {group.label}
@@ -399,7 +399,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               {showSidebarTestControls ? (
                 <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
                   <label className="mb-1 block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">View As Role</label>
-                  <p className="mb-2 text-xs text-slate-500">Choose the perspective for this workspace.</p>
+                  <p className="mb-2 text-xs text-slate-400">Choose the perspective for this workspace.</p>
                   <select
                     value={currentRole}
                     onChange={(event) => onRoleChange(event.target.value as UserRole)}
@@ -436,7 +436,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               {showSidebarTestControls ? (
                 <div className="rounded-xl border border-slate-700 bg-slate-900/55 p-3">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">Workspace Session</p>
-                  <p className="mb-2 text-xs text-slate-500">Update organization context and authentication state.</p>
+                  <p className="mb-2 text-xs text-slate-400">Update organization context and authentication state.</p>
                   <TenantContextSwitcher variant="sidebar" />
                 </div>
               ) : null}

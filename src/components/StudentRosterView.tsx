@@ -65,6 +65,7 @@ interface ExtendedStudent {
 const READING_LEVELS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
 type SortBy = 'Name' | 'GPA' | 'Attendance' | 'Alerts' | 'Tier' | 'Reading';
 const SORT_OPTIONS: SortBy[] = ['Name', 'GPA', 'Attendance', 'Alerts', 'Tier', 'Reading'];
+type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 
 export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ 
   onMenuClick, 
@@ -99,8 +100,9 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
 
   // Attendance Mode State
   const [isAttendanceMode, setIsAttendanceMode] = useState(false);
-  const [attendanceState, setAttendanceState] = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
+  const [attendanceState, setAttendanceState] = useState<Record<string, AttendanceStatus>>({});
   const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
+  const [viewModeBeforeAttendance, setViewModeBeforeAttendance] = useState<'grid' | 'list' | null>(null);
 
   // Bulk Edit / Selection State
   const [isBulkMode, setIsBulkMode] = useState(false);
@@ -214,6 +216,25 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       teacherFilter !== 'All'
   ].filter(Boolean).length;
 
+  const attendanceSummary = useMemo(() => {
+      let present = 0;
+      let absent = 0;
+      let late = 0;
+
+      Object.values(attendanceState).forEach((status) => {
+          if (status === 'Present') present += 1;
+          if (status === 'Absent') absent += 1;
+          if (status === 'Late') late += 1;
+      });
+
+      return {
+          present,
+          absent,
+          late,
+          total: filteredAndSortedStudents.length,
+      };
+  }, [attendanceState, filteredAndSortedStudents.length]);
+
   const clearFilters = () => {
       setTierFilter('All');
       setStatusFilter('All');
@@ -237,9 +258,21 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   };
 
   // Attendance Handlers
+  const handleExitAttendanceMode = () => {
+      setIsAttendanceMode(false);
+      if (viewModeBeforeAttendance) {
+          setViewMode(viewModeBeforeAttendance);
+      }
+      setViewModeBeforeAttendance(null);
+  };
+
   const handleStartAttendance = () => {
     setIsBulkMode(false); // Can't be in both
-    const initial: Record<string, 'Present' | 'Absent' | 'Late'> = {};
+    setShowFilters(false);
+    setIsSortMenuOpen(false);
+    setViewModeBeforeAttendance(viewMode);
+    setViewMode('list');
+    const initial: Record<string, AttendanceStatus> = {};
     // Initialize all visible students to Present by default
     filteredAndSortedStudents.forEach(s => {
         initial[s.id] = 'Present';
@@ -248,9 +281,17 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
     setIsAttendanceMode(true);
   };
 
-  const handleMarkAttendance = (id: string, status: 'Present' | 'Absent' | 'Late', e?: React.MouseEvent) => {
+  const handleMarkAttendance = (id: string, status: AttendanceStatus, e?: React.MouseEvent) => {
       e?.stopPropagation();
       setAttendanceState(prev => ({...prev, [id]: status}));
+  };
+
+  const handleMarkAllAttendance = (status: AttendanceStatus) => {
+      const nextState: Record<string, AttendanceStatus> = {};
+      filteredAndSortedStudents.forEach((student) => {
+          nextState[student.id] = status;
+      });
+      setAttendanceState(nextState);
   };
 
   const handleSubmitAttendance = () => {
@@ -258,7 +299,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       // Simulate API call
       setTimeout(() => {
           setIsSubmittingAttendance(false);
-          setIsAttendanceMode(false);
+          handleExitAttendanceMode();
           // In a real app, you would save this data
           console.log("Attendance Submitted:", attendanceState);
       }, 1500);
@@ -270,7 +311,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
           setIsBulkMode(false);
           setSelectedIds(new Set());
       } else {
-          setIsAttendanceMode(false); // Ensure unique mode
+          handleExitAttendanceMode(); // Ensure unique mode
           setIsBulkMode(true);
       }
   };
@@ -683,7 +724,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                     {isAttendanceMode ? (
                         <>
                             <button 
-                                onClick={() => setIsAttendanceMode(false)}
+                                onClick={handleExitAttendanceMode}
                                 className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
                                 disabled={isSubmittingAttendance}
                             >
@@ -725,6 +766,43 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                     )}
                 </div>
             </div>
+
+            {isAttendanceMode && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                        <span className="rounded-full bg-white px-2.5 py-1 text-emerald-700 border border-emerald-200">
+                            Present {attendanceSummary.present}
+                        </span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-amber-700 border border-amber-200">
+                            Late {attendanceSummary.late}
+                        </span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-rose-700 border border-rose-200">
+                            Absent {attendanceSummary.absent}
+                        </span>
+                        <span className="text-slate-500 ml-1">{attendanceSummary.total} students</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => handleMarkAllAttendance('Present')}
+                            className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                        >
+                            Mark All Present
+                        </button>
+                        <button
+                            onClick={() => handleMarkAllAttendance('Late')}
+                            className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50"
+                        >
+                            Mark All Late
+                        </button>
+                        <button
+                            onClick={() => handleMarkAllAttendance('Absent')}
+                            className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50"
+                        >
+                            Mark All Absent
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* KPI Stats Cards - Only show if not embedded */}
             {!isAttendanceMode && !embedded && !isBulkMode && (
@@ -905,7 +983,10 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tier Level</label>
                         <select 
                             value={tierFilter}
-                            onChange={(e) => setTierFilter(e.target.value)}
+                            onChange={(e) => {
+                                setTierFilter(e.target.value);
+                                setShowFilters(false);
+                            }}
                             className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 cursor-pointer"
                         >
                             <option value="All">All Tiers</option>
@@ -919,7 +1000,10 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
                         <select 
                             value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
+                            onChange={(e) => {
+                                setStatusFilter(e.target.value);
+                                setShowFilters(false);
+                            }}
                             className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 cursor-pointer"
                         >
                             <option value="All">All Statuses</option>
@@ -932,12 +1016,24 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Teacher</label>
                         <select 
                             value={teacherFilter}
-                            onChange={(e) => setTeacherFilter(e.target.value)}
+                            onChange={(e) => {
+                                setTeacherFilter(e.target.value);
+                                setShowFilters(false);
+                            }}
                             className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 cursor-pointer"
                         >
                             <option value="All">All Teachers</option>
                             {TEACHERS.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                    </div>
+
+                    <div className="flex flex-col justify-end">
+                        <button 
+                            onClick={() => setShowFilters(false)}
+                            className="p-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            Done
+                        </button>
                     </div>
 
                     {(activeFilterCount > 0 || searchQuery) && (
@@ -950,6 +1046,57 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                             </button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {(searchQuery || activeFilterCount > 0) && (
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-xs">
+                    <span className="text-slate-500 font-semibold mr-1">
+                        {filteredAndSortedStudents.length} results
+                    </span>
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700"
+                        >
+                            Search: {searchQuery}
+                            <X size={12} />
+                        </button>
+                    )}
+                    {tierFilter !== 'All' && (
+                        <button
+                            onClick={() => setTierFilter('All')}
+                            className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 font-semibold text-rose-700"
+                        >
+                            {tierFilter}
+                            <X size={12} />
+                        </button>
+                    )}
+                    {statusFilter !== 'All' && (
+                        <button
+                            onClick={() => setStatusFilter('All')}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-semibold text-amber-700"
+                        >
+                            {statusFilter}
+                            <X size={12} />
+                        </button>
+                    )}
+                    {teacherFilter !== 'All' && (
+                        <button
+                            onClick={() => setTeacherFilter('All')}
+                            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 font-semibold text-slate-700"
+                        >
+                            {teacherFilter}
+                            <X size={12} />
+                        </button>
+                    )}
+                    <button
+                        onClick={clearFilters}
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-bold text-rose-600 hover:bg-rose-50"
+                    >
+                        <X size={12} />
+                        Clear all
+                    </button>
                 </div>
             )}
         </div>
@@ -1216,7 +1363,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                                                 </button>
                                             </div>
                                         ) : !isBulkMode && (
-                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                 <button onClick={(e) => handleQuickAction(e, 'Edit', student)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600" title="Edit"><Pencil size={16} /></button>
                                                 <button onClick={(e) => handleQuickAction(e, 'Referral', student)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-rose-600" title="Refer"><ShieldAlert size={16} /></button>
                                                 <MoreHorizontal className="text-slate-300 ml-1" size={16} />
@@ -1226,6 +1373,16 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                                 </tr>
                             );
                         })}
+                        {filteredAndSortedStudents.length === 0 && (
+                            <tr>
+                                <td
+                                    colSpan={viewType === 'master' ? 7 : 6}
+                                    className="px-6 py-10 text-center text-slate-500"
+                                >
+                                    No students found for the current filters.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>

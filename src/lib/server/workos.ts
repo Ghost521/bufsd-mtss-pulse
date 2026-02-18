@@ -12,7 +12,7 @@ const WORKOS_COOKIE_PASSWORD = process.env.WORKOS_COOKIE_PASSWORD ?? "";
 const WORKOS_PROVIDER = process.env.WORKOS_PROVIDER ?? "authkit";
 const WORKOS_CONNECTION_ID = process.env.WORKOS_CONNECTION_ID ?? "";
 const APP_BASE_URL = process.env.APP_BASE_URL ?? DEFAULT_BASE_URL;
-const WORKOS_REDIRECT_URI = process.env.WORKOS_REDIRECT_URI ?? `${APP_BASE_URL}/api/auth/callback`;
+const WORKOS_REDIRECT_URI = process.env.WORKOS_REDIRECT_URI ?? "";
 
 const WORKOS_ENABLED = Boolean(WORKOS_API_KEY && WORKOS_CLIENT_ID && WORKOS_COOKIE_PASSWORD);
 
@@ -32,20 +32,34 @@ export const isWorkOSEnabled = (): boolean => WORKOS_ENABLED;
 export const getWorkOSConfigSummary = () => ({
   enabled: WORKOS_ENABLED,
   provider: WORKOS_PROVIDER,
-  redirectUri: WORKOS_REDIRECT_URI,
+  redirectUri: WORKOS_REDIRECT_URI || `${APP_BASE_URL}/api/auth/callback`,
+  redirectUriMode: WORKOS_REDIRECT_URI ? "env" : "derived",
   hasClientId: Boolean(WORKOS_CLIENT_ID),
   hasApiKey: Boolean(WORKOS_API_KEY),
   hasCookiePassword: Boolean(WORKOS_COOKIE_PASSWORD),
 });
 
-export const createWorkOSLoginUrl = (state: string): string | null => {
+const deriveRedirectUri = (requestUrl?: string): string => {
+  if (WORKOS_REDIRECT_URI) return WORKOS_REDIRECT_URI;
+  if (!requestUrl) return `${APP_BASE_URL}/api/auth/callback`;
+
+  try {
+    const origin = new URL(requestUrl).origin;
+    return `${origin}/api/auth/callback`;
+  } catch {
+    return `${APP_BASE_URL}/api/auth/callback`;
+  }
+};
+
+export const createWorkOSLoginUrl = (state: string, requestUrl?: string): string | null => {
   const client = getClient();
   if (!client) return null;
+  const redirectUri = deriveRedirectUri(requestUrl);
 
   const url = client.userManagement.getAuthorizationUrl({
     provider: WORKOS_PROVIDER,
     clientId: WORKOS_CLIENT_ID,
-    redirectUri: WORKOS_REDIRECT_URI,
+    redirectUri,
     state,
     ...(WORKOS_CONNECTION_ID ? { connectionId: WORKOS_CONNECTION_ID } : {}),
   });

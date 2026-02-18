@@ -15,6 +15,22 @@ const UNAUTHORIZED_STATUS: RouteAuthStatus = {
   workosEnabled: false,
 };
 
+const BYPASS_QUERY_KEY = "bypassAuth";
+const BYPASS_QUERY_VALUE = "1";
+
+export const shouldBypassRouteAuth = (href: string): boolean => {
+  // Playwright-only bypass. Never allow in production builds.
+  if (!import.meta.env.DEV) return false;
+  if (!href) return false;
+
+  try {
+    const url = href.startsWith("http") ? new URL(href) : new URL(href, "http://localhost");
+    return url.searchParams.get(BYPASS_QUERY_KEY) === BYPASS_QUERY_VALUE;
+  } catch {
+    return false;
+  }
+};
+
 export const getRouteAuthStatus = async (
   fetchImpl: typeof fetch = fetch
 ): Promise<RouteAuthStatus> => {

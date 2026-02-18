@@ -17,6 +17,8 @@ import { Route as AppPageRouteImport } from './routes/app.$page'
 import { Route as ApiStudentsRouteImport } from './routes/api/students'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiDashboardRouteImport } from './routes/api/dashboard'
+import { Route as ApiExperimentsLandingEventsRouteImport } from './routes/api/experiments/landing-events'
+import { Route as ApiExperimentsLandingRouteImport } from './routes/api/experiments/landing'
 import { Route as ApiDataDomainRouteImport } from './routes/api/data/$domain'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
@@ -63,6 +65,17 @@ const ApiDashboardRoute = ApiDashboardRouteImport.update({
   path: '/api/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiExperimentsLandingEventsRoute =
+  ApiExperimentsLandingEventsRouteImport.update({
+    id: '/api/experiments/landing-events',
+    path: '/api/experiments/landing-events',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiExperimentsLandingRoute = ApiExperimentsLandingRouteImport.update({
+  id: '/api/experiments/landing',
+  path: '/api/experiments/landing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDataDomainRoute = ApiDataDomainRouteImport.update({
   id: '/api/data/$domain',
   path: '/api/data/$domain',
@@ -103,6 +116,8 @@ export interface FileRoutesByFullPath {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/data/$domain': typeof ApiDataDomainRoute
+  '/api/experiments/landing': typeof ApiExperimentsLandingRoute
+  '/api/experiments/landing-events': typeof ApiExperimentsLandingEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +133,8 @@ export interface FileRoutesByTo {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/data/$domain': typeof ApiDataDomainRoute
+  '/api/experiments/landing': typeof ApiExperimentsLandingRoute
+  '/api/experiments/landing-events': typeof ApiExperimentsLandingEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +151,8 @@ export interface FileRoutesById {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/data/$domain': typeof ApiDataDomainRoute
+  '/api/experiments/landing': typeof ApiExperimentsLandingRoute
+  '/api/experiments/landing-events': typeof ApiExperimentsLandingEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +170,8 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/data/$domain'
+    | '/api/experiments/landing'
+    | '/api/experiments/landing-events'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +187,8 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/data/$domain'
+    | '/api/experiments/landing'
+    | '/api/experiments/landing-events'
   id:
     | '__root__'
     | '/'
@@ -181,6 +204,8 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/data/$domain'
+    | '/api/experiments/landing'
+    | '/api/experiments/landing-events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -196,6 +221,8 @@ export interface RootRouteChildren {
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiDataDomainRoute: typeof ApiDataDomainRoute
+  ApiExperimentsLandingRoute: typeof ApiExperimentsLandingRoute
+  ApiExperimentsLandingEventsRoute: typeof ApiExperimentsLandingEventsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -254,6 +281,20 @@ declare module '@tanstack/react-router' {
       path: '/api/dashboard'
       fullPath: '/api/dashboard'
       preLoaderRoute: typeof ApiDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/experiments/landing-events': {
+      id: '/api/experiments/landing-events'
+      path: '/api/experiments/landing-events'
+      fullPath: '/api/experiments/landing-events'
+      preLoaderRoute: typeof ApiExperimentsLandingEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/experiments/landing': {
+      id: '/api/experiments/landing'
+      path: '/api/experiments/landing'
+      fullPath: '/api/experiments/landing'
+      preLoaderRoute: typeof ApiExperimentsLandingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/data/$domain': {
@@ -317,6 +358,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiDataDomainRoute: ApiDataDomainRoute,
+  ApiExperimentsLandingRoute: ApiExperimentsLandingRoute,
+  ApiExperimentsLandingEventsRoute: ApiExperimentsLandingEventsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

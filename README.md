@@ -33,6 +33,7 @@ This contains everything you need to run your app locally.
    - `MTSS_ALLOW_IMPERSONATION=false`
    - `TENANT_AUTH_STORE_KEY=__tenant_auth__`
    - If `WORKOS_PROVISION_AUTO_CREATE=false`, WorkOS user email must already match a local tenant user email.
+   - If using WorkOS demo mode across multiple origins, you can leave `WORKOS_REDIRECT_URI` unset and the app will derive it from the incoming request origin for `/api/auth/login`.
 5. Deploy Convex functions (first time and when schema/functions change):
    - `npm run convex:dev` (local dev + codegen)
    - `npm run convex:deploy` (publish to cloud)

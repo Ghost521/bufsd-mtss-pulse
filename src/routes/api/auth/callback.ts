@@ -39,7 +39,19 @@ export const Route = createFileRoute("/api/auth/callback")({
         const expectedState = cookies[WORKOS_OAUTH_STATE_COOKIE] ?? null;
         const returnTo = sanitizeReturnTo(cookies[WORKOS_RETURN_TO_COOKIE] ?? "/");
         if (!code || !state || !expectedState || state !== expectedState) {
-          return Response.json({ ok: false, error: "Invalid OAuth state or code." }, { status: 400 });
+          const diagnostics =
+            process.env.NODE_ENV === "production"
+              ? undefined
+              : {
+                  hint:
+                    "OAuth state cookie mismatch. Ensure APP_BASE_URL/WORKOS_REDIRECT_URI match the active browser origin.",
+                  hasCode: Boolean(code),
+                  hasState: Boolean(state),
+                  hasExpectedStateCookie: Boolean(expectedState),
+                  callbackOrigin: new URL(request.url).origin,
+                };
+
+          return Response.json({ ok: false, error: "Invalid OAuth state or code.", diagnostics }, { status: 400 });
         }
 
         const auth = await authenticateWorkOSCode(code).catch(() => null);
