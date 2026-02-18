@@ -5,6 +5,9 @@ const DEFAULT_BASE_URL = "http://localhost:3000";
 export const WORKOS_SESSION_COOKIE = "mtss_workos_session";
 export const WORKOS_OAUTH_STATE_COOKIE = "mtss_workos_state";
 export const WORKOS_RETURN_TO_COOKIE = "mtss_workos_return_to";
+type CreateWorkOSLoginUrlOptions = {
+  forcePromptLogin?: boolean;
+};
 
 const WORKOS_API_KEY = process.env.WORKOS_API_KEY ?? "";
 const WORKOS_CLIENT_ID = process.env.WORKOS_CLIENT_ID ?? "";
@@ -51,16 +54,22 @@ const deriveRedirectUri = (requestUrl?: string): string => {
   }
 };
 
-export const createWorkOSLoginUrl = (state: string, requestUrl?: string): string | null => {
+export const createWorkOSLoginUrl = (
+  state: string,
+  requestUrl?: string,
+  options: CreateWorkOSLoginUrlOptions = {}
+): string | null => {
   const client = getClient();
   if (!client) return null;
   const redirectUri = deriveRedirectUri(requestUrl);
+  const prompt = options.forcePromptLogin ? "login" : undefined;
 
   const url = client.userManagement.getAuthorizationUrl({
     provider: WORKOS_PROVIDER,
     clientId: WORKOS_CLIENT_ID,
     redirectUri,
     state,
+    ...(prompt ? { prompt } : {}),
     ...(WORKOS_CONNECTION_ID ? { connectionId: WORKOS_CONNECTION_ID } : {}),
   });
   return url;

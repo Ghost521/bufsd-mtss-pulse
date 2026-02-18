@@ -40,7 +40,7 @@ export const Route = createFileRoute("/api/auth/login")({
         const state = crypto.randomUUID();
         const returnTo = sanitizeReturnTo(url.searchParams.get("returnTo"));
         const forceReauth = isForcedReauth(url.searchParams.get("reauth"));
-        const loginUrl = createWorkOSLoginUrl(state, request.url);
+        const loginUrl = createWorkOSLoginUrl(state, request.url, { forcePromptLogin: forceReauth });
 
         if (!loginUrl) {
           return Response.json({ ok: false, error: "Failed to initialize WorkOS login URL." }, { status: 500 });
