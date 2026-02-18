@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -24,7 +24,8 @@ import {
   Briefcase,
   ChevronDown,
   AlignLeft,
-  Edit
+  Edit,
+  GripVertical
 } from 'lucide-react';
 import type { CalendarEvent, Attachment } from '../types';
 import { EventType, AttendanceStatus, UserRole } from '../types';
@@ -34,6 +35,30 @@ import { suggestMeetingTimes } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
+import {
+  CALENDAR_DAY_END_HOUR,
+  CALENDAR_DAY_START_HOUR,
+  CALENDAR_SLOT_MINUTES,
+  CALENDAR_TOTAL_MINUTES,
+  addDays,
+  clamp,
+  combineDateAndMinutes,
+  endOfDayLocal,
+  eventDurationMinutes,
+  eventOverlapsRange,
+  formatDayHeader,
+  formatEventTimeRange,
+  formatMonthHeader,
+  formatWeekHeader,
+  getWeekDatesLocal,
+  minutesInTimeZoneDay,
+  snapMinutes,
+  startOfDayLocal,
+  toTimeInputValue,
+  toLocalDateInputValue,
+  toTimeZoneDayKey,
+  type CalendarViewMode,
+} from '../lib/calendar-view';
 
 // Initial Mock Groups
 const INITIAL_GROUPS = [
@@ -51,6 +76,20 @@ interface CalendarViewProps {
 type RecurrencePattern = 'None' | 'Daily' | 'Weekly' | 'Monthly';
 const ALL_EVENT_TYPES: EventType[] = Object.values(EventType) as EventType[];
 const MAX_VISIBLE_DAY_EVENTS = 3;
+const CALENDAR_VIEW_STORAGE_KEY = 'calendarViewMode';
+const WEEK_START_DAY = 0; // Sunday
+const HOUR_ROW_HEIGHT = 56;
+
+type DragMode = 'move' | 'resize';
+
+type DragInteractionState = {
+  eventId: string;
+  mode: DragMode;
+  sourceDayIndex: number;
+  originalStart: string;
+  originalEnd: string;
+  durationMinutes: number;
+};
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ 
   currentUserRole, 
@@ -58,10 +97,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onMenuClick
 }) => {
   const calendarCollection = useTenantCollection<CalendarEvent>('calendar');
+  const settingsCollection = useTenantCollection<{ id: string; profile?: { timezone?: string } }>('settings');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    if (typeof window === 'undefined') return 'month';
+    const persisted = window.localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY);
+    if (persisted === 'month' || persisted === 'week' || persisted === 'day') return persisted;
+    return 'month';
+  });
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [dragState, setDragState] = useState<DragInteractionState | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ eventId: string; start: string; end: string } | null>(null);
+  const dragPreviewRef = useRef<{ eventId: string; start: string; end: string } | null>(null);
   
   // Group Management State
   const [groups, setGroups] = useState(INITIAL_GROUPS);
@@ -83,9 +132,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [newEventForm, setNewEventForm] = useState({
     title: '',
     type: EventType.STAFF,
-    date: new Date().toISOString().split('T')[0],
+    date: toLocalDateInputValue(new Date()),
     startTime: '09:00',
      endTime: '10:00',
+     allDay: false,
      description: '',
      location: '',
      recurrencePattern: 'None' as RecurrencePattern,
@@ -106,6 +156,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [isInviteSectionOpen, setIsInviteSectionOpen] = useState(true);
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const timeGridColumnRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const hasHydratedEventsRef = useRef(false);
   const lastPersistedEventsRef = useRef("");
@@ -177,10 +228,46 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setIsInviteSectionOpen(!isCompactViewport);
   }, [isAddModalOpen, isCompactViewport]);
 
+  useEffect(() => {
+    if (!newEventForm.allDay) return;
+    if (newEventForm.startTime === '00:00' && newEventForm.endTime === '23:59') return;
+    setNewEventForm(prev => ({ ...prev, startTime: '00:00', endTime: '23:59' }));
+  }, [newEventForm.allDay, newEventForm.endTime, newEventForm.startTime]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(CALENDAR_VIEW_STORAGE_KEY, viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    dragPreviewRef.current = dragPreview;
+  }, [dragPreview]);
+
+  const browserTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York', []);
+  const userTimeZone = useMemo(() => {
+    const settingsRow = settingsCollection.query.data?.rows?.[0];
+    return settingsRow?.profile?.timezone || browserTimeZone;
+  }, [browserTimeZone, settingsCollection.query.data?.rows]);
+
   // --- Calendar Logic ---
+  const dayStartMinutes = CALENDAR_DAY_START_HOUR * 60;
+  const dayEndMinutes = CALENDAR_DAY_END_HOUR * 60;
+  const slotCount = CALENDAR_TOTAL_MINUTES / CALENDAR_SLOT_MINUTES;
+  const totalGridHeight = slotCount * HOUR_ROW_HEIGHT;
+  const hourTicks = useMemo(
+    () => Array.from({ length: CALENDAR_DAY_END_HOUR - CALENDAR_DAY_START_HOUR + 1 }, (_, index) => CALENDAR_DAY_START_HOUR + index),
+    []
+  );
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   const prevMonthDays = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
+  const weekDays = useMemo(() => getWeekDatesLocal(currentDate, WEEK_START_DAY), [currentDate]);
+  const visibleTimeGridDays = useMemo(() => (viewMode === 'day' ? [startOfDayLocal(currentDate)] : weekDays), [currentDate, viewMode, weekDays]);
+  const gridRangeStart = useMemo(() => startOfDayLocal(visibleTimeGridDays[0]), [visibleTimeGridDays]);
+  const gridRangeEnd = useMemo(
+    () => endOfDayLocal(visibleTimeGridDays[visibleTimeGridDays.length - 1]),
+    [visibleTimeGridDays]
+  );
   
   const calendarDays = useMemo(() => {
     const days: Array<{ day: number; type: 'prev' | 'current' | 'next'; fullDate: Date }> = [];
@@ -200,12 +287,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return days;
   }, [currentDate, daysInMonth, firstDayOfMonth, prevMonthDays]);
 
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const headerTitle = useMemo(() => {
+    if (viewMode === 'month') return formatMonthHeader(currentDate, userTimeZone);
+    if (viewMode === 'week') return formatWeekHeader(weekDays, userTimeZone);
+    return formatDayHeader(currentDate, userTimeZone);
+  }, [currentDate, userTimeZone, viewMode, weekDays]);
+
+  const handlePreviousRange = () => {
+    setCurrentDate(prev => {
+      if (viewMode === 'month') return new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+      if (viewMode === 'week') return addDays(prev, -7);
+      return addDays(prev, -1);
+    });
   };
 
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  const handleNextRange = () => {
+    setCurrentDate(prev => {
+      if (viewMode === 'month') return new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+      if (viewMode === 'week') return addDays(prev, 7);
+      return addDays(prev, 1);
+    });
   };
 
   const handleToday = () => {
@@ -244,12 +345,266 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }, [events, selectedTypes, currentUserName]);
 
   const getEventsForDay = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return filteredEvents.filter(evt => {
-        const evtDate = new Date(evt.start).toISOString().split('T')[0];
-        return evtDate === dateStr;
+    const dayKey = toTimeZoneDayKey(date, userTimeZone);
+    return filteredEvents
+      .filter(evt => {
+        const eventStart = new Date(evt.start);
+        const eventEnd = new Date(evt.end);
+        const evtStartDay = toTimeZoneDayKey(eventStart, userTimeZone);
+        const evtEndDay = toTimeZoneDayKey(new Date(eventEnd.getTime() - 1), userTimeZone);
+        return dayKey >= evtStartDay && dayKey <= evtEndDay;
+      })
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  };
+
+  const getEffectiveEvent = useCallback(
+    (evt: CalendarEvent): CalendarEvent =>
+      dragPreview && dragPreview.eventId === evt.id ? { ...evt, start: dragPreview.start, end: dragPreview.end } : evt,
+    [dragPreview]
+  );
+
+  const isAllDayEvent = useCallback(
+    (evt: CalendarEvent): boolean => {
+      if (evt.allDay) return true;
+      const start = new Date(evt.start);
+      const end = new Date(evt.end);
+      const duration = end.getTime() - start.getTime();
+      const startMinutes = minutesInTimeZoneDay(start, userTimeZone);
+      const endMinutes = minutesInTimeZoneDay(end, userTimeZone);
+      return duration >= 23 * 60 * 60 * 1000 && startMinutes === 0 && (endMinutes === 0 || endMinutes === 23 * 60 + 59);
+    },
+    [userTimeZone]
+  );
+
+  const visibleGridEvents = useMemo(
+    () => filteredEvents.filter(evt => eventOverlapsRange(evt.start, evt.end, gridRangeStart, gridRangeEnd)),
+    [filteredEvents, gridRangeEnd, gridRangeStart]
+  );
+
+  const allDayEventsByDay = useMemo(() => {
+    const byDay: Record<string, CalendarEvent[]> = {};
+    visibleTimeGridDays.forEach(day => {
+      const key = toTimeZoneDayKey(day, userTimeZone);
+      byDay[key] = [];
+    });
+
+    visibleGridEvents.forEach(evt => {
+      const effective = getEffectiveEvent(evt);
+      const allDay = isAllDayEvent(effective);
+      if (!allDay) return;
+      visibleTimeGridDays.forEach(day => {
+        const dayStart = startOfDayLocal(day);
+        const dayEnd = endOfDayLocal(day);
+        if (eventOverlapsRange(effective.start, effective.end, dayStart, dayEnd)) {
+          const key = toTimeZoneDayKey(day, userTimeZone);
+          byDay[key].push(effective);
+        }
+      });
+    });
+    return byDay;
+  }, [getEffectiveEvent, isAllDayEvent, userTimeZone, visibleGridEvents, visibleTimeGridDays]);
+
+  const timedEventsByDay = useMemo(() => {
+    const byDay: Record<string, CalendarEvent[]> = {};
+    visibleTimeGridDays.forEach(day => {
+      const key = toTimeZoneDayKey(day, userTimeZone);
+      byDay[key] = [];
+    });
+
+    visibleGridEvents.forEach(evt => {
+      const effective = getEffectiveEvent(evt);
+      const allDay = isAllDayEvent(effective);
+      if (allDay) return;
+      visibleTimeGridDays.forEach(day => {
+        const dayStart = startOfDayLocal(day);
+        const dayEnd = endOfDayLocal(day);
+        if (eventOverlapsRange(effective.start, effective.end, dayStart, dayEnd)) {
+          const key = toTimeZoneDayKey(day, userTimeZone);
+          byDay[key].push(effective);
+        }
+      });
+    });
+
+    Object.keys(byDay).forEach((key) => {
+      byDay[key].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    });
+    return byDay;
+  }, [getEffectiveEvent, isAllDayEvent, userTimeZone, visibleGridEvents, visibleTimeGridDays]);
+
+  const calculateTimedEventLayout = (event: CalendarEvent, day: Date) => {
+    const eventStart = new Date(event.start);
+    const eventEnd = new Date(event.end);
+    const dayStart = startOfDayLocal(day);
+    const dayEnd = endOfDayLocal(day);
+    const clippedStart = new Date(Math.max(dayStart.getTime(), eventStart.getTime()));
+    const clippedEnd = new Date(Math.min(dayEnd.getTime(), eventEnd.getTime()));
+    const startMinutes = minutesInTimeZoneDay(clippedStart, userTimeZone);
+    const endMinutes = minutesInTimeZoneDay(clippedEnd, userTimeZone);
+    const startOffset = clamp(startMinutes - dayStartMinutes, 0, CALENDAR_TOTAL_MINUTES);
+    const endOffset = clamp(Math.max(startOffset + CALENDAR_SLOT_MINUTES, endMinutes - dayStartMinutes), CALENDAR_SLOT_MINUTES, CALENDAR_TOTAL_MINUTES);
+    const top = (startOffset / CALENDAR_TOTAL_MINUTES) * totalGridHeight;
+    const height = Math.max(36, ((endOffset - startOffset) / CALENDAR_TOTAL_MINUTES) * totalGridHeight);
+    return { top, height, startOffset, endOffset };
+  };
+
+  const buildLaneLayout = (dayEvents: CalendarEvent[], day: Date) => {
+    const positioned = dayEvents.map((event) => ({ event, ...calculateTimedEventLayout(event, day) }));
+    const active: Array<{ endOffset: number; lane: number; resultIndex: number }> = [];
+    const results: Array<{ event: CalendarEvent; top: number; height: number; lane: number; laneCount: number }> = [];
+    let clusterIndexes: number[] = [];
+    let clusterLaneCount = 1;
+
+    const finalizeCluster = () => {
+      clusterIndexes.forEach((index) => {
+        results[index].laneCount = Math.max(1, clusterLaneCount);
+      });
+      clusterIndexes = [];
+      clusterLaneCount = 1;
+    };
+
+    positioned.forEach((item) => {
+      for (let index = active.length - 1; index >= 0; index -= 1) {
+        if (item.startOffset >= active[index].endOffset) {
+          active.splice(index, 1);
+        }
+      }
+
+      if (active.length === 0 && clusterIndexes.length > 0) {
+        finalizeCluster();
+      }
+
+      const usedLanes = new Set(active.map((entry) => entry.lane));
+      let lane = 0;
+      while (usedLanes.has(lane)) lane += 1;
+
+      const resultIndex = results.length;
+      results.push({
+        event: item.event,
+        top: item.top,
+        height: item.height,
+        lane,
+        laneCount: 1,
+      });
+      active.push({ endOffset: item.endOffset, lane, resultIndex });
+      clusterIndexes.push(resultIndex);
+      clusterLaneCount = Math.max(clusterLaneCount, usedLanes.size + 1);
+    });
+
+    if (clusterIndexes.length > 0) {
+      finalizeCluster();
+    }
+
+    return results;
+  };
+
+  const updateEventTiming = useCallback(
+    (eventId: string, nextStart: Date, nextEnd: Date) => {
+      if (nextEnd.getTime() <= nextStart.getTime()) return;
+      setEvents(prev =>
+        prev.map(evt =>
+          evt.id === eventId
+            ? {
+                ...evt,
+                start: nextStart.toISOString(),
+                end: nextEnd.toISOString(),
+                allDay: false,
+                timezone: userTimeZone,
+              }
+            : evt
+        )
+      );
+    },
+    [userTimeZone]
+  );
+
+  const startDragInteraction = (eventId: string, sourceDayIndex: number, mode: DragMode) => {
+    const event = visibleGridEvents.find(item => item.id === eventId);
+    if (!event || isAllDayEvent(event)) return;
+    setDragState({
+      eventId,
+      sourceDayIndex,
+      mode,
+      originalStart: event.start,
+      originalEnd: event.end,
+      durationMinutes: eventDurationMinutes(event.start, event.end),
+    });
+    setDragPreview({
+      eventId,
+      start: event.start,
+      end: event.end,
     });
   };
+
+  useEffect(() => {
+    if (!dragState) return;
+    const onMouseMove = (event: MouseEvent) => {
+      const originalStart = new Date(dragState.originalStart);
+      const durationMinutes = dragState.durationMinutes;
+
+      let targetDayIndex = dragState.sourceDayIndex;
+      for (let index = 0; index < visibleTimeGridDays.length; index += 1) {
+        const rect = timeGridColumnRefs.current[index]?.getBoundingClientRect();
+        if (!rect) continue;
+        if (event.clientX >= rect.left && event.clientX <= rect.right) {
+          targetDayIndex = index;
+          break;
+        }
+      }
+
+      const targetColumn = timeGridColumnRefs.current[targetDayIndex];
+      const targetDay = visibleTimeGridDays[targetDayIndex];
+      if (!targetColumn || !targetDay) return;
+
+      const rect = targetColumn.getBoundingClientRect();
+      const ratio = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+      const minuteFromStart = snapMinutes(dayStartMinutes + ratio * CALENDAR_TOTAL_MINUTES);
+      const boundedMinute = clamp(minuteFromStart, dayStartMinutes, dayEndMinutes);
+
+      if (dragState.mode === 'move') {
+        const nextStart = combineDateAndMinutes(targetDay, boundedMinute);
+        const nextEnd = new Date(nextStart.getTime() + durationMinutes * 60_000);
+        setDragPreview({
+          eventId: dragState.eventId,
+          start: nextStart.toISOString(),
+          end: nextEnd.toISOString(),
+        });
+      } else {
+        const activeDay = startOfDayLocal(originalStart);
+        const fixedStartMinutes = minutesInTimeZoneDay(originalStart, userTimeZone);
+        const nextEndMinutes = clamp(boundedMinute, fixedStartMinutes + CALENDAR_SLOT_MINUTES, dayEndMinutes);
+        const nextStart = combineDateAndMinutes(activeDay, fixedStartMinutes);
+        const nextEnd = combineDateAndMinutes(activeDay, nextEndMinutes);
+        setDragPreview({
+          eventId: dragState.eventId,
+          start: nextStart.toISOString(),
+          end: nextEnd.toISOString(),
+        });
+      }
+    };
+
+    const onMouseUp = () => {
+      const preview = dragPreviewRef.current;
+      if (preview && preview.eventId === dragState.eventId) {
+        updateEventTiming(dragState.eventId, new Date(preview.start), new Date(preview.end));
+      }
+      setDragState(null);
+      setDragPreview(null);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [
+    dayEndMinutes,
+    dayStartMinutes,
+    dragState,
+    updateEventTiming,
+    userTimeZone,
+    visibleTimeGridDays,
+  ]);
 
   // --- Conflict Detection Logic ---
   const detectedConflicts = useMemo(() => {
@@ -288,6 +643,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // --- Interaction Handlers ---
   const handleEventClick = (evt: CalendarEvent) => {
     setSelectedEvent(evt);
+  };
+
+  const openEventComposer = (targetDay: Date, minuteOfDay = dayStartMinutes, allDay = false) => {
+    const snappedMinutes = snapMinutes(minuteOfDay);
+    const nextStart = toTimeInputValue(clamp(snappedMinutes, 0, 24 * 60 - CALENDAR_SLOT_MINUTES));
+    const nextEnd = toTimeInputValue(clamp(snappedMinutes + 60, CALENDAR_SLOT_MINUTES, 24 * 60));
+    setNewEventForm(prev => ({
+      ...prev,
+      date: toLocalDateInputValue(targetDay),
+      startTime: allDay ? '00:00' : nextStart,
+      endTime: allDay ? '23:59' : nextEnd,
+      allDay,
+    }));
+    setIsAddModalOpen(true);
   };
 
   const handleInviteUser = (name: string) => {
@@ -374,14 +743,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleApplySuggestion = (s: {start: string, end: string}) => {
-      setNewEventForm(prev => ({ ...prev, startTime: s.start, endTime: s.end }));
+      setNewEventForm(prev => ({ ...prev, startTime: s.start, endTime: s.end, allDay: false }));
       setAiSuggestions([]); // Clear suggestions after picking
   };
 
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
-    const baseStart = new Date(`${newEventForm.date}T${newEventForm.startTime}`);
-    const baseEnd = new Date(`${newEventForm.date}T${newEventForm.endTime}`);
+    const baseStart = newEventForm.allDay
+      ? new Date(`${newEventForm.date}T00:00:00`)
+      : new Date(`${newEventForm.date}T${newEventForm.startTime}`);
+    const baseEnd = newEventForm.allDay
+      ? new Date(`${newEventForm.date}T23:59:00`)
+      : new Date(`${newEventForm.date}T${newEventForm.endTime}`);
     const duration = baseEnd.getTime() - baseStart.getTime();
     
     const eventsToCreate: CalendarEvent[] = [];
@@ -406,6 +779,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             organizer: currentUserName,
             location: newEventForm.location,
             description: newEventForm.description,
+            allDay: newEventForm.allDay,
+            timezone: userTimeZone,
             attendees: attendeesList,
             attachments: newEventAttachments
         });
@@ -430,6 +805,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 organizer: currentUserName,
                 location: newEventForm.location,
                 description: newEventForm.description,
+                allDay: newEventForm.allDay,
+                timezone: userTimeZone,
                 attendees: attendeesList,
                 attachments: [...newEventAttachments], // Clone array for each instance
                 recurrence: {
@@ -457,9 +834,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setNewEventForm({
         title: '',
         type: EventType.STAFF,
-        date: new Date().toISOString().split('T')[0],
+        date: toLocalDateInputValue(new Date()),
         startTime: '09:00',
         endTime: '10:00',
+        allDay: false,
         description: '',
         location: '',
         recurrencePattern: 'None',
@@ -642,6 +1020,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const isCalendarLoading = calendarCollection.query.isLoading && !hasHydratedEventsRef.current;
   const hasActiveTypeFilters = selectedTypes.length < ALL_EVENT_TYPES.length;
   const isUnauthorizedCalendarError = calendarLoadError ? /401|unauthorized/i.test(calendarLoadError.message) : false;
+  const todayDayKey = toTimeZoneDayKey(new Date(), userTimeZone);
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
@@ -835,8 +1214,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     />
                                 </div>
                             </div>
+
+                            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                    <p className="text-sm font-bold text-slate-700">All-day event</p>
+                                    <p className="text-xs text-slate-500">Show this event in the all-day lane.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setNewEventForm(prev => ({ ...prev, allDay: !prev.allDay }))}
+                                    className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${newEventForm.allDay ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                    aria-label="Toggle all-day event"
+                                    aria-pressed={newEventForm.allDay}
+                                >
+                                    <span
+                                        className={`absolute top-[2px] h-5 w-5 rounded-full bg-white transition-transform ${newEventForm.allDay ? 'translate-x-5' : 'translate-x-0.5'}`}
+                                    />
+                                </button>
+                            </div>
                             
-                            <div className="grid grid-cols-2 gap-5">
+                            <div className={`grid grid-cols-2 gap-5 ${newEventForm.allDay ? 'opacity-50 pointer-events-none' : ''}`}>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Start Time</label>
                                     <div className="relative">
@@ -1248,8 +1645,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 {new Date(selectedEvent.start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             </p>
                             <p className="text-xs font-medium text-slate-500">
-                                {new Date(selectedEvent.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})} - 
-                                {new Date(selectedEvent.end).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}
+                                {selectedEvent.allDay
+                                  ? 'All day'
+                                  : formatEventTimeRange(selectedEvent.start, selectedEvent.end, userTimeZone)}
                             </p>
                         </div>
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-1 group hover:border-indigo-100 transition-colors">
@@ -1385,11 +1783,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         />
                     </div>
                     <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
-                        {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        {headerTitle}
                     </h2>
                     <div className="flex items-center bg-slate-100/80 rounded-lg p-1 border border-slate-200 ml-2">
                         <button
-                            onClick={handlePrevMonth}
+                            onClick={handlePreviousRange}
                             aria-label="Previous month"
                             className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
@@ -1397,7 +1795,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </button>
                         <button onClick={handleToday} className="px-3 py-1 text-xs font-bold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-md">Today</button>
                         <button
-                            onClick={handleNextMonth}
+                            onClick={handleNextRange}
                             aria-label="Next month"
                             className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
@@ -1407,6 +1805,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
                 
                 <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                        {(['month', 'week', 'day'] as CalendarViewMode[]).map(mode => (
+                            <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setViewMode(mode)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+                                    viewMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                }`}
+                            >
+                                {mode}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Filter Dropdown */}
                     <div className="relative">
                         <button 
@@ -1515,105 +1928,264 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
             )}
 
-            {/* Days Header */}
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/30">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                        {day}
+            {viewMode === 'month' ? (
+                <>
+                    {/* Days Header */}
+                    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/30">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                            <div key={day} className="py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                {day}
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
-            
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 grid-rows-6 flex-1 bg-white">
-                {calendarDays.map((dateObj, idx) => {
-                    const eventsForDay = getEventsForDay(dateObj.fullDate);
-                    const visibleEventsForDay = eventsForDay.slice(0, MAX_VISIBLE_DAY_EVENTS);
-                    const remainingEventCount = Math.max(0, eventsForDay.length - visibleEventsForDay.length);
-                    const isToday = dateObj.type === 'current' && 
-                                    dateObj.day === new Date().getDate() && 
-                                    currentDate.getMonth() === new Date().getMonth() && 
-                                    currentDate.getFullYear() === new Date().getFullYear();
+                    
+                    {/* Days Grid */}
+                    <div className="grid grid-cols-7 grid-rows-6 flex-1 bg-white">
+                        {calendarDays.map((dateObj, idx) => {
+                            const eventsForDay = getEventsForDay(dateObj.fullDate);
+                            const visibleEventsForDay = eventsForDay.slice(0, MAX_VISIBLE_DAY_EVENTS);
+                            const remainingEventCount = Math.max(0, eventsForDay.length - visibleEventsForDay.length);
+                            const isToday = dateObj.type === 'current' && 
+                                            dateObj.day === new Date().getDate() && 
+                                            currentDate.getMonth() === new Date().getMonth() && 
+                                            currentDate.getFullYear() === new Date().getFullYear();
 
-                    return (
-                        <div 
-                            key={idx} 
-                            className={`relative min-h-[140px] p-2 transition-all border-b border-r border-slate-100 group ${
-                                dateObj.type === 'current' 
-                                    ? 'bg-white hover:bg-slate-50/30' 
-                                    : 'bg-slate-50/40 text-slate-300'
-                            }`}
-                            onClick={() => {
-                                if (dateObj.type === 'current') {
-                                    setNewEventForm(prev => ({ ...prev, date: dateObj.fullDate.toISOString().split('T')[0] }));
-                                    if (isCompactViewport) {
-                                        setIsAddModalOpen(true);
-                                    }
-                                }
-                            }}
-                        >
-                            <div className="flex justify-between items-start mb-2">
-                                <span className={`text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full transition-transform ${
-                                    isToday 
-                                        ? 'bg-indigo-600 text-white shadow-md scale-110 ring-2 ring-indigo-100' 
-                                        : 'text-slate-500'
-                                }`}>
-                                    {dateObj.day}
-                                </span>
-                                
-                                {/* Quick Add Button (Visible on Hover) */}
-                                {dateObj.type === 'current' && (
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setNewEventForm(prev => ({ ...prev, date: dateObj.fullDate.toISOString().split('T')[0] }));
-                                            setIsAddModalOpen(true);
-                                        }}
-                                        className="p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all shadow-sm opacity-100 scale-100 sm:opacity-0 sm:scale-90 sm:group-hover:opacity-100 sm:group-hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-                                        title="Quick Add Event"
-                                        aria-label={`Quick add event for ${dateObj.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`}
-                                    >
-                                        <Plus size={14} strokeWidth={3} />
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="space-y-1.5">
-                                {visibleEventsForDay.map(evt => {
-                                    const styles = getEventTypeStyles(evt.type);
-                                    return (
-                                    <button 
-                                        key={evt.id}
-                                        onClick={(e) => { e.stopPropagation(); handleEventClick(evt); }}
-                                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-bold truncate shadow-sm hover:shadow transition-all hover:-translate-y-0.5 flex items-center gap-2 bg-opacity-90 hover:bg-opacity-100 ${styles.bg} ${styles.text} border border-transparent ${styles.hoverBorder} group/evt`}
-                                    >
-                                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${styles.dot}`} />
+                            return (
+                                <div 
+                                    key={idx} 
+                                    className={`relative min-h-[140px] p-2 transition-all border-b border-r border-slate-100 group ${
+                                        dateObj.type === 'current' 
+                                            ? 'bg-white hover:bg-slate-50/30' 
+                                            : 'bg-slate-50/40 text-slate-300'
+                                    }`}
+                                    onClick={() => {
+                                        if (dateObj.type !== 'current') return;
+                                        if (isCompactViewport) {
+                                            openEventComposer(dateObj.fullDate, dayStartMinutes, false);
+                                        } else {
+                                            setNewEventForm(prev => ({ ...prev, date: toLocalDateInputValue(dateObj.fullDate) }));
+                                        }
+                                    }}
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className={`text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full transition-transform ${
+                                            isToday 
+                                                ? 'bg-indigo-600 text-white shadow-md scale-110 ring-2 ring-indigo-100' 
+                                                : 'text-slate-500'
+                                        }`}>
+                                            {dateObj.day}
+                                        </span>
                                         
-                                        <div className="flex-1 truncate flex items-center gap-1.5">
-                                            <span className="opacity-70 font-medium text-[10px] tabular-nums">
-                                                {new Date(evt.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'}).replace(' ', '').toLowerCase()}
-                                            </span>
-                                            <span className="truncate">{evt.title}</span>
-                                        </div>
-
-                                        {(evt.recurrence || (evt.attachments && evt.attachments.length > 0)) && (
-                                            <div className="flex items-center gap-0.5 opacity-50">
-                                                {evt.recurrence && <Repeat size={8} />}
-                                                {evt.attachments && evt.attachments.length > 0 && <Paperclip size={8} />}
-                                            </div>
+                                        {/* Quick Add Button (Visible on Hover) */}
+                                        {dateObj.type === 'current' && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openEventComposer(dateObj.fullDate, dayStartMinutes, false);
+                                                }}
+                                                className="p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all shadow-sm opacity-100 scale-100 sm:opacity-0 sm:scale-90 sm:group-hover:opacity-100 sm:group-hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                                title="Quick Add Event"
+                                                aria-label={`Quick add event for ${dateObj.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`}
+                                            >
+                                                <Plus size={14} strokeWidth={3} />
+                                            </button>
                                         )}
-                                    </button>
-                                )})}
-                                {remainingEventCount > 0 && (
-                                    <p className="px-2 text-[10px] font-semibold text-slate-500">
-                                        +{remainingEventCount} more
-                                    </p>
-                                )}
-                            </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        {visibleEventsForDay.map(evt => {
+                                            const styles = getEventTypeStyles(evt.type);
+                                            return (
+                                            <button 
+                                                key={evt.id}
+                                                onClick={(e) => { e.stopPropagation(); handleEventClick(evt); }}
+                                                className={`w-full text-left px-2.5 py-1.5 rounded-md text-[11px] font-bold truncate shadow-sm hover:shadow transition-all hover:-translate-y-0.5 flex items-center gap-2 bg-opacity-90 hover:bg-opacity-100 ${styles.bg} ${styles.text} border border-transparent ${styles.hoverBorder} group/evt`}
+                                            >
+                                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${styles.dot}`} />
+                                                
+                                                <div className="flex-1 truncate flex items-center gap-1.5">
+                                                    <span className="opacity-70 font-medium text-[10px] tabular-nums">
+                                                        {evt.allDay ? 'all day' : new Date(evt.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit', timeZone: userTimeZone}).replace(' ', '').toLowerCase()}
+                                                    </span>
+                                                    <span className="truncate">{evt.title}</span>
+                                                </div>
+
+                                                {(evt.recurrence || (evt.attachments && evt.attachments.length > 0)) && (
+                                                    <div className="flex items-center gap-0.5 opacity-50">
+                                                        {evt.recurrence && <Repeat size={8} />}
+                                                        {evt.attachments && evt.attachments.length > 0 && <Paperclip size={8} />}
+                                                    </div>
+                                                )}
+                                            </button>
+                                        )})}
+                                        {remainingEventCount > 0 && (
+                                            <p className="px-2 text-[10px] font-semibold text-slate-500">
+                                                +{remainingEventCount} more
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
+            ) : (
+                <div className="flex-1 overflow-auto bg-white">
+                    <div className={`${viewMode === 'week' ? 'min-w-[1100px]' : 'min-w-[760px]'}`}>
+                        <div
+                            className="grid border-b border-slate-200 bg-slate-50/70"
+                            style={{ gridTemplateColumns: `76px repeat(${visibleTimeGridDays.length}, minmax(0, 1fr))` }}
+                        >
+                            <div className="py-3 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-r border-slate-200">Time</div>
+                            {visibleTimeGridDays.map(day => {
+                                const dayKey = toTimeZoneDayKey(day, userTimeZone);
+                                const isTodayColumn = dayKey === todayDayKey;
+                                return (
+                                    <div key={dayKey} className={`px-3 py-2 border-r border-slate-200 ${isTodayColumn ? 'bg-indigo-50/60' : ''}`}>
+                                        <p className={`text-xs font-bold uppercase tracking-wide ${isTodayColumn ? 'text-indigo-700' : 'text-slate-500'}`}>
+                                            {day.toLocaleDateString('en-US', { weekday: 'short', timeZone: userTimeZone })}
+                                        </p>
+                                        <p className={`text-sm font-semibold ${isTodayColumn ? 'text-indigo-900' : 'text-slate-800'}`}>
+                                            {day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: userTimeZone })}
+                                        </p>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    );
-                })}
-            </div>
+
+                        <div
+                            className="grid border-b border-slate-200 bg-white"
+                            style={{ gridTemplateColumns: `76px repeat(${visibleTimeGridDays.length}, minmax(0, 1fr))` }}
+                        >
+                            <div className="px-2 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-r border-slate-200">All Day</div>
+                            {visibleTimeGridDays.map(day => {
+                                const dayKey = toTimeZoneDayKey(day, userTimeZone);
+                                const dayAllDayEvents = allDayEventsByDay[dayKey] ?? [];
+                                return (
+                                    <div key={dayKey} className="min-h-[58px] border-r border-slate-200 px-2 py-2 space-y-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => openEventComposer(day, 0, true)}
+                                            className="inline-flex items-center gap-1 rounded-md border border-dashed border-indigo-200 bg-indigo-50/50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100"
+                                        >
+                                            <Plus size={10} />
+                                            Add all-day
+                                        </button>
+                                        {dayAllDayEvents.map(evt => {
+                                            const styles = getEventTypeStyles(evt.type);
+                                            return (
+                                                <button
+                                                    key={`${dayKey}-${evt.id}`}
+                                                    type="button"
+                                                    onClick={() => handleEventClick(evt)}
+                                                    className={`w-full truncate rounded-md px-2 py-1 text-left text-[11px] font-semibold border ${styles.bg} ${styles.text} ${styles.border}`}
+                                                >
+                                                    {evt.title}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div
+                            className="grid"
+                            style={{ gridTemplateColumns: `76px repeat(${visibleTimeGridDays.length}, minmax(0, 1fr))` }}
+                        >
+                            <div className="relative border-r border-slate-200 bg-slate-50/40" style={{ height: totalGridHeight }}>
+                                {hourTicks.map((hour) => (
+                                    <div
+                                        key={hour}
+                                        className="absolute inset-x-0 -translate-y-1/2 px-2 text-[10px] font-semibold text-slate-500"
+                                        style={{ top: ((hour * 60 - dayStartMinutes) / CALENDAR_TOTAL_MINUTES) * totalGridHeight }}
+                                    >
+                                        {new Date(2026, 0, 1, hour, 0).toLocaleTimeString([], { hour: 'numeric' })}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {visibleTimeGridDays.map((day, dayIndex) => {
+                                const dayKey = toTimeZoneDayKey(day, userTimeZone);
+                                const dayTimedEvents = timedEventsByDay[dayKey] ?? [];
+                                const laneLayout = buildLaneLayout(dayTimedEvents, day);
+                                return (
+                                    <div
+                                        key={dayKey}
+                                        ref={(element) => {
+                                            timeGridColumnRefs.current[dayIndex] = element;
+                                        }}
+                                        className="relative border-r border-slate-200 bg-white"
+                                        style={{ height: totalGridHeight }}
+                                        onClick={(event) => {
+                                            if ((event.target as HTMLElement).closest('[data-calendar-event-block="true"]')) return;
+                                            const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                                            const ratio = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+                                            const minute = snapMinutes(dayStartMinutes + ratio * CALENDAR_TOTAL_MINUTES);
+                                            openEventComposer(day, minute, false);
+                                        }}
+                                    >
+                                        {Array.from({ length: slotCount + 1 }, (_, lineIndex) => (
+                                            <div
+                                                key={lineIndex}
+                                                className={`absolute left-0 right-0 border-t ${lineIndex % 2 === 0 ? 'border-slate-200' : 'border-slate-100'}`}
+                                                style={{ top: (lineIndex / slotCount) * totalGridHeight }}
+                                            />
+                                        ))}
+
+                                        {laneLayout.map((entry) => {
+                                            const styles = getEventTypeStyles(entry.event.type);
+                                            const laneWidth = 100 / entry.laneCount;
+                                            const left = entry.lane * laneWidth;
+                                            const showTimeRange = entry.height > 44;
+                                            return (
+                                                <button
+                                                    key={`${dayKey}-${entry.event.id}`}
+                                                    type="button"
+                                                    data-calendar-event-block="true"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleEventClick(entry.event);
+                                                    }}
+                                                    onMouseDown={(event) => {
+                                                        event.stopPropagation();
+                                                        startDragInteraction(entry.event.id, dayIndex, 'move');
+                                                    }}
+                                                    className={`absolute rounded-md border px-2 py-1 text-left shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${styles.bg} ${styles.text} ${styles.border}`}
+                                                    style={{
+                                                        top: entry.top,
+                                                        height: entry.height,
+                                                        left: `calc(${left}% + 2px)`,
+                                                        width: `calc(${laneWidth}% - 4px)`,
+                                                        zIndex: dragState?.eventId === entry.event.id ? 30 : 10,
+                                                    }}
+                                                >
+                                                    <p className="truncate text-[11px] font-bold">{entry.event.title}</p>
+                                                    {showTimeRange ? (
+                                                        <p className="text-[10px] opacity-80">
+                                                            {formatEventTimeRange(entry.event.start, entry.event.end, userTimeZone)}
+                                                        </p>
+                                                    ) : null}
+                                                    <span
+                                                        onMouseDown={(event) => {
+                                                            event.stopPropagation();
+                                                            startDragInteraction(entry.event.id, dayIndex, 'resize');
+                                                        }}
+                                                        className="absolute bottom-0 left-0 right-0 h-2 flex items-center justify-center cursor-ns-resize text-slate-400/70 hover:text-slate-500"
+                                                        data-calendar-event-block="true"
+                                                    >
+                                                        <GripVertical size={10} />
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
       </div>
     </div>
   );

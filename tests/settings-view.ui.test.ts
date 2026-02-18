@@ -19,6 +19,7 @@ const createSettingsRow = () => ({
     displayName: "Nina Principal",
     email: "nina.principal@bufsd.org",
     bio: "",
+    timezone: "America/New_York",
     avatarUrl: null,
   },
   notifications: {

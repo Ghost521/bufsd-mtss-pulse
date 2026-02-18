@@ -40,6 +40,7 @@ const createDefaultRecord = (session: SessionContext): SettingsRecord => {
       displayName: session.user.name,
       email: session.user.email,
       bio: "",
+      timezone: "America/New_York",
       avatarUrl: null,
     },
     notifications: {

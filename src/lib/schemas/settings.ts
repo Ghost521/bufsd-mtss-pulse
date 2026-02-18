@@ -23,6 +23,7 @@ export const profileSettingsSchema = z.object({
   displayName: z.string().trim().min(2, "Display name must be at least 2 characters.").max(80),
   email: z.string().trim().email("Enter a valid email address.").max(160),
   bio: z.string().trim().max(280, "Bio must be 280 characters or fewer."),
+  timezone: z.string().trim().min(1, "Timezone is required.").max(120).default("America/New_York"),
   avatarUrl: z.string().max(2_000_000).nullable().optional(),
 });
 

@@ -37,6 +37,8 @@ export const calendarEventRowSchema = z.object({
   type: z.nativeEnum(EventType),
   start: z.string().datetime("Event start must be an ISO datetime."),
   end: z.string().datetime("Event end must be an ISO datetime."),
+  allDay: z.boolean().optional(),
+  timezone: z.string().trim().min(1).max(120).optional(),
   location: z.string().trim().max(512).optional(),
   organizer: nonEmptyTrimmedString("Organizer", 160),
   attendees: z.array(calendarAttendeeSchema),

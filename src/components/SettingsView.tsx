@@ -41,6 +41,18 @@ const sectionIds = sections.map((s) => s.id);
 const blankStatus = () =>
   Object.fromEntries(sectionIds.map((id) => [id, { saving: false, success: null, error: null }])) as Record<SettingsSectionId, SectionStatus>;
 const blankErrors = () => Object.fromEntries(sectionIds.map((id) => [id, {}])) as Record<SettingsSectionId, Record<string, string>>;
+const timezoneOptions = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Phoenix",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Tokyo",
+];
 
 class ApiRequestError extends Error {
   status: number;
@@ -79,10 +91,12 @@ const createSafeEmail = (name: string): string => {
 };
 
 const fallbackRecord = (name: string, role: UserRole): SettingsRecord => {
+  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
   const safeProfile = {
     displayName: createSafeDisplayName(name),
     email: createSafeEmail(name),
     bio: "",
+    timezone: detectedTimezone,
     avatarUrl: null,
   };
 
@@ -119,6 +133,7 @@ const fallbackRecord = (name: string, role: UserRole): SettingsRecord => {
       displayName: "MTSS User",
       email: "user@bufsd.org",
       bio: "",
+      timezone: detectedTimezone,
       avatarUrl: null,
     },
     notifications: {
@@ -601,6 +616,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
                       <label htmlFor="profile-role" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Role</label>
                       <input id="profile-role" disabled value={currentUserRole} className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500" />
                     </div>
+                  </div>
+                  <div>
+                    <label htmlFor="profile-timezone" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Timezone</label>
+                    <select
+                      id="profile-timezone"
+                      value={draft.profile.timezone}
+                      onChange={(event) => updateSection("profile", { timezone: event.target.value })}
+                      onBlur={() => validateProfileField("timezone", draft.profile.timezone)}
+                      className="w-full max-w-sm rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {timezoneOptions.map((timezone) => (
+                        <option key={timezone} value={timezone}>
+                          {timezone}
+                        </option>
+                      ))}
+                    </select>
+                    {activeErrors.timezone ? <p className="mt-1 text-xs text-rose-600">{activeErrors.timezone}</p> : null}
                   </div>
                   <div>
                     <label htmlFor="profile-email" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">Email</label>

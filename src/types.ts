@@ -52,6 +52,8 @@ export interface CalendarEvent {
   type: EventType;
   start: string; // ISO String
   end: string;   // ISO String
+  allDay?: boolean;
+  timezone?: string;
   location?: string;
   organizer: string;
   attendees: CalendarAttendee[];
