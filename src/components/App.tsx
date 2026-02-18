@@ -40,6 +40,7 @@ import {
 } from '../lib/workspaceRoutes';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useTenantCollection } from '../hooks/useTenantCollection';
+import { useTenantBranding } from '../hooks/useTenantBranding';
 import { useSidebarState } from '../hooks/useSidebarState';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
@@ -218,6 +219,7 @@ const App: React.FC = () => {
   const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>([]);
   const dashboardQuery = useDashboardData(currentRole);
   const documentsCollection = useTenantCollection<RAGDocument>("documents");
+  const { branding } = useTenantBranding();
 
   const roleHeadline = useMemo(
     () =>
@@ -849,6 +851,16 @@ const App: React.FC = () => {
               <p className="mt-1 text-sm font-medium text-slate-600">
                 {data.userName} | {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} | {currentDateLabel}
               </p>
+              <span
+                className="mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
+                style={{
+                  borderColor: "var(--tenant-color-secondary)",
+                  color: "var(--tenant-color-secondary)",
+                  backgroundColor: "color-mix(in srgb, var(--tenant-color-surface) 88%, #ffffff 12%)",
+                }}
+              >
+                Mascot: {branding.mascotName}
+              </span>
               <p
                 className={`mt-1 text-xs font-semibold ${
                   computedFreshness.status === 'stale'
@@ -1348,6 +1360,8 @@ const App: React.FC = () => {
         userName={sidebarDisplayName}
         userAvatarUrl={userAvatarUrl}
         schoolName={data.schoolName}
+        brandLogoUrl={branding.logoUrl}
+        mascotName={branding.mascotName}
         isMobileOpen={sidebarState.isMobileOpen}
         onMobileClose={() => closeMobileMenu(true)}
         activePage={currentViewPage}

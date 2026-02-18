@@ -114,6 +114,10 @@
 
 :root {
   color-scheme: light;
+  --tenant-color-primary: #047857;
+  --tenant-color-secondary: #0f766e;
+  --tenant-color-accent: #ff8e73;
+  --tenant-color-surface: #f4f7f9;
   --app-focus-ring: #047857;
   --app-focus-shadow: rgba(4, 120, 87, 0.28);
 }

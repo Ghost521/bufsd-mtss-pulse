@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowRight, Loader2, MessageSquare, ShieldCheck, Users } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { applyTenantBrandingTheme } from "../lib/branding-theme";
 import { LANDING_COPY } from "../lib/landing-copy";
+import { DEFAULT_DISTRICT_BRANDING, districtBrandingEditableSchema } from "../lib/schemas/branding";
 import {
   LANDING_COPY_EXPERIMENT_ID,
   getVariantFromSearch,
@@ -34,6 +36,7 @@ export function LandingPage() {
   const [variant, setVariant] = useState<LandingCopyVariant>("control");
   const [experimentId, setExperimentId] = useState<string>(LANDING_COPY_EXPERIMENT_ID);
   const [experimentReady, setExperimentReady] = useState(false);
+  const [mascotName, setMascotName] = useState(DEFAULT_DISTRICT_BRANDING.mascotName);
   const impressionTrackedRef = useRef(false);
 
   const loadHealth = useCallback(async () => {
@@ -97,6 +100,25 @@ export function LandingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let next = DEFAULT_DISTRICT_BRANDING;
+    try {
+      const raw = window.localStorage.getItem("mtss_branding_snapshot");
+      if (raw) {
+        const parsed = districtBrandingEditableSchema.safeParse(JSON.parse(raw) as unknown);
+        if (parsed.success) {
+          next = parsed.data;
+        }
+      }
+    } catch {
+      // Ignore malformed snapshot payloads.
+    }
+
+    const applied = applyTenantBrandingTheme(next);
+    setMascotName(applied.mascotName);
+  }, []);
+
   const primaryHref = useMemo(
     () => (workosEnabled ? "/api/auth/login?returnTo=/app" : "/app"),
     [workosEnabled]
@@ -145,11 +167,17 @@ export function LandingPage() {
   }, [experimentReady, trackLandingEvent]);
 
   return (
-    <main className="min-h-screen bg-[#f6f2e9] text-[#3f332d]">
-      <header className="border-b border-[#ede4d5] bg-[#faf7f0]">
+    <main className="min-h-screen text-[#3f332d]" style={{ backgroundColor: "var(--tenant-color-surface)" }}>
+      <header
+        className="border-b bg-[#faf7f0]"
+        style={{
+          borderColor: "color-mix(in srgb, var(--tenant-color-secondary) 22%, #ffffff 78%)",
+          backgroundColor: "color-mix(in srgb, var(--tenant-color-surface) 85%, #ffffff 15%)",
+        }}
+      >
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-4 md:px-8">
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#ff6b5e]" />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "var(--tenant-color-accent)" }} />
             <p className="text-xs font-semibold uppercase tracking-[0.11em] text-[#6f6358]">{copy.brandName}</p>
           </div>
           <nav className="hidden items-center gap-8 text-xs font-semibold text-[#988b7e] md:flex">
@@ -162,7 +190,8 @@ export function LandingPage() {
             <a
               href={copy.header.demoHref}
               onClick={() => trackLandingEvent("cta_header_demo_click", "header", copy.header.demoHref)}
-              className="inline-flex items-center gap-2 rounded-full bg-[#79533f] px-4 py-2 text-xs font-bold text-[#fffaf3] transition-colors hover:bg-[#644432]"
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold text-[#fffaf3] transition-opacity hover:opacity-90"
+              style={{ backgroundColor: "var(--tenant-color-primary)" }}
             >
               {copy.header.demoCta}
             </a>
@@ -205,8 +234,9 @@ export function LandingPage() {
                 className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold ${
                   buttonDisabled
                     ? "cursor-not-allowed bg-[#e6d7c3] text-[#8c7a68]"
-                    : "bg-[#ff8e73] text-[#fffaf3] transition hover:bg-[#f97657]"
+                    : "text-[#fffaf3] transition hover:opacity-90"
                 }`}
+                style={buttonDisabled ? undefined : { backgroundColor: "var(--tenant-color-accent)" }}
                 onClick={() => {
                   if (!buttonDisabled) trackLandingEvent("cta_primary_click", "hero", primaryHref);
                 }}
@@ -224,6 +254,7 @@ export function LandingPage() {
               </a>
             </div>
             <p className="mt-3 text-xs font-medium text-[#9d8f82]">{helperText}</p>
+            <p className="mt-1 text-xs font-medium text-[#9d8f82]">Configured mascot: {mascotName}</p>
             {viewState === "error" ? (
               <button
                 type="button"
@@ -355,7 +386,10 @@ export function LandingPage() {
       </section>
 
       <section id="how-it-works" className="px-5 py-14 md:px-8">
-        <div className="mx-auto w-full max-w-6xl rounded-[22px] bg-[#76523f] px-6 py-9 text-center text-[#fff8f2] md:px-10">
+        <div
+          className="mx-auto w-full max-w-6xl rounded-[22px] px-6 py-9 text-center text-[#fff8f2] md:px-10"
+          style={{ backgroundColor: "var(--tenant-color-primary)" }}
+        >
           <p className="text-xs uppercase tracking-[0.11em] text-[#f3d8c8]">{copy.finalCta.label}</p>
           <h2 className="mt-2 text-3xl font-bold leading-tight md:text-4xl">{copy.finalCta.title}</h2>
           <p className="mx-auto mt-3 max-w-2xl text-sm text-[#f0e1d6]">{copy.finalCta.body}</p>
@@ -366,8 +400,9 @@ export function LandingPage() {
               className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold ${
                 buttonDisabled
                   ? "cursor-not-allowed bg-[#b99784] text-[#f8ece4]"
-                  : "bg-[#ff8b6f] text-white transition hover:bg-[#ff7a5c]"
+                  : "text-white transition hover:opacity-90"
               }`}
+              style={buttonDisabled ? undefined : { backgroundColor: "var(--tenant-color-accent)" }}
               onClick={() => {
                 if (!buttonDisabled) trackLandingEvent("cta_primary_click", "final", primaryHref);
               }}
@@ -391,7 +426,7 @@ export function LandingPage() {
         <div className="mx-auto grid w-full max-w-6xl gap-8 md:grid-cols-[1.5fr_1fr_1fr_1.2fr]">
           <div>
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#ff6b5e]" />
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "var(--tenant-color-accent)" }} />
               <p className="text-xs font-semibold uppercase tracking-[0.11em]">{copy.brandName}</p>
             </div>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-[#9a8b7f]">{copy.footer.body}</p>
@@ -429,8 +464,9 @@ export function LandingPage() {
                 className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-xs font-bold ${
                   buttonDisabled
                     ? "cursor-not-allowed bg-[#d4c3ae] text-[#8f7e6f]"
-                    : "bg-[#7a553f] text-[#fff9f3] hover:bg-[#644432]"
+                    : "text-[#fff9f3] hover:opacity-90"
                 }`}
+                style={buttonDisabled ? undefined : { backgroundColor: "var(--tenant-color-primary)" }}
                 onClick={() => {
                   if (!buttonDisabled) trackLandingEvent("cta_footer_submit_click", "footer", primaryHref);
                 }}

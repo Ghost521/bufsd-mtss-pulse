@@ -11,5 +11,6 @@ export const queryKeys = {
     all: ["data"] as const,
     byDomain: (domain: string) => ["data", domain] as const,
   },
+  branding: ["branding"] as const,
   health: ["health"] as const,
 };

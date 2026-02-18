@@ -33,6 +33,8 @@ interface SidebarProps {
   userName: string;
   userAvatarUrl?: string | null;
   schoolName: string;
+  brandLogoUrl?: string | null;
+  mascotName?: string;
   isMobileOpen: boolean;
   onMobileClose: () => void;
   activePage: WorkspacePageId;
@@ -139,6 +141,8 @@ type SidebarContentProps = {
   userName: string;
   userAvatarUrl?: string | null;
   schoolName: string;
+  brandLogoUrl?: string | null;
+  mascotName?: string;
   activePage: WorkspacePageId;
   isDesktopCollapsed: boolean;
   onDesktopCollapseToggle: () => void;
@@ -160,6 +164,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   userName,
   userAvatarUrl,
   schoolName,
+  brandLogoUrl,
+  mascotName,
   activePage,
   isDesktopCollapsed,
   onDesktopCollapseToggle,
@@ -176,6 +182,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const navGroups = useMemo(() => getMenuGroups(currentRole), [currentRole]);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [brandLogoLoadFailed, setBrandLogoLoadFailed] = useState(false);
 
   const filteredGroups = useMemo(() => {
     if (!normalizedQuery) return navGroups;
@@ -201,25 +208,44 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   }, [userName]);
   const displayName = userName.trim() || "MTSS User";
   const showAvatarImage = Boolean(userAvatarUrl && userAvatarUrl.trim().length > 0 && !avatarLoadFailed);
+  const showBrandLogo = Boolean(brandLogoUrl && brandLogoUrl.trim().length > 0 && !brandLogoLoadFailed);
 
   useEffect(() => {
     setAvatarLoadFailed(false);
   }, [userAvatarUrl]);
+
+  useEffect(() => {
+    setBrandLogoLoadFailed(false);
+  }, [brandLogoUrl]);
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
       <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 p-4">
         <div className="flex items-center justify-between gap-2">
           <div className={`flex items-center gap-3 ${isDesktopCollapsed && !isMobile ? "justify-center" : ""}`}>
-            <div className="rounded-lg bg-brand-600 p-2">
-              <GraduationCap size={22} className="text-white" />
+            <div className="rounded-lg bg-brand-600 p-1.5">
+              {showBrandLogo ? (
+                <img
+                  src={brandLogoUrl ?? undefined}
+                  alt="District logo"
+                  className="h-7 w-7 rounded-md object-cover"
+                  onError={() => setBrandLogoLoadFailed(true)}
+                />
+              ) : (
+                <GraduationCap size={22} className="text-white" />
+              )}
             </div>
             {isDesktopCollapsed && !isMobile ? null : (
               <div className="overflow-hidden">
                 <h1 id={isMobile ? "workspace-menu-title" : undefined} className="whitespace-nowrap text-lg font-bold leading-tight text-white">
-                  BUFSD MTSS
+                  MTSS Pulse
                 </h1>
                 <p className="max-w-[165px] truncate text-xs font-medium tracking-wide text-slate-400">{schoolName}</p>
+                {mascotName ? (
+                  <p className="max-w-[165px] truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-200">
+                    {mascotName}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
@@ -388,6 +414,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-white">{displayName}</p>
                 <p className="truncate text-xs text-slate-400">{schoolName}</p>
+                {mascotName ? <p className="truncate text-[11px] text-brand-200">{mascotName}</p> : null}
                 <span className="mt-2 inline-flex self-start rounded-full border border-brand-400/50 bg-brand-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-100">
                   {currentRole}
                 </span>
@@ -453,6 +480,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userName,
   userAvatarUrl,
   schoolName,
+  brandLogoUrl,
+  mascotName,
   isMobileOpen,
   onMobileClose,
   activePage,
@@ -567,6 +596,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               userName={userName}
               userAvatarUrl={userAvatarUrl}
               schoolName={schoolName}
+              brandLogoUrl={brandLogoUrl}
+              mascotName={mascotName}
               activePage={activePage}
               isDesktopCollapsed={false}
               onDesktopCollapseToggle={onDesktopCollapseToggle}
@@ -596,6 +627,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           userName={userName}
           userAvatarUrl={userAvatarUrl}
           schoolName={schoolName}
+          brandLogoUrl={brandLogoUrl}
+          mascotName={mascotName}
           activePage={activePage}
           isDesktopCollapsed={isDesktopCollapsed}
           onDesktopCollapseToggle={onDesktopCollapseToggle}

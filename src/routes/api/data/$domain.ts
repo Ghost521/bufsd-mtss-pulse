@@ -12,10 +12,17 @@ import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromReques
 import { requirePermission } from "../../../lib/server/rbac";
 import type { AppResource } from "../../../lib/server/tenant-types";
 import { newRequestId } from "../../../lib/server/audit-log";
+import {
+  BrandingStoreError,
+  getOrCreateDistrictBranding,
+  updateDistrictBranding,
+} from "../../../lib/server/branding-store";
+import { districtBrandingEditableSchema } from "../../../lib/schemas/branding";
 import { SettingsStoreError, getOrCreateUserSettings, updateUserSettingsSection } from "../../../lib/server/settings-store";
 import { sectionUpdateRequestSchema } from "../../../lib/schemas/settings";
 
 const parseDomain = (value: string): DataDomain | null => {
+  if (value === "branding") return "branding";
   if (value === "calendar") return "calendar";
   if (value === "messages") return "messages";
   if (value === "documents") return "documents";
@@ -32,6 +39,7 @@ const parseDomain = (value: string): DataDomain | null => {
 };
 
 const toResource = (domain: DataDomain): AppResource => {
+  if (domain === "branding") return "settings";
   if (domain === "lesson-plans") return "lesson_plans";
   if (domain === "gradebook-assignments") return "gradebook_assignments";
   if (domain === "gradebook-grades") return "gradebook_grades";
@@ -82,6 +90,10 @@ export const Route = createFileRoute("/api/data/$domain")({
           const settings = await getOrCreateUserSettings(session);
           return appendActivityCookie(Response.json({ ok: true, rows: [settings], total: 1, requestId }));
         }
+        if (domain === "branding") {
+          const branding = await getOrCreateDistrictBranding(session);
+          return appendActivityCookie(Response.json({ ok: true, rows: [branding], total: 1, requestId }));
+        }
 
         try {
           const rows = await listDomainRows<Record<string, unknown>>(session, domain);
@@ -111,6 +123,16 @@ export const Route = createFileRoute("/api/data/$domain")({
           }
           return Response.json(
             { ok: false, error: "Bulk replace is not supported for settings.", requestId },
+            { status: 405 }
+          );
+        }
+        if (domain === "branding") {
+          const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
+          return Response.json(
+            { ok: false, error: "Bulk replace is not supported for branding.", requestId },
             { status: 405 }
           );
         }
@@ -156,6 +178,16 @@ export const Route = createFileRoute("/api/data/$domain")({
           }
           return Response.json(
             { ok: false, error: "Create is not supported for settings.", requestId },
+            { status: 405 }
+          );
+        }
+        if (domain === "branding") {
+          const permission = requirePermission(session, { resource: toResource(domain), action: "create" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
+          return Response.json(
+            { ok: false, error: "Create is not supported for branding.", requestId },
             { status: 405 }
           );
         }
@@ -234,6 +266,31 @@ export const Route = createFileRoute("/api/data/$domain")({
             return Response.json({ ok: false, error: "Unable to update settings.", requestId }, { status: 500 });
           }
         }
+        if (domain === "branding") {
+          const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
+
+          const body = await parseBody(request);
+          const parsed = districtBrandingEditableSchema.safeParse(body?.data);
+          if (!parsed.success) {
+            return Response.json(
+              { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid branding payload.", requestId },
+              { status: 400 }
+            );
+          }
+
+          try {
+            const updated = await updateDistrictBranding(session, parsed.data);
+            return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
+          } catch (error) {
+            if (error instanceof BrandingStoreError) {
+              return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
+            }
+            return Response.json({ ok: false, error: "Unable to update branding.", requestId }, { status: 500 });
+          }
+        }
 
         const url = new URL(request.url);
         const id = url.searchParams.get("id");
@@ -283,6 +340,12 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (domain === "settings") {
           return Response.json(
             { ok: false, error: "Delete is not supported for settings.", requestId },
+            { status: 405 }
+          );
+        }
+        if (domain === "branding") {
+          return Response.json(
+            { ok: false, error: "Delete is not supported for branding.", requestId },
             { status: 405 }
           );
         }

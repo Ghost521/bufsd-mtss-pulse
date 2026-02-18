@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../lib/query-keys";
 
 export type CollectionDomain =
+  | "branding"
   | "calendar"
   | "messages"
   | "documents"

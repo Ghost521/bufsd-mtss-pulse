@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Bell, Camera, CheckCircle2, Database, Globe, Loader2, LogOut, Mail, RotateCcw, Save, School, Shield, User } from "lucide-react";
+import { AlertCircle, Bell, Camera, CheckCircle2, Database, Globe, Loader2, LogOut, Mail, Palette, RotateCcw, Save, School, Shield, User } from "lucide-react";
 import { UserRole } from "../types";
+import { applyTenantBrandingTheme } from "../lib/branding-theme";
+import {
+  DEFAULT_DISTRICT_BRANDING,
+  districtBrandingEditableSchema,
+  districtBrandingRecordSchema,
+  type DistrictBrandingEditable,
+} from "../lib/schemas/branding";
 import {
   profileSettingsSchema,
   settingsRecordSchema,
@@ -18,6 +25,7 @@ interface SettingsViewProps {
 type SectionStatus = { saving: boolean; success: string | null; error: string | null };
 type SectionItem = { id: SettingsSectionId; label: string; icon: React.ComponentType<{ size?: number }>; roles: UserRole[] | "all" };
 type AuthState = "ok" | "unauthorized" | "forbidden";
+type BrandingStatus = { saving: boolean; success: string | null; error: string | null };
 
 const sections: SectionItem[] = [
   { id: "profile", label: "My Profile", icon: User, roles: "all" },
@@ -53,6 +61,9 @@ const timezoneOptions = [
   "Europe/Paris",
   "Asia/Tokyo",
 ];
+const colorFieldIds: Array<keyof DistrictBrandingEditable["colors"]> = ["primary", "secondary", "accent", "surface"];
+const blankBrandingStatus = (): BrandingStatus => ({ saving: false, success: null, error: null });
+const blankBrandingErrors = (): Record<string, string> => ({});
 
 class ApiRequestError extends Error {
   status: number;
@@ -69,6 +80,20 @@ class ApiRequestError extends Error {
 const parseApiError = async (response: Response): Promise<ApiRequestError> => {
   const payload = (await response.json().catch(() => null)) as { error?: string; requestId?: string } | null;
   return new ApiRequestError(payload?.error ?? `Request failed (${response.status})`, response.status, payload?.requestId ?? null);
+};
+
+const parseBrandingPayload = (payload: unknown): DistrictBrandingEditable => {
+  const data = payload as { rows?: unknown[]; row?: unknown } | null;
+  const fromRows = districtBrandingRecordSchema.safeParse(data?.rows?.[0]);
+  if (fromRows.success) return fromRows.data;
+
+  const fromRow = districtBrandingRecordSchema.safeParse(data?.row);
+  if (fromRow.success) return fromRow.data;
+
+  const editable = districtBrandingEditableSchema.safeParse(data?.row ?? data?.rows?.[0]);
+  if (editable.success) return editable.data;
+
+  return DEFAULT_DISTRICT_BRANDING;
 };
 
 const createSafeDisplayName = (name: string): string => {
@@ -177,6 +202,7 @@ const Toggle: React.FC<{ label: string; checked: boolean; onChange: (checked: bo
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, currentUserName, currentSchoolName }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const brandingLogoInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsSectionId>("profile");
   const [reloadToken, setReloadToken] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -186,6 +212,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
   const [draft, setDraft] = useState<SettingsRecord | null>(null);
   const [status, setStatus] = useState<Record<SettingsSectionId, SectionStatus>>(blankStatus);
   const [errors, setErrors] = useState<Record<SettingsSectionId, Record<string, string>>>(blankErrors);
+  const [branding, setBranding] = useState<DistrictBrandingEditable>(DEFAULT_DISTRICT_BRANDING);
+  const [brandingDraft, setBrandingDraft] = useState<DistrictBrandingEditable>(DEFAULT_DISTRICT_BRANDING);
+  const [brandingStatus, setBrandingStatus] = useState<BrandingStatus>(blankBrandingStatus);
+  const [brandingErrors, setBrandingErrors] = useState<Record<string, string>>(blankBrandingErrors);
 
   const visibleSections = useMemo(
     () => sections.filter((item) => item.roles === "all" || item.roles.includes(currentUserRole)),
@@ -244,6 +274,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
     };
   }, [currentUserName, currentUserRole, reloadToken]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadBranding = async () => {
+      try {
+        const response = await fetch("/api/data/branding");
+        if (!response.ok) throw await parseApiError(response);
+        const payload = (await response.json().catch(() => null)) as unknown;
+        if (!mounted) return;
+        const parsed = parseBrandingPayload(payload);
+        setBranding(parsed);
+        setBrandingDraft(parsed);
+        setBrandingStatus(blankBrandingStatus());
+        setBrandingErrors(blankBrandingErrors());
+      } catch (error) {
+        if (!mounted) return;
+        if (error instanceof ApiRequestError && error.status !== 401 && error.status !== 403) {
+          setBrandingStatus({ saving: false, success: null, error: error.message });
+        } else {
+          setBrandingStatus(blankBrandingStatus());
+        }
+        setBranding(DEFAULT_DISTRICT_BRANDING);
+        setBrandingDraft(DEFAULT_DISTRICT_BRANDING);
+        setBrandingErrors(blankBrandingErrors());
+      }
+    };
+
+    void loadBranding();
+    return () => {
+      mounted = false;
+    };
+  }, [reloadToken]);
+
   const updateSection = <T extends SettingsSectionId>(section: T, patch: Partial<SettingsRecord[T]>) => {
     setDraft((previous) => (previous ? { ...previous, [section]: { ...previous[section], ...patch } } : previous));
     const patchKeys = Object.keys(patch);
@@ -261,6 +324,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
     }));
   };
 
+  const updateBrandingDraft = (patch: Partial<DistrictBrandingEditable>) => {
+    setBrandingDraft((previous) => ({
+      ...previous,
+      ...patch,
+      colors: { ...previous.colors, ...patch.colors },
+    }));
+    setBrandingStatus((previous) => ({ ...previous, success: null, error: null }));
+  };
+
   const isDirty = (section: SettingsSectionId) => (!!record && !!draft ? JSON.stringify(record[section]) !== JSON.stringify(draft[section]) : false);
   const isSectionDirty = (section: SettingsSectionId) => isDirty(section);
   const dirtySectionCount = sectionIds.filter((sectionId) => isSectionDirty(sectionId)).length;
@@ -268,10 +340,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
     !!record && !!draft
       ? sectionIds.some((sectionId) => JSON.stringify(record[sectionId]) !== JSON.stringify(draft[sectionId]))
       : false;
+  const isBrandingDirty = JSON.stringify(branding) !== JSON.stringify(brandingDraft);
+  const canManageBranding = currentUserRole === UserRole.DISTRICT && authState === "ok";
 
   const requestTabChange = (nextTab: SettingsSectionId): boolean => {
     if (nextTab === activeTab) return true;
-    const currentDirty = isSectionDirty(activeTab);
+    const currentDirty = isSectionDirty(activeTab) || (activeTab === "system" && isBrandingDirty);
     if (currentDirty && !status[activeTab].saving && authState === "ok") {
       const shouldLeave = window.confirm("You have unsaved changes in this section. Leave without saving?");
       if (!shouldLeave) return false;
@@ -281,14 +355,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
   };
 
   useEffect(() => {
-    if (!hasUnsavedChanges || authState !== "ok") return;
+    if ((!hasUnsavedChanges && !isBrandingDirty) || authState !== "ok") return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [hasUnsavedChanges, authState]);
+  }, [hasUnsavedChanges, isBrandingDirty, authState]);
 
   const resetSection = (section: SettingsSectionId) => {
     if (!record) return;
@@ -360,6 +434,97 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
         },
       }));
     }
+  };
+
+  const resetBranding = () => {
+    setBrandingDraft(branding);
+    setBrandingErrors(blankBrandingErrors());
+    setBrandingStatus(blankBrandingStatus());
+    const applied = applyTenantBrandingTheme(branding);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("mtss_branding_snapshot", JSON.stringify(applied));
+    }
+  };
+
+  const saveBranding = async () => {
+    if (!canManageBranding) {
+      setBrandingStatus({
+        saving: false,
+        success: null,
+        error:
+          authState === "unauthorized"
+            ? "Session expired. Sign in again to update district branding."
+            : "Only district administrators can update district branding.",
+      });
+      return;
+    }
+
+    const parsed = districtBrandingEditableSchema.safeParse(brandingDraft);
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.issues.reduce<Record<string, string>>((acc, issue) => {
+        const key = issue.path.length > 0 ? issue.path.join(".") : "root";
+        acc[key] = issue.message;
+        return acc;
+      }, {});
+      setBrandingErrors(fieldErrors);
+      setBrandingStatus({ saving: false, success: null, error: "Please resolve branding validation errors before saving." });
+      return;
+    }
+
+    setBrandingStatus({ saving: true, success: null, error: null });
+    try {
+      const response = await fetch("/api/data/branding", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: parsed.data }),
+      });
+      if (!response.ok) throw await parseApiError(response);
+      const payload = (await response.json().catch(() => null)) as unknown;
+      const next = parseBrandingPayload(payload);
+      setBranding(next);
+      setBrandingDraft(next);
+      setBrandingErrors(blankBrandingErrors());
+      setBrandingStatus({ saving: false, success: "District branding updated.", error: null });
+      const applied = applyTenantBrandingTheme(next);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("mtss_branding_snapshot", JSON.stringify(applied));
+      }
+    } catch (error) {
+      setBrandingStatus({
+        saving: false,
+        success: null,
+        error:
+          error instanceof ApiRequestError && error.status === 403
+            ? "Only district administrators can update district branding."
+            : error instanceof ApiRequestError && error.status === 401
+              ? "Session expired. Sign in again to update district branding."
+              : error instanceof Error
+                ? error.message
+                : "Unable to update district branding.",
+      });
+    }
+  };
+
+  const onBrandingLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setBrandingErrors((previous) => ({ ...previous, logoUrl: "Please upload an image file." }));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setBrandingErrors((previous) => ({ ...previous, logoUrl: "Image must be 2MB or smaller." }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const value = (reader.result as string) ?? null;
+      updateBrandingDraft({ logoUrl: value });
+      if (value) {
+        applyTenantBrandingTheme({ ...brandingDraft, logoUrl: value });
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const onAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -825,6 +990,169 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
                   />
                 </div>
               ))}
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
+                      <Palette size={14} />
+                      District Branding
+                    </p>
+                    <h3 className="mt-1 text-lg font-bold text-slate-900">Colors, logo, and mascot defaults</h3>
+                    <p className="mt-1 text-xs text-slate-600">
+                      This branding applies across workspace surfaces for all schools in the district context.
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${
+                      canManageBranding ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {canManageBranding ? "Editable" : "Read only"}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                  <div
+                    className="rounded-xl border p-4 shadow-sm"
+                    style={{ borderColor: brandingDraft.colors.secondary, backgroundColor: brandingDraft.colors.surface }}
+                  >
+                    <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/90 ring-1 ring-black/10">
+                      {brandingDraft.logoUrl ? (
+                        <img src={brandingDraft.logoUrl} alt="District logo preview" className="h-11 w-11 rounded-full object-cover" />
+                      ) : (
+                        <Palette size={18} style={{ color: brandingDraft.colors.primary }} />
+                      )}
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">{brandingDraft.mascotName}</p>
+                    <p className="mt-1 text-xs text-slate-600">Mascot and logo preview</p>
+                    <div className="mt-3 flex items-center gap-2">
+                      {colorFieldIds.map((field) => (
+                        <span
+                          key={field}
+                          className="h-5 w-5 rounded-full border border-white/80 shadow-sm"
+                          style={{ backgroundColor: brandingDraft.colors[field] }}
+                          aria-label={`${field} color`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="branding-mascot-name" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Mascot Name
+                      </label>
+                      <input
+                        id="branding-mascot-name"
+                        value={brandingDraft.mascotName}
+                        disabled={!canManageBranding}
+                        onChange={(event) => updateBrandingDraft({ mascotName: event.target.value })}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      />
+                      {brandingErrors.mascotName ? <p className="mt-1 text-xs text-rose-600">{brandingErrors.mascotName}</p> : null}
+                    </div>
+
+                    <div>
+                      <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">District Logo</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={!canManageBranding}
+                          onClick={() => brandingLogoInputRef.current?.click()}
+                          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        >
+                          <Camera size={14} />
+                          Upload Logo
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canManageBranding || !brandingDraft.logoUrl}
+                          onClick={() => updateBrandingDraft({ logoUrl: null })}
+                          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <input ref={brandingLogoInputRef} type="file" className="hidden" accept="image/*" onChange={onBrandingLogoChange} />
+                      {brandingErrors.logoUrl ? <p className="mt-1 text-xs text-rose-600">{brandingErrors.logoUrl}</p> : null}
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {colorFieldIds.map((field) => (
+                        <div key={field}>
+                          <label htmlFor={`branding-color-${field}`} className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                            {field}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              id={`branding-color-${field}`}
+                              type="color"
+                              value={brandingDraft.colors[field]}
+                              disabled={!canManageBranding}
+                              onChange={(event) => {
+                                const nextColors = { ...brandingDraft.colors, [field]: event.target.value };
+                                updateBrandingDraft({ colors: nextColors });
+                                applyTenantBrandingTheme({ ...brandingDraft, colors: nextColors });
+                              }}
+                              className="h-9 w-11 rounded border border-slate-300 bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                            />
+                            <input
+                              value={brandingDraft.colors[field]}
+                              disabled={!canManageBranding}
+                              onChange={(event) => {
+                                const nextColors = { ...brandingDraft.colors, [field]: event.target.value };
+                                updateBrandingDraft({ colors: nextColors });
+                              }}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+                            />
+                          </div>
+                          {brandingErrors[`colors.${field}`] ? (
+                            <p className="mt-1 text-xs text-rose-600">{brandingErrors[`colors.${field}`]}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {brandingStatus.error ? (
+                  <p className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-rose-700">
+                    <AlertCircle size={14} />
+                    {brandingStatus.error}
+                  </p>
+                ) : null}
+                {brandingStatus.success ? (
+                  <p className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+                    <CheckCircle2 size={14} />
+                    {brandingStatus.success}
+                  </p>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                  {!canManageBranding ? (
+                    <p className="mr-auto text-xs font-semibold text-slate-500">District admin role required to save branding changes.</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={!canManageBranding || !isBrandingDirty || brandingStatus.saving}
+                    onClick={resetBranding}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                    <RotateCcw size={14} />
+                    Reset Branding
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canManageBranding || !isBrandingDirty || brandingStatus.saving}
+                    onClick={() => void saveBranding()}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {brandingStatus.saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    {brandingStatus.saving ? "Saving..." : "Save Branding"}
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
           </fieldset>

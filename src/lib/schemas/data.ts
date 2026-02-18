@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ApprovalStatus, AttendanceStatus, DocumentScope, EventType, Tier, UserRole } from "../../types";
+import { districtBrandingRecordSchema } from "./branding";
 import { settingsRecordSchema } from "./settings";
 
 const nonEmptyTrimmedString = (label: string, max = 4_000) =>
@@ -271,6 +272,7 @@ export const referralRowSchema = z.object({
 });
 
 export const dataDomainRowSchemaMap = {
+  branding: districtBrandingRecordSchema,
   calendar: calendarEventRowSchema,
   messages: conversationRowSchema,
   documents: documentRowSchema,
@@ -286,6 +288,7 @@ export const dataDomainRowSchemaMap = {
 } as const;
 
 export const dataDomainCollectionSchemaMap = {
+  branding: z.array(districtBrandingRecordSchema),
   calendar: z.array(calendarEventRowSchema),
   messages: z.array(conversationRowSchema),
   documents: z.array(documentRowSchema),

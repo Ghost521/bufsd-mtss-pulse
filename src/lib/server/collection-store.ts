@@ -3,6 +3,7 @@ import type { SessionContext } from "./tenant-types";
 import { dataDomainCollectionSchemaMap, dataDomainRowSchemaMap } from "../schemas/data";
 
 export type DataDomain =
+  | "branding"
   | "calendar"
   | "messages"
   | "documents"
@@ -17,6 +18,7 @@ export type DataDomain =
   | "referrals";
 
 type PersistedDomain =
+  | "branding"
   | "calendar"
   | "messages"
   | "documents"
