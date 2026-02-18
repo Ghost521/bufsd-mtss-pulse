@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --react-plugin --vitest-plugin --ignore-pattern dist/** --ignore-pattern node_modules/** --ignore-pattern convex/_generated/** .",
     "test": "vitest run",
+    "test:sidebar-bounds": "vitest run tests/sidebar-layout.containment.test.ts",
     "test:watch": "vitest",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",

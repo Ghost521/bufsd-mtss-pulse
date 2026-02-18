@@ -196,7 +196,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   }, [userName]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
       <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 p-4">
         <div className="flex items-center justify-between gap-2">
           <div className={`flex items-center gap-3 ${isDesktopCollapsed && !isMobile ? "justify-center" : ""}`}>
@@ -226,7 +226,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             <button
               type="button"
               onClick={onDesktopCollapseToggle}
-              className="hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+              className={
+                isDesktopCollapsed
+                  ? "hidden"
+                  : "hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+              }
               aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
@@ -524,7 +528,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="workspace-menu-title"
-            className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-slate-900 text-white shadow-xl lg:hidden"
+            className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-hidden bg-slate-900 text-white shadow-xl lg:hidden"
           >
             <SidebarContent
               mode="mobile"
@@ -550,7 +554,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 hidden bg-slate-900 text-white shadow-xl transition-[width] duration-200 lg:flex ${
+        className={`fixed inset-y-0 left-0 z-30 hidden overflow-hidden bg-slate-900 text-white shadow-xl transition-[width] duration-200 lg:flex ${
           isDesktopCollapsed ? "w-20" : "w-64"
         }`}
       >
