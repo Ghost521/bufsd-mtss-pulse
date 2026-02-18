@@ -583,7 +583,7 @@ const App: React.FC = () => {
     setShowBriefing(true);
     setBriefing(''); // Clear previous briefing
     setBriefingError(null);
-    setFlashMessage({ tone: 'info', text: 'Generating AI briefing...' });
+    setFlashMessage({ tone: 'info', text: 'Generating AI summary...' });
     
     // Reset feedback UI for new generation
     setShowFeedbackInput(false);
@@ -595,9 +595,9 @@ const App: React.FC = () => {
       const nextBriefing = await generateDashboardBriefing(data, feedbackHistory);
       setBriefing(nextBriefing);
       setBriefingGeneratedAt(new Date().toISOString());
-      setFlashMessage({ tone: 'success', text: 'AI briefing generated.' });
+      setFlashMessage({ tone: 'success', text: 'AI summary generated.' });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unable to generate AI briefing.';
+      const errorMessage = error instanceof Error ? error.message : 'Unable to generate AI summary.';
       setBriefing(null);
       setBriefingError(errorMessage);
       setFlashMessage({ tone: 'error', text: errorMessage });
@@ -741,7 +741,7 @@ const App: React.FC = () => {
       },
       {
         id: 'ai-brief',
-        label: isGenerating ? 'Generating...' : showBriefing ? 'Refresh AI Brief' : 'Generate AI Brief',
+        label: isGenerating ? 'Generating...' : showBriefing ? 'Refresh Summary' : 'Generate Summary',
         enabled: !isGenerating,
         onClick: () => {
           void handleGenerateInsight();
@@ -846,7 +846,7 @@ const App: React.FC = () => {
               className="-ml-2 rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 lg:hidden"
             />
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Dashboard</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
               <h2 className="truncate text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">{roleHeadline[currentRole]}</h2>
               <p className="mt-1 text-sm font-medium text-slate-600">
                 {data.userName} | {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} | {currentDateLabel}
@@ -870,7 +870,7 @@ const App: React.FC = () => {
                       : 'text-slate-500'
                 }`}
               >
-                {freshnessLabel} | Tenant workspace data
+                {freshnessLabel} | Live tenant feed
               </p>
             </div>
           </div>
@@ -935,7 +935,7 @@ const App: React.FC = () => {
         <div className="flex items-start justify-between gap-3">
           <h3 className="flex items-center gap-2 text-lg font-bold text-indigo-900">
             <Bot size={20} className="text-indigo-600" />
-            AI {currentRole === UserRole.PARENT ? 'Assistant' : 'Executive Summary'}
+            {currentRole === UserRole.PARENT ? 'AI Assistant' : 'AI Summary'}
           </h3>
           {!isGenerating && briefing && !feedbackSubmitted && !showFeedbackInput ? (
             <div className="flex items-center gap-2 text-sm text-indigo-400">
@@ -949,7 +949,7 @@ const App: React.FC = () => {
         {isGenerating ? (
           <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-700">
             <Loader2 size={16} className="animate-spin" />
-            Building executive summary from current dashboard context...
+            Building summary from current dashboard context...
           </div>
         ) : null}
 
@@ -962,7 +962,7 @@ const App: React.FC = () => {
               onClick={() => void handleGenerateInsight()}
               className="mt-2 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
             >
-              Retry AI Brief
+              Retry Summary
             </button>
           </div>
         ) : null}
@@ -1005,7 +1005,7 @@ const App: React.FC = () => {
                 ? new Date(briefingGeneratedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
                 : 'Not generated yet'}
             </p>
-            <p><span className="font-semibold text-slate-700">Source Confidence:</span> AI + tenant workspace data</p>
+            <p><span className="font-semibold text-slate-700">Source:</span> AI + live tenant data</p>
           </div>
         ) : null}
 
@@ -1019,7 +1019,7 @@ const App: React.FC = () => {
                   <MessageSquare size={16} className="absolute left-3 top-3 text-indigo-400" />
                   <input
                     type="text"
-                    placeholder="Improve this briefing?..."
+                    placeholder="Improve this summary?..."
                     value={feedbackText}
                     onChange={(e) => setFeedbackText(e.target.value)}
                     className="w-full rounded-lg border border-indigo-200 bg-white/80 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1105,7 +1105,11 @@ const App: React.FC = () => {
 
           {showBriefing ? (
             <div className="space-y-2">
-              {renderMobileSectionHeader('aiBriefing', 'Leadership Briefing', 'Top risks and recommended next steps')}
+              {renderMobileSectionHeader(
+                'aiBriefing',
+                currentRole === UserRole.PARENT ? 'Assistant Summary' : 'Summary',
+                'Top risks and recommended next steps'
+              )}
               <div className={`${mobileSections.aiBriefing ? 'block' : 'hidden'} lg:block`}>{renderAIBriefing()}</div>
             </div>
           ) : null}
@@ -1118,7 +1122,7 @@ const App: React.FC = () => {
                 <div className="mb-6 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800">{data.chartTitle}</h3>
-                    <p className="text-sm text-slate-500">Outcome Trend View</p>
+                    <p className="text-sm text-slate-500">Trend</p>
                   </div>
                 </div>
 

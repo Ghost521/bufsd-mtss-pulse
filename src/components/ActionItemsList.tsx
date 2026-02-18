@@ -170,17 +170,18 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
   };
 
   const visibleTotal = typeof totalCount === 'number' ? Math.max(totalCount, localItems.length) : localItems.length;
+  const caseCountLabel = `${localItems.length} ${localItems.length === 1 ? 'case' : 'cases'} ready for review.`;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden">
       
       <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
         <div>
-           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            Priority Student Support Actions
+          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            Priority Support Actions
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-             {localItems.length} student cases ready for team review.
+             {caseCountLabel}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
@@ -194,7 +195,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
            <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
               <CheckCircle2 size={48} className="text-emerald-200 mb-4" />
               <p className="font-medium text-slate-600">All caught up!</p>
-              <p className="text-sm">No student cases currently flagged for follow-up.</p>
+              <p className="text-sm">No cases currently flagged for follow-up.</p>
            </div>
         ) : (
           localItems.map((item) => (
@@ -269,7 +270,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
               onClick={onViewAll}
               className="text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
             >
-            View all flagged student cases in reports ({visibleTotal})
+            View all cases in reports ({visibleTotal})
             </button>
         </div>
       )}
