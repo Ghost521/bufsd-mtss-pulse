@@ -97,6 +97,15 @@ type HealthSessionResponse = {
   } | null;
 };
 
+type SettingsAvatarResponse = {
+  rows?: Array<{
+    profile?: {
+      displayName?: unknown;
+      avatarUrl?: unknown;
+    };
+  }>;
+};
+
 const ALL_WORKSPACE_ROLES: UserRole[] = [
   UserRole.PRINCIPAL,
   UserRole.TEACHER,
@@ -122,7 +131,7 @@ const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | n
 const createEmptyDashboardData = (role: UserRole): DashboardData => ({
   role,
   userName: "",
-  schoolName: "Workspace",
+  schoolName: "School Workspace",
   metrics: [],
   actionItems: [],
   tierDistribution: [],
@@ -144,6 +153,8 @@ const App: React.FC = () => {
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>(ALL_WORKSPACE_ROLES);
   const [data, setData] = useState<DashboardData>(createEmptyDashboardData(UserRole.PRINCIPAL));
+  const [settingsDisplayName, setSettingsDisplayName] = useState<string | null>(null);
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [hasHydrated, setHasHydrated] = useState(false);
   const menuTriggerRef = useRef<HTMLElement | null>(null);
   const hasInitializedRoleResetRef = useRef(false);
@@ -205,6 +216,7 @@ const App: React.FC = () => {
   
   // Referral Modal
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
+  const [referralQueueFocusId, setReferralQueueFocusId] = useState<string | null>(null);
 
   // RAG Document State
   const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>([]);
@@ -321,6 +333,38 @@ const App: React.FC = () => {
     if (!dashboardQuery.data?.data) return;
     setData(dashboardQuery.data.data);
   }, [dashboardQuery.data]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadUserAvatar = async () => {
+      try {
+        const response = await fetch("/api/data/settings");
+        if (!response.ok) {
+          if (mounted) setUserAvatarUrl(null);
+          return;
+        }
+        const payload = (await response.json()) as SettingsAvatarResponse;
+        const displayName = payload.rows?.[0]?.profile?.displayName;
+        const candidate = payload.rows?.[0]?.profile?.avatarUrl;
+        if (!mounted) return;
+        setSettingsDisplayName(typeof displayName === "string" && displayName.trim().length > 0 ? displayName : null);
+        setUserAvatarUrl(typeof candidate === "string" && candidate.trim().length > 0 ? candidate : null);
+      } catch {
+        if (mounted) {
+          setSettingsDisplayName(null);
+          setUserAvatarUrl(null);
+        }
+      }
+    };
+
+    void loadUserAvatar();
+    return () => {
+      mounted = false;
+    };
+  }, [currentRole, data.userName]);
+
+  const sidebarDisplayName = data.userName.trim() || settingsDisplayName || "MTSS User";
 
   useEffect(() => {
     if (!documentsCollection.query.data?.rows) return;
@@ -480,6 +524,9 @@ const App: React.FC = () => {
 
   const navigateToPage = (page: WorkspacePageId) => {
     const nextPage = normalizePageForRole(currentRole, page);
+    if (nextPage !== 'interventions') {
+      setReferralQueueFocusId(null);
+    }
     setActivePage(nextPage);
     closeMobileMenu();
     void navigate({ to: buildWorkspacePath(nextPage) });
@@ -1235,6 +1282,8 @@ const App: React.FC = () => {
           <InterventionManager
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
             onMenuClick={openMobileMenu}
+            highlightedReferralId={referralQueueFocusId}
+            onReferralHighlightConsumed={() => setReferralQueueFocusId(null)}
           />
         );
       case 'settings':
@@ -1279,8 +1328,10 @@ const App: React.FC = () => {
         <ReferralModal 
           isOpen={isReferralModalOpen} 
           onClose={() => setIsReferralModalOpen(false)}
-          onViewQueue={() => {
-            navigateToPage(currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER ? 'interventions' : 'reports');
+          onViewQueue={(referralId) => {
+            const routeToInterventions = currentRole === UserRole.PRINCIPAL || currentRole === UserRole.TEACHER;
+            setReferralQueueFocusId(routeToInterventions ? (referralId ?? null) : null);
+            navigateToPage(routeToInterventions ? 'interventions' : 'reports');
           }}
         />
       </Suspense>
@@ -1289,7 +1340,8 @@ const App: React.FC = () => {
         currentRole={currentRole} 
         availableRoles={availableRoles}
         onRoleChange={handleRoleChange}
-        userName={data.userName}
+        userName={sidebarDisplayName}
+        userAvatarUrl={userAvatarUrl}
         schoolName={data.schoolName}
         isMobileOpen={sidebarState.isMobileOpen}
         onMobileClose={() => closeMobileMenu(true)}

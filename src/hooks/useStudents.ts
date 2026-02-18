@@ -80,13 +80,14 @@ const deleteStudent = async (payload: DeleteStudentPayload): Promise<StudentRost
   return data.row;
 };
 
-export const useStudents = (scope: "master" | "class") => {
+export const useStudents = (scope: "master" | "class", options?: { enabled?: boolean }) => {
   const queryClient = useQueryClient();
   const studentsKey = queryKeys.students.byScope(scope);
 
   const studentsQuery = useQuery({
     queryKey: studentsKey,
     queryFn: () => fetchStudents(scope),
+    enabled: options?.enabled ?? true,
   });
 
   const createMutation = useMutation({

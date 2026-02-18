@@ -11,7 +11,9 @@ export type CollectionDomain =
   | "settings"
   | "staff"
   | "gradebook-assignments"
-  | "gradebook-grades";
+  | "gradebook-grades"
+  | "student-profiles"
+  | "referrals";
 
 export type CollectionResponse<TRow> = {
   ok: boolean;
@@ -73,13 +75,17 @@ const deleteRow = async <TRow>(domain: CollectionDomain, id: string): Promise<TR
   return data.row;
 };
 
-export const useTenantCollection = <TRow extends { id: string }>(domain: CollectionDomain) => {
+export const useTenantCollection = <TRow extends { id: string }>(
+  domain: CollectionDomain,
+  options?: { enabled?: boolean },
+) => {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.data.byDomain(domain);
 
   const query = useQuery({
     queryKey,
     queryFn: () => fetchRows<TRow>(domain),
+    enabled: options?.enabled ?? true,
   });
 
   const replaceMutation = useMutation({

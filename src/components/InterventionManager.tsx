@@ -50,6 +50,16 @@ interface InterventionRecord {
   lessonPlan?: AIInterventionPlan; // Optional robust plan
 }
 
+interface ReferralRecord {
+  id: string;
+  studentName: string;
+  grade?: string;
+  type: string;
+  urgency: string;
+  status?: string;
+  createdAt?: string;
+}
+
 // --- Grouping & Sorting Types ---
 type GroupBy = 'None' | 'Teacher' | 'Grade' | 'Tier' | 'Status';
 type SortBy = 'Last Name' | 'First Name' | 'Progress' | 'Attendance' | 'Duration' | 'Grade' | 'Teacher' | 'Tier' | 'Plan Name';
@@ -57,10 +67,18 @@ type SortBy = 'Last Name' | 'First Name' | 'Progress' | 'Attendance' | 'Duration
 interface InterventionManagerProps {
   onStudentClick: (name: string) => void;
   onMenuClick: () => void;
+  highlightedReferralId?: string | null;
+  onReferralHighlightConsumed?: () => void;
 }
 
-export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStudentClick, onMenuClick }) => {
+export const InterventionManager: React.FC<InterventionManagerProps> = ({
+  onStudentClick,
+  onMenuClick,
+  highlightedReferralId,
+  onReferralHighlightConsumed,
+}) => {
   const interventionsCollection = useTenantCollection<InterventionRecord>('interventions');
+  const referralsCollection = useTenantCollection<ReferralRecord>('referrals');
   const [records, setRecords] = useState<InterventionRecord[]>([]);
   
   // View Controls
@@ -122,6 +140,30 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStud
       window.clearTimeout(timeout);
     };
   }, [interventionsCollection.replaceMutation, records]);
+
+  const referrals = useMemo(
+    () => referralsCollection.query.data?.rows ?? [],
+    [referralsCollection.query.data?.rows],
+  );
+
+  const recentReferrals = useMemo(() => {
+    const toTime = (value?: string) => {
+      if (!value) return 0;
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+    return [...referrals]
+      .sort((left, right) => toTime(right.createdAt) - toTime(left.createdAt))
+      .slice(0, 6);
+  }, [referrals]);
+
+  useEffect(() => {
+    if (!highlightedReferralId || !onReferralHighlightConsumed) return;
+    const timeout = window.setTimeout(() => onReferralHighlightConsumed(), 8000);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [highlightedReferralId, onReferralHighlightConsumed]);
 
   // Filter & Sort Logic
   const processedData = useMemo<Record<string, InterventionRecord[]>>(() => {
@@ -291,6 +333,18 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStud
     setStatusFilter('All');
     setTeacherFilter('All');
     setSearchQuery('');
+  };
+
+  const formatReferralTime = (value?: string) => {
+    if (!value) return 'Unknown time';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Unknown time';
+    return parsed.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
   };
 
   // --- Render Helpers ---
@@ -582,6 +636,67 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({ onStud
                 </div>
                 <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp size={20} /></div>
             </div>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+                <div>
+                    <h2 className="text-sm font-bold text-slate-900">Referral Queue</h2>
+                    <p className="text-xs text-slate-500">Most recent referrals awaiting review.</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    {referrals.length} total
+                </span>
+            </div>
+
+            {referralsCollection.query.isLoading ? (
+                <div className="py-4 text-sm text-slate-500">Loading referral queue...</div>
+            ) : recentReferrals.length === 0 ? (
+                <div className="py-4 text-sm text-slate-500">No referrals in the queue yet.</div>
+            ) : (
+                <div className="space-y-2">
+                    {recentReferrals.map((referral) => {
+                        const isHighlighted = referral.id === highlightedReferralId;
+                        return (
+                            <div
+                                key={referral.id}
+                                className={`rounded-lg border p-3 transition-colors ${
+                                    isHighlighted
+                                        ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-300'
+                                        : 'border-slate-200 bg-slate-50'
+                                }`}
+                            >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-900">
+                                            {referral.studentName}
+                                            <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                                {referral.id}
+                                            </span>
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            Grade {referral.grade ?? 'N/A'} | {referral.type} | {referral.urgency}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                            <p className="text-xs text-slate-500">{formatReferralTime(referral.createdAt)}</p>
+                                            <p className="text-xs font-semibold text-amber-700">{referral.status ?? 'Pending Review'}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => onStudentClick(referral.studentName)}
+                                            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                        >
+                                            Open Student
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
 
         {/* Toolbar & Filters */}
