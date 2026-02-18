@@ -69,6 +69,7 @@ export type LandingCopyContent = {
     resourcesLinks: [string, string, string];
     conversionTitle: string;
     conversionBody: string;
+    emailPlaceholder: string;
     submitCta: string;
   };
 };
@@ -79,34 +80,34 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
     nav: {
       home: "Home",
       features: "Features",
-      support: "Capabilities",
-      howItWorks: "Next Steps",
+      support: "Results",
+      howItWorks: "How It Works",
     },
     header: {
-      demoCta: "Request A Demo",
-      demoHref: "#support",
+      demoCta: "Book a Demo",
+      demoHref: "#how-it-works",
       loginCta: "Login",
     },
     hero: {
-      eyebrow: "Built for Hearts & Minds",
-      titleLine1: "Every student has a story.",
-      titleLine2: "Help them write the best version.",
-      description: "Bring intervention data, progress tracking, and collaboration into one clear flow designed for schools and districts.",
-      primaryCta: "Start Your Journey",
-      secondaryCta: "Check Out Success Stories",
+      eyebrow: "Built for MTSS Teams",
+      titleLine1: "Turn MTSS data into faster,",
+      titleLine2: "coordinated student support.",
+      description: "Unify attendance, interventions, family communication, and progress signals in one shared workflow your team can act on this week.",
+      primaryCta: "Book a Demo",
+      secondaryCta: "See How Schools Use Pulse",
     },
     socialProof: {
-      quote: "\"I knew they were struggling, but the data was scattered everywhere.\"",
-      context: "We built Pulse to unify fragmented support data so teams can spend less time chasing systems and more time helping students.",
+      quote: "\"We knew which students needed support, but our data lived in too many places. Pulse gave us one clear system for action.\" - Principal, K-8 Campus",
+      context: "Pulse replaces spreadsheet handoffs with a shared intervention timeline your MTSS team can trust.",
     },
     visibility: {
       label: "Unified MTSS visibility",
-      title: "Gain a 360-degree view of every student.",
-      body: "Pull attendance, interventions, fidelity, and communication signals into one timeline your support team can act on quickly.",
+      title: "Get a complete view of each student without switching systems.",
+      body: "Bring attendance, academics, interventions, and communication into one timeline so teams can make faster, better support decisions.",
       bullets: [
         "Evidence-based student snapshots",
         "Tier-aware intervention progress",
-        "Context switching across district and school",
+        "District, school, and classroom context in one place",
       ],
       cardLabel: "Student Profile",
       cardTitle: "Pulse",
@@ -114,49 +115,50 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
     },
     collaboration: {
       label: "Collaboration built in",
-      title: "Seamless collaboration for whole-child support.",
-      body: "Move from insight to action with shared plans, role-based access, and an audit-friendly workflow for every intervention decision.",
-      noteLabel: "Staff note",
-      noteText: "\"Pulse gave us one source of truth for meetings and follow-up actions.\"",
+      title: "Keep teams aligned from referral to follow-through.",
+      body: "Move from insight to action with shared plans, role-based access, and audit-ready documentation for every intervention decision.",
+      noteLabel: "Staff feedback",
+      noteText: "\"Pulse became our single source of truth for MTSS meetings and follow-up.\"",
       cardLabel: "Team Alignment",
       cardTitle: "Collaborate",
       cardBody: "Keep principals, teachers, and specialists coordinated without duplicating notes and decisions.",
     },
     capabilities: {
       label: "Platform capabilities",
-      title: "The Support You Need to Support Them",
-      body: "Built for MTSS teams who need clarity, speed, and accountability.",
+      title: "Everything your MTSS team needs to move faster.",
+      body: "Built for educators who need clarity, speed, and accountability.",
       cards: [
         {
-          title: "Real-time Progress",
-          body: "View current intervention momentum and respond before students fall behind.",
+          title: "Live Student Progress",
+          body: "Track intervention momentum in real time and respond before students fall further behind.",
         },
         {
-          title: "Smart Suggestions",
-          body: "Use AI-assisted prompts to draft communication and next-step recommendations.",
+          title: "AI Drafts for Communication",
+          body: "Generate first drafts for family and staff communication, then tailor the message to each student context.",
         },
         {
-          title: "Parent First",
-          body: "Keep families informed with consistent, contextual updates and transparent plans.",
+          title: "Family Visibility by Default",
+          body: "Keep families informed with timely updates, clear plans, and transparent next steps.",
         },
       ],
     },
     finalCta: {
       label: "Start your next cycle",
-      title: "Start a new chapter in student success today.",
-      body: "Join teams using structured data and coordinated workflows to move support plans forward faster.",
-      primaryCta: "Start Your Journey",
-      secondaryCta: "Check Out Success Stories",
+      title: "See how Pulse fits your MTSS model.",
+      body: "We'll walk through referral-to-intervention workflows mapped to your team structure.",
+      primaryCta: "Book a Demo",
+      secondaryCta: "View MTSS Workflow",
     },
     footer: {
       body: "A modern MTSS operations workspace for schools and districts.",
       productTitle: "Product",
-      productLinks: ["Features", "Support", "Workspace"],
+      productLinks: ["Features", "Results", "Workspace"],
       resourcesTitle: "Resources",
-      resourcesLinks: ["Health", "Roster Table", "Reports"],
-      conversionTitle: "Ready to start?",
-      conversionBody: "Continue to secure sign in.",
-      submitCta: "Submit",
+      resourcesLinks: ["System Health", "Roster Table", "Reports"],
+      conversionTitle: "Ready to evaluate Pulse?",
+      conversionBody: "Request a demo follow-up.",
+      emailPlaceholder: "Work email",
+      submitCta: "Request Invite",
     },
   },
   district: {
@@ -164,8 +166,8 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
     nav: {
       home: "Home",
       features: "Capabilities",
-      support: "Capabilities",
-      howItWorks: "Next Steps",
+      support: "District Results",
+      howItWorks: "How It Works",
     },
     header: {
       demoCta: "Schedule District Demo",
@@ -181,7 +183,7 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
       secondaryCta: "View District Outcomes",
     },
     socialProof: {
-      quote: "\"Pulse helped us replace inconsistent school-level processes with one district MTSS workflow.\"",
+      quote: "\"Pulse helped us replace inconsistent school-level processes with one district MTSS workflow.\" - Director of Student Services",
       context: "District teams use Pulse to improve intervention consistency, reduce reporting friction, and increase accountability.",
     },
     visibility: {
@@ -228,8 +230,8 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
     },
     finalCta: {
       label: "Next step",
-      title: "Book a 20-minute demo and see Pulse in action.",
-      body: "We will map your current workflow to Pulse and identify high-impact rollout opportunities.",
+      title: "See how Pulse fits your district MTSS model.",
+      body: "In 20 minutes, we'll map your current workflow to Pulse and identify high-impact rollout opportunities.",
       primaryCta: "Schedule District Demo",
       secondaryCta: "Review Implementation Flow",
     },
@@ -241,6 +243,7 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
       resourcesLinks: ["System Health", "Roster Table", "Reports"],
       conversionTitle: "Planning district rollout?",
       conversionBody: "Request a leadership walkthrough.",
+      emailPlaceholder: "District work email",
       submitCta: "Request Walkthrough",
     },
   },

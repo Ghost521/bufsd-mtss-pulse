@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 describe("Landing copy trust guardrails", () => {
-  it("does not render a fake email capture input and keeps helper text non-duplicated", async () => {
+  it("renders updated WorkOS helper text and footer email placeholder copy", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url =
         typeof input === "string"
@@ -99,9 +99,10 @@ describe("Landing copy trust guardrails", () => {
     const handle = await renderLandingPage();
     const text = handle.container.textContent ?? "";
 
-    expect(handle.container.querySelector('input[type="email"]')).toBeNull();
-    expect(text).not.toContain("Email Address");
-    expect(text.split("Secure authentication is managed by WorkOS.").length - 1).toBe(1);
+    const emailInput = handle.container.querySelector('input[type="email"]') as HTMLInputElement | null;
+    expect(emailInput).toBeInstanceOf(HTMLInputElement);
+    expect(emailInput?.getAttribute("placeholder")).toBe("Work email");
+    expect(text.split("Enterprise authentication and session security are powered by WorkOS.").length - 1).toBe(1);
 
     await cleanupRender(handle);
   });
