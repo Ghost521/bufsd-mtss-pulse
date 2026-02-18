@@ -49,6 +49,8 @@ interface CalendarViewProps {
 }
 
 type RecurrencePattern = 'None' | 'Daily' | 'Weekly' | 'Monthly';
+const ALL_EVENT_TYPES: EventType[] = Object.values(EventType) as EventType[];
+const MAX_VISIBLE_DAY_EVENTS = 3;
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ 
   currentUserRole, 
@@ -98,8 +100,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [suggestionDuration, setSuggestionDuration] = useState(30);
   
   // Filter State
-  const [selectedTypes, setSelectedTypes] = useState<EventType[]>(Object.values(EventType));
+  const [selectedTypes, setSelectedTypes] = useState<EventType[]>(ALL_EVENT_TYPES);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [isInviteSectionOpen, setIsInviteSectionOpen] = useState(true);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   const hasHydratedEventsRef = useRef(false);
   const lastPersistedEventsRef = useRef("");
@@ -125,6 +131,51 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       window.clearTimeout(timeout);
     };
   }, [calendarCollection.replaceMutation, events]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsCompactViewport(media.matches);
+    updateViewport();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', updateViewport);
+      return () => media.removeEventListener('change', updateViewport);
+    }
+
+    media.addListener(updateViewport);
+    return () => media.removeListener(updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isFilterDropdownOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (filterPanelRef.current?.contains(target)) return;
+      if (filterButtonRef.current?.contains(target)) return;
+      setIsFilterDropdownOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('touchstart', closeOnOutsideClick);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('touchstart', closeOnOutsideClick);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isFilterDropdownOpen]);
+
+  useEffect(() => {
+    if (!isAddModalOpen) return;
+    setIsInviteSectionOpen(!isCompactViewport);
+  }, [isAddModalOpen, isCompactViewport]);
 
   // --- Calendar Logic ---
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -159,6 +210,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleToday = () => {
     setCurrentDate(new Date());
+  };
+
+  const clearTypeFilters = () => {
+    setSelectedTypes(ALL_EVENT_TYPES);
+  };
+
+  const toggleTypeFilter = (type: EventType) => {
+    setSelectedTypes(prev => {
+      const isSelected = prev.includes(type);
+      if (isSelected) {
+        if (prev.length <= 1) return prev;
+        return prev.filter(t => t !== type);
+      }
+      return [...prev, type];
+    });
   };
 
   // --- Event Filtering (RBAC + Types) ---
@@ -572,6 +638,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Get current user's status for the selected event
   const myStatus = selectedEvent?.attendees.find(a => a.name === currentUserName)?.status || AttendanceStatus.PENDING;
+  const calendarLoadError = calendarCollection.query.error as Error | null;
+  const isCalendarLoading = calendarCollection.query.isLoading && !hasHydratedEventsRef.current;
+  const hasActiveTypeFilters = selectedTypes.length < ALL_EVENT_TYPES.length;
+  const isUnauthorizedCalendarError = calendarLoadError ? /401|unauthorized/i.test(calendarLoadError.message) : false;
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
@@ -717,6 +787,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         title="Schedule Event"
         initialWidth={900}
         initialHeight={800}
+        mobileMode="fullscreen"
+        allowDrag={!isCompactViewport}
+        allowResize={!isCompactViewport}
         footer={
             <div className="flex justify-end gap-4 w-full">
                 <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
@@ -907,7 +980,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </div>
 
                         {/* RIGHT COLUMN: People & Conflict Check */}
-                        <div className="flex-1 p-6 md:p-8 bg-slate-50/50 flex flex-col border-l border-slate-100/50">
+                        <div className="px-6 pb-2 md:hidden">
+                            <button
+                                type="button"
+                                onClick={() => setIsInviteSectionOpen((prev) => !prev)}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 flex items-center justify-between"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <Users size={16} className="text-indigo-600" />
+                                    Invite attendees and scheduling
+                                </span>
+                                <ChevronDown size={16} className={`transition-transform ${isInviteSectionOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                        </div>
+                        <div className={`flex-1 p-6 md:p-8 bg-slate-50/50 flex flex-col border-l border-slate-100/50 ${isCompactViewport && !isInviteSectionOpen ? 'hidden' : ''}`}>
                             <div className="mb-5">
                                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-1">
                                     <Users size={18} className="text-indigo-600" /> Invite Attendees
@@ -1302,9 +1388,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                     </h2>
                     <div className="flex items-center bg-slate-100/80 rounded-lg p-1 border border-slate-200 ml-2">
-                        <button onClick={handlePrevMonth} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all"><ChevronLeft size={18}/></button>
-                        <button onClick={handleToday} className="px-3 py-1 text-xs font-bold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider">Today</button>
-                        <button onClick={handleNextMonth} className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all"><ChevronRight size={18}/></button>
+                        <button
+                            onClick={handlePrevMonth}
+                            aria-label="Previous month"
+                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                        >
+                            <ChevronLeft size={18}/>
+                        </button>
+                        <button onClick={handleToday} className="px-3 py-1 text-xs font-bold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-md">Today</button>
+                        <button
+                            onClick={handleNextMonth}
+                            aria-label="Next month"
+                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                        >
+                            <ChevronRight size={18}/>
+                        </button>
                     </div>
                 </div>
                 
@@ -1312,12 +1410,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {/* Filter Dropdown */}
                     <div className="relative">
                         <button 
+                            ref={filterButtonRef}
                             onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                            className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-bold transition-all shadow-sm ${isFilterDropdownOpen ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                            aria-label="Filter event types"
+                            aria-expanded={isFilterDropdownOpen}
+                            aria-haspopup="dialog"
+                            className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isFilterDropdownOpen ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
                         >
                             <Filter size={16} />
                             <span>Filters</span>
-                            {selectedTypes.length < Object.values(EventType).length && (
+                            {hasActiveTypeFilters && (
                                 <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                                     {selectedTypes.length}
                                 </span>
@@ -1326,57 +1428,92 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </button>
 
                         {isFilterDropdownOpen && (
-                            <>
-                                <div className="fixed inset-0 z-20" onClick={() => setIsFilterDropdownOpen(false)} />
-                                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 z-30 p-2 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5">
-                                    <div className="px-3 py-2 border-b border-slate-50 mb-2 flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Event Types</span>
+                            <div
+                                ref={filterPanelRef}
+                                role="dialog"
+                                aria-label="Filter events by type"
+                                className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 z-30 p-2 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5"
+                            >
+                                <div className="px-3 py-2 border-b border-slate-50 mb-2 flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Event Types</span>
+                                    <div className="flex items-center gap-3">
                                         <button 
-                                            onClick={() => setSelectedTypes(Object.values(EventType))}
+                                            onClick={clearTypeFilters}
                                             className="text-[10px] text-indigo-600 hover:underline font-bold"
                                         >
-                                            Select All
+                                            Clear
+                                        </button>
+                                        <button
+                                            onClick={() => setIsFilterDropdownOpen(false)}
+                                            className="text-[10px] text-slate-500 hover:text-slate-700 font-bold"
+                                        >
+                                            Close
                                         </button>
                                     </div>
-                                    <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar px-1 pb-1">
-                                        {Object.values(EventType).map(type => {
-                                            const styles = getEventTypeStyles(type);
-                                            const isSelected = selectedTypes.includes(type);
-                                            return (
-                                                <label key={type} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
-                                                    <div className={`relative flex items-center justify-center w-5 h-5 rounded border transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
-                                                        {isSelected && <Check size={12} className="text-white" />}
-                                                        <input 
-                                                            type="checkbox"
-                                                            className="hidden"
-                                                            checked={isSelected}
-                                                            onChange={() => {
-                                                                if (isSelected) setSelectedTypes(prev => prev.filter(t => t !== type));
-                                                                else setSelectedTypes(prev => [...prev, type]);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div className={`w-2.5 h-2.5 rounded-full ${styles.dot}`} />
-                                                    <span className={`text-sm ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>{type}</span>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
                                 </div>
-                            </>
+                                <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar px-1 pb-1">
+                                    {ALL_EVENT_TYPES.map(type => {
+                                        const styles = getEventTypeStyles(type);
+                                        const isSelected = selectedTypes.includes(type);
+                                        return (
+                                            <label key={type} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
+                                                <div className={`relative flex items-center justify-center w-5 h-5 rounded border transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                                                    {isSelected && <Check size={12} className="text-white" />}
+                                                    <input 
+                                                        type="checkbox"
+                                                        className="hidden"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleTypeFilter(type)}
+                                                    />
+                                                </div>
+                                                <div className={`w-2.5 h-2.5 rounded-full ${styles.dot}`} />
+                                                <span className={`text-sm ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>{type}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         )}
                     </div>
 
                     {/* Create Event Button */}
                     <button 
                         onClick={() => setIsAddModalOpen(true)} 
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-95"
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                     >
                         <Plus size={18} /> 
                         <span>New Event</span>
                     </button>
                 </div>
             </div>
+
+            {hasActiveTypeFilters && (
+                <div className="px-6 py-2.5 border-b border-slate-100 bg-indigo-50/40 flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium text-indigo-900">
+                        Showing {selectedTypes.length} of {ALL_EVENT_TYPES.length} event types
+                    </p>
+                    <button
+                        onClick={clearTypeFilters}
+                        className="text-xs font-bold text-indigo-700 hover:underline"
+                    >
+                        Reset Filters
+                    </button>
+                </div>
+            )}
+
+            {isCalendarLoading && (
+                <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 text-sm text-slate-600">
+                    Loading calendar...
+                </div>
+            )}
+
+            {calendarLoadError && (
+                <div className="px-6 py-3 border-b border-rose-200 bg-rose-50 text-sm text-rose-700" role="alert">
+                    {isUnauthorizedCalendarError
+                        ? 'Calendar data could not be loaded because your session is not authorized. Sign in again to view saved events.'
+                        : `Calendar data could not be loaded: ${calendarLoadError.message}`}
+                </div>
+            )}
 
             {/* Days Header */}
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/30">
@@ -1391,6 +1528,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="grid grid-cols-7 grid-rows-6 flex-1 bg-white">
                 {calendarDays.map((dateObj, idx) => {
                     const eventsForDay = getEventsForDay(dateObj.fullDate);
+                    const visibleEventsForDay = eventsForDay.slice(0, MAX_VISIBLE_DAY_EVENTS);
+                    const remainingEventCount = Math.max(0, eventsForDay.length - visibleEventsForDay.length);
                     const isToday = dateObj.type === 'current' && 
                                     dateObj.day === new Date().getDate() && 
                                     currentDate.getMonth() === new Date().getMonth() && 
@@ -1407,6 +1546,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             onClick={() => {
                                 if (dateObj.type === 'current') {
                                     setNewEventForm(prev => ({ ...prev, date: dateObj.fullDate.toISOString().split('T')[0] }));
+                                    if (isCompactViewport) {
+                                        setIsAddModalOpen(true);
+                                    }
                                 }
                             }}
                         >
@@ -1427,16 +1569,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             setNewEventForm(prev => ({ ...prev, date: dateObj.fullDate.toISOString().split('T')[0] }));
                                             setIsAddModalOpen(true);
                                         }}
-                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all transform scale-90 group-hover:scale-100 shadow-sm"
+                                        className="p-1.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all shadow-sm opacity-100 scale-100 sm:opacity-0 sm:scale-90 sm:group-hover:opacity-100 sm:group-hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                                         title="Quick Add Event"
+                                        aria-label={`Quick add event for ${dateObj.fullDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`}
                                     >
                                         <Plus size={14} strokeWidth={3} />
                                     </button>
                                 )}
                             </div>
 
-                            <div className="space-y-1.5 overflow-y-auto custom-scrollbar max-h-[100px]">
-                                {eventsForDay.map(evt => {
+                            <div className="space-y-1.5">
+                                {visibleEventsForDay.map(evt => {
                                     const styles = getEventTypeStyles(evt.type);
                                     return (
                                     <button 
@@ -1461,6 +1604,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         )}
                                     </button>
                                 )})}
+                                {remainingEventCount > 0 && (
+                                    <p className="px-2 text-[10px] font-semibold text-slate-500">
+                                        +{remainingEventCount} more
+                                    </p>
+                                )}
                             </div>
                         </div>
                     );
@@ -1470,4 +1618,3 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     </div>
   );
 };
-

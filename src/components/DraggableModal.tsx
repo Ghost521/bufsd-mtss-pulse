@@ -17,6 +17,9 @@ interface DraggableModalProps {
   titleId?: string;
   descriptionId?: string;
   showResizeHandle?: boolean;
+  mobileMode?: 'fullscreen' | 'sheet' | 'desktop-only-drag';
+  allowDrag?: boolean;
+  allowResize?: boolean;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -51,6 +54,9 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
   titleId,
   descriptionId,
   showResizeHandle = true,
+  mobileMode = 'desktop-only-drag',
+  allowDrag = true,
+  allowResize = true,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
@@ -68,11 +74,41 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
 
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const useResponsiveMobileLayout = mobileMode !== 'desktop-only-drag' && isCompactViewport;
+  const dragEnabled = allowDrag && !useResponsiveMobileLayout;
+  const resizeEnabled = allowResize && !useResponsiveMobileLayout;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsCompactViewport(media.matches);
+    updateViewport();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', updateViewport);
+      return () => media.removeEventListener('change', updateViewport);
+    }
+
+    media.addListener(updateViewport);
+    return () => media.removeListener(updateViewport);
+  }, []);
 
   // Initialize position
   useEffect(() => {
     if (isOpen && modalRef.current) {
       previouslyFocusedElementRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+      if (useResponsiveMobileLayout) {
+        modalRef.current.style.transform = 'translate3d(0, 0, 0)';
+        modalRef.current.style.top = mobileMode === 'sheet' ? 'auto' : '0px';
+        modalRef.current.style.left = '0px';
+        modalRef.current.style.bottom = mobileMode === 'sheet' ? '0px' : 'auto';
+        modalRef.current.style.width = '100%';
+        modalRef.current.style.height = mobileMode === 'fullscreen' ? '100%' : '92vh';
+        modalRef.current.style.maxHeight = '100vh';
+        modalRef.current.style.maxWidth = '100vw';
+      } else {
       const w = initialWidth;
       const h = initialHeight || 0; 
       
@@ -87,11 +123,13 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       // Ensure top/left are 0 so transform works from top-left origin
       modalRef.current.style.top = '0px';
       modalRef.current.style.left = '0px';
+      modalRef.current.style.bottom = 'auto';
       
       modalRef.current.style.width = `${w}px`;
       modalRef.current.style.height = h ? `${h}px` : 'auto';
       modalRef.current.style.maxHeight = '95vh';
       modalRef.current.style.maxWidth = '95vw';
+      }
 
       window.setTimeout(() => {
         if (!modalRef.current) return;
@@ -101,7 +139,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         focusTarget.focus();
       }, 0);
     }
-  }, [isOpen, initialWidth, initialHeight]);
+  }, [initialHeight, initialWidth, isOpen, mobileMode, useResponsiveMobileLayout]);
 
   useEffect(() => {
     if (isOpen) return;
@@ -152,6 +190,11 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!dragEnabled && isDragging) setIsDragging(false);
+    if (!resizeEnabled && isResizing) setIsResizing(false);
+  }, [dragEnabled, isDragging, isResizing, resizeEnabled]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -210,7 +253,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       }
     };
 
-    if (isDragging || isResizing) {
+    if ((isDragging || isResizing) && (dragEnabled || resizeEnabled)) {
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
       document.body.style.userSelect = 'none';
@@ -223,9 +266,10 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
     };
-  }, [isDragging, isResizing, minWidth, minHeight]);
+  }, [dragEnabled, isDragging, isResizing, minHeight, minWidth, resizeEnabled]);
 
   const handleDragStart = (e: React.MouseEvent) => {
+    if (!dragEnabled) return;
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button')) return; // Prevent dragging when clicking buttons in header
     
@@ -240,6 +284,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
   };
 
   const handleResizeStart = (e: React.MouseEvent) => {
+    if (!resizeEnabled) return;
     e.stopPropagation();
     if (e.button !== 0) return;
 
@@ -257,6 +302,16 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
 
   if (!isOpen) return null;
 
+  const modalLayoutClasses = useResponsiveMobileLayout
+    ? mobileMode === 'fullscreen'
+      ? 'inset-0 h-full w-full max-h-none max-w-none rounded-none'
+      : 'inset-x-0 bottom-0 h-[92vh] w-full max-h-none max-w-none rounded-t-2xl rounded-b-none'
+    : '';
+  const modalAnimationClasses = useResponsiveMobileLayout ? 'animate-in slide-in-from-bottom-4 duration-200' : 'animate-in zoom-in-95 duration-200';
+  const modalStyle = useResponsiveMobileLayout
+    ? undefined
+    : { width: initialWidth, height: initialHeight || 'auto', top: 0, left: 0 };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
       <div 
@@ -266,26 +321,23 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
 
       <div
         ref={modalRef}
-        className={`absolute bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 pointer-events-auto animate-in zoom-in-95 duration-200 will-change-transform ${className}`}
+        className={`absolute bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 pointer-events-auto will-change-transform ${modalLayoutClasses} ${modalAnimationClasses} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? resolvedTitleId : undefined}
         aria-describedby={resolvedDescriptionId}
         tabIndex={-1}
-        style={{ 
-            width: initialWidth,
-            height: initialHeight || 'auto',
-            top: 0,
-            left: 0,
-        }}
+        style={modalStyle}
       >
         {/* Header */}
         <div
-          className={`flex justify-between items-center p-4 border-b border-slate-100 bg-white select-none transition-colors ${isDragging ? 'cursor-grabbing bg-slate-50' : 'cursor-grab'} ${headerClassName}`}
+          className={`flex justify-between items-center p-4 border-b border-slate-100 bg-white select-none transition-colors ${
+            dragEnabled ? (isDragging ? 'cursor-grabbing bg-slate-50' : 'cursor-grab') : 'cursor-default'
+          } ${headerClassName}`}
           onMouseDown={handleDragStart}
         >
           <div id={resolvedTitleId} className="flex items-center gap-2 font-bold text-slate-800 text-lg truncate pr-4 pointer-events-none">
-            <GripHorizontal size={20} className="text-slate-300 shrink-0" />
+            {dragEnabled ? <GripHorizontal size={20} className="text-slate-300 shrink-0" /> : null}
             {title}
           </div>
           <button
@@ -310,7 +362,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         )}
 
         {/* Resize Handle */}
-        {showResizeHandle ? (
+        {showResizeHandle && resizeEnabled ? (
           <div
             className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-center justify-center z-20 hover:bg-slate-100 rounded-tl transition-colors group"
             onMouseDown={handleResizeStart}

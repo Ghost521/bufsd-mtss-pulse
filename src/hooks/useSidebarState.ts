@@ -14,12 +14,9 @@ type UseSidebarStateArgs = {
 
 export const useSidebarState = ({ userKey, defaultGroupState = {} }: UseSidebarStateArgs) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [desktopCollapsed, setDesktopCollapsed] = useState(() =>
-    readSidebarStorage<boolean>(DESKTOP_COLLAPSED_STORAGE_KEY, userKey, false)
-  );
-  const [groupState, setGroupState] = useState<SidebarGroupState>(() =>
-    readSidebarStorage<SidebarGroupState>(GROUP_STATE_STORAGE_KEY, userKey, defaultGroupState)
-  );
+  // Start with deterministic values to avoid SSR/client hydration drift.
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+  const [groupState, setGroupState] = useState<SidebarGroupState>(defaultGroupState);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
