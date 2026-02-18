@@ -60,7 +60,7 @@ const Chatbot = lazy(() => import('./Chatbot').then((m) => ({ default: m.Chatbot
 const ReferralModal = lazy(() => import('./ReferralModal').then((m) => ({ default: m.ReferralModal })));
 
 const LazyViewFallback: React.FC = () => (
-  <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm">
+  <div className="app-card flex min-h-[280px] items-center justify-center rounded-xl text-slate-500">
     <Loader2 size={20} className="animate-spin" />
     <span className="ml-2 text-sm font-medium">Loading view...</span>
   </div>
@@ -515,7 +515,7 @@ const App: React.FC = () => {
     <button
       type="button"
       onClick={() => toggleMobileSection(section)}
-      className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left lg:hidden"
+      className="app-button-secondary flex w-full items-center justify-between rounded-lg px-4 py-3 text-left lg:hidden"
       aria-expanded={mobileSections[section]}
     >
       <span>
@@ -835,7 +835,7 @@ const App: React.FC = () => {
   // --- Render Helpers ---
 
   const renderHeader = () => (
-    <header className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+    <header className="app-card mb-8 rounded-xl p-5 md:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-start gap-3">
@@ -871,7 +871,7 @@ const App: React.FC = () => {
               onClick={primaryAction.onClick}
               disabled={!primaryAction.enabled}
               title={primaryAction.tooltip}
-              className="flex items-center justify-center gap-2 rounded-lg border border-transparent bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="app-button-primary flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors"
             >
               <primaryAction.icon size={16} />
               {primaryAction.label}
@@ -882,7 +882,7 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMoreMenuOpen((previous) => !previous)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              className="app-button-secondary inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
               aria-expanded={isMoreMenuOpen}
               aria-haspopup="menu"
             >
@@ -1049,14 +1049,14 @@ const App: React.FC = () => {
       <div className="mb-6 space-y-2">
         {renderMobileSectionHeader('quickTasks', 'Top Tasks', 'Quick actions for this role')}
         <div className={`${mobileSections.quickTasks ? 'block' : 'hidden'} lg:block`}>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="app-card rounded-xl p-4">
             <div className="flex flex-wrap gap-2">
               {topTasks.map((task) => (
                 <button
                   key={task.id}
                   type="button"
                   onClick={task.onClick}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                  className="app-chip-action rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
                 >
                   {task.label}
                 </button>
@@ -1102,7 +1102,7 @@ const App: React.FC = () => {
           <div className="space-y-2">
             {renderMobileSectionHeader('chart', data.chartTitle, 'Outcome trend view')}
             <div className={`${mobileSections.chart ? 'block' : 'hidden'} lg:block`}>
-              <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+              <div className="app-card rounded-xl p-6">
                 <div className="mb-6 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800">{data.chartTitle}</h3>
@@ -1170,7 +1170,7 @@ const App: React.FC = () => {
           </div>
           
           {currentRole === UserRole.PARENT && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+            <div className="app-card rounded-xl p-6">
                <h3 className="font-bold text-slate-800 mb-4">Teacher Feedback</h3>
                <div className="space-y-4">
                  <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600">"Leo is showing great improvement in reading comprehension." - Mr. Davis</div>
@@ -1305,7 +1305,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50/80 font-sans text-slate-900">
+    <div className="app-shell flex min-h-screen font-sans text-slate-900">
       
       {/* Global Chatbot */}
       <Suspense fallback={null}>
@@ -1360,7 +1360,7 @@ const App: React.FC = () => {
       />
       
       <main
-        className={`mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 ${
+        className={`app-main mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 ${
           sidebarState.isDesktopCollapsed ? 'lg:ml-20' : 'lg:ml-64'
         }`}
       >

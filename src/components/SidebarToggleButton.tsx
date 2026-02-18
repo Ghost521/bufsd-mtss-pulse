@@ -17,7 +17,7 @@ export const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = ({
   <button
     type="button"
     onClick={onClick}
-    className={className ?? "lg:hidden rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"}
+    className={className ?? "app-icon-button lg:hidden rounded-lg p-2 transition-colors"}
     aria-label={ariaLabel}
   >
     <Menu size={iconSize} />
