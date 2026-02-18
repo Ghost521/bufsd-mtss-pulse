@@ -31,6 +31,7 @@ interface SidebarProps {
   availableRoles: UserRole[];
   onRoleChange: (role: UserRole) => void;
   userName: string;
+  userAvatarUrl?: string | null;
   schoolName: string;
   isMobileOpen: boolean;
   onMobileClose: () => void;
@@ -56,67 +57,68 @@ type WorkspaceNavGroup = {
   items: WorkspaceNavItem[];
 };
 
-const showSidebarTestControls = import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
+const showSidebarTestControls =
+  import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
 
 const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
   const dashboardByRole: Record<UserRole, WorkspaceNavItem> = {
-    [UserRole.PRINCIPAL]: { id: "dashboard", icon: LayoutDashboard, label: "Leadership Dashboard" },
-    [UserRole.TEACHER]: { id: "dashboard", icon: LayoutDashboard, label: "Classroom Dashboard" },
+    [UserRole.PRINCIPAL]: { id: "dashboard", icon: LayoutDashboard, label: "School Dashboard" },
+    [UserRole.TEACHER]: { id: "dashboard", icon: LayoutDashboard, label: "Class Dashboard" },
     [UserRole.DISTRICT]: { id: "dashboard", icon: LayoutDashboard, label: "District Dashboard" },
-    [UserRole.PARENT]: { id: "dashboard", icon: LayoutDashboard, label: "Student Progress" },
+    [UserRole.PARENT]: { id: "dashboard", icon: LayoutDashboard, label: "Student Overview" },
   };
 
   const workItemsByRole: Record<UserRole, WorkspaceNavItem[]> = {
     [UserRole.PRINCIPAL]: [
       dashboardByRole[UserRole.PRINCIPAL],
-      { id: "rosters", icon: Users, label: "Rosters" },
+      { id: "rosters", icon: Users, label: "Student Rosters" },
       { id: "interventions", icon: FileText, label: "Intervention Plans" },
       { id: "reports", icon: BarChart2, label: "School Reports" },
     ],
     [UserRole.TEACHER]: [
       dashboardByRole[UserRole.TEACHER],
-      { id: "class_roster", icon: Users, label: "Roster" },
+      { id: "class_roster", icon: Users, label: "Student Roster" },
       { id: "gradebook", icon: BookOpen, label: "Gradebook" },
       { id: "interventions", icon: FileText, label: "Interventions" },
     ],
     [UserRole.DISTRICT]: [
       dashboardByRole[UserRole.DISTRICT],
-      { id: "map", icon: School, label: "Schools Map" },
-      { id: "reports", icon: BarChart2, label: "System Reports" },
+      { id: "map", icon: School, label: "School Map" },
+      { id: "reports", icon: BarChart2, label: "District Reports" },
     ],
     [UserRole.PARENT]: [
       dashboardByRole[UserRole.PARENT],
-      { id: "reports", icon: FileText, label: "Report Cards" },
+      { id: "reports", icon: FileText, label: "Progress Reports" },
     ],
   };
 
   const planningItemsByRole: Record<UserRole, WorkspaceNavItem[]> = {
     [UserRole.PRINCIPAL]: [
       { id: "lesson_plans", icon: BookCopy, label: "Lesson Plans" },
-      { id: "calendar", icon: Calendar, label: "Calendar" },
+      { id: "calendar", icon: Calendar, label: "School Calendar" },
     ],
     [UserRole.TEACHER]: [
       { id: "lesson_plans", icon: BookCopy, label: "Lesson Plans" },
-      { id: "calendar", icon: Calendar, label: "Calendar" },
+      { id: "calendar", icon: Calendar, label: "Class Calendar" },
     ],
-    [UserRole.DISTRICT]: [{ id: "calendar", icon: Calendar, label: "Calendar" }],
-    [UserRole.PARENT]: [{ id: "calendar", icon: Calendar, label: "Calendar" }],
+    [UserRole.DISTRICT]: [{ id: "calendar", icon: Calendar, label: "District Calendar" }],
+    [UserRole.PARENT]: [{ id: "calendar", icon: Calendar, label: "School Calendar" }],
   };
 
   return [
-    { id: "work", label: "Work", defaultExpanded: true, items: workItemsByRole[role] },
-    { id: "planning", label: "Planning", defaultExpanded: true, items: planningItemsByRole[role] },
+    { id: "work", label: "Instruction", defaultExpanded: true, items: workItemsByRole[role] },
+    { id: "planning", label: "Planning & Calendar", defaultExpanded: true, items: planningItemsByRole[role] },
     { id: "communication", label: "Communication", defaultExpanded: true, items: [{ id: "messages", icon: MessageCircle, label: "Messages" }] },
     {
       id: "administration",
-      label: "Administration",
+      label: "Operations",
       defaultExpanded: true,
       items:
         role === UserRole.PARENT
-          ? [{ id: "documents", icon: Database, label: "Resource Library" }]
+          ? [{ id: "documents", icon: Database, label: "Family Resources" }]
           : [
               { id: "documents", icon: Database, label: "Resource Library" },
-              { id: "import", icon: HardDriveUpload, label: "Data Integrations" },
+              { id: "import", icon: HardDriveUpload, label: "Integrations" },
             ],
     },
   ];
@@ -135,6 +137,7 @@ type SidebarContentProps = {
   availableRoles: UserRole[];
   onRoleChange: (role: UserRole) => void;
   userName: string;
+  userAvatarUrl?: string | null;
   schoolName: string;
   activePage: WorkspacePageId;
   isDesktopCollapsed: boolean;
@@ -155,6 +158,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   availableRoles,
   onRoleChange,
   userName,
+  userAvatarUrl,
   schoolName,
   activePage,
   isDesktopCollapsed,
@@ -171,6 +175,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const isMobile = mode === "mobile";
   const navGroups = useMemo(() => getMenuGroups(currentRole), [currentRole]);
   const normalizedQuery = searchQuery.trim().toLowerCase();
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
 
   const filteredGroups = useMemo(() => {
     if (!normalizedQuery) return navGroups;
@@ -194,6 +199,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
   }, [userName]);
+  const displayName = userName.trim() || "MTSS User";
+  const showAvatarImage = Boolean(userAvatarUrl && userAvatarUrl.trim().length > 0 && !avatarLoadFailed);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [userAvatarUrl]);
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
@@ -242,8 +253,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         {isDesktopCollapsed && !isMobile ? null : (
           <>
             <div className="mt-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">MTSS Platform</p>
-              <p className="text-xs font-semibold text-slate-300">Role Workspace</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">MTSS Workspace</p>
+              <p className="text-xs font-semibold text-slate-300">Your role view</p>
             </div>
             <div className="mt-3">
               <label htmlFor={`sidebar-search-${mode}`} className="sr-only">
@@ -258,7 +269,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   value={searchQuery}
                   onChange={(event) => onSearchQueryChange(event.target.value)}
                   onKeyDown={onSearchKeyDown}
-                  placeholder="Quick navigation"
+                  placeholder="Search pages"
                   className="w-full rounded-md border border-slate-700 bg-slate-800 py-2 pl-8 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none"
                 />
               </div>
@@ -269,7 +280,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
       <nav className={navContainerClasses} aria-label="Workspace navigation">
         {filteredGroups.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-slate-400">No matching pages.</p>
+          <p className="px-3 py-2 text-xs text-slate-400">No pages match your search.</p>
         ) : (
           filteredGroups.map((group) => {
             const isExpanded = normalizedQuery ? true : groupState[group.id] ?? group.defaultExpanded ?? true;
@@ -331,10 +342,21 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               type="button"
               onClick={onDesktopCollapseToggle}
               className="flex w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-2.5 text-slate-100 transition-colors hover:border-slate-500 hover:text-white"
-              aria-label="Expand account and workspace controls"
-              title="Expand account and workspace controls"
+              aria-label="Show profile and settings"
+              title="Show profile and settings"
             >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-[11px] font-bold text-white">{userInitials}</span>
+              {showAvatarImage ? (
+                <img
+                  src={userAvatarUrl ?? undefined}
+                  alt={`Profile photo for ${displayName}`}
+                  className="h-7 w-7 rounded-full border border-slate-600 object-cover"
+                  onError={() => setAvatarLoadFailed(true)}
+                />
+              ) : (
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-[11px] font-bold text-white">
+                  {userInitials}
+                </span>
+              )}
             </button>
             <Link
               to={buildWorkspacePath("settings")}
@@ -352,13 +374,21 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         ) : (
           <section className="rounded-2xl border border-slate-700/80 bg-gradient-to-b from-slate-800/70 to-slate-900/80 p-3 shadow-[0_10px_24px_-14px_rgba(0,0,0,0.8)]">
             <div className="flex items-start gap-3">
-              <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white shadow-md">
-                {userInitials}
-              </div>
+              {showAvatarImage ? (
+                <img
+                  src={userAvatarUrl ?? undefined}
+                  alt={`Profile photo for ${displayName}`}
+                  className="h-10 w-10 shrink-0 rounded-full border border-slate-600 object-cover shadow-md"
+                  onError={() => setAvatarLoadFailed(true)}
+                />
+              ) : (
+                <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white shadow-md">
+                  {userInitials}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Account &amp; Workspace</p>
-                <p className="truncate text-sm font-semibold text-white">{userName}</p>
-                <p className="truncate text-xs text-slate-400">{schoolName}</p>
+                <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+                <p className="truncate text-xs text-slate-400">{schoolName} | {currentRole}</p>
               </div>
               <span className="rounded-full border border-brand-400/50 bg-brand-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-100">
                 {currentRole}
@@ -400,7 +430,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <Settings size={16} />
                   <span className="text-sm font-medium">Settings</span>
                 </span>
-                <span className="text-[11px] text-slate-400">Manage</span>
+                <span className="text-[11px] text-slate-400">Open</span>
               </Link>
 
               {showSidebarTestControls ? (
@@ -423,6 +453,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   availableRoles,
   onRoleChange,
   userName,
+  userAvatarUrl,
   schoolName,
   isMobileOpen,
   onMobileClose,
@@ -536,6 +567,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               availableRoles={availableRoles}
               onRoleChange={onRoleChange}
               userName={userName}
+              userAvatarUrl={userAvatarUrl}
               schoolName={schoolName}
               activePage={activePage}
               isDesktopCollapsed={false}
@@ -564,6 +596,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           availableRoles={availableRoles}
           onRoleChange={onRoleChange}
           userName={userName}
+          userAvatarUrl={userAvatarUrl}
           schoolName={schoolName}
           activePage={activePage}
           isDesktopCollapsed={isDesktopCollapsed}

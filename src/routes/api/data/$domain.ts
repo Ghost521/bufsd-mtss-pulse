@@ -10,19 +10,10 @@ import {
 } from "../../../lib/server/collection-store";
 import { getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
+import type { AppResource } from "../../../lib/server/tenant-types";
 import { newRequestId } from "../../../lib/server/audit-log";
 import { SettingsStoreError, getOrCreateUserSettings, updateUserSettingsSection } from "../../../lib/server/settings-store";
 import { sectionUpdateRequestSchema } from "../../../lib/schemas/settings";
-
-type DomainResource =
-  | "calendar"
-  | "messages"
-  | "documents"
-  | "interventions"
-  | "lesson_plans"
-  | "imports"
-  | "settings"
-  | "students";
 
 const parseDomain = (value: string): DataDomain | null => {
   if (value === "calendar") return "calendar";
@@ -35,12 +26,17 @@ const parseDomain = (value: string): DataDomain | null => {
   if (value === "staff") return "staff";
   if (value === "gradebook-assignments") return "gradebook-assignments";
   if (value === "gradebook-grades") return "gradebook-grades";
+  if (value === "student-profiles") return "student-profiles";
+  if (value === "referrals") return "referrals";
   return null;
 };
 
-const toResource = (domain: DataDomain): DomainResource => {
+const toResource = (domain: DataDomain): AppResource => {
   if (domain === "lesson-plans") return "lesson_plans";
-  if (domain === "staff" || domain === "gradebook-assignments" || domain === "gradebook-grades") return "students";
+  if (domain === "gradebook-assignments") return "gradebook_assignments";
+  if (domain === "gradebook-grades") return "gradebook_grades";
+  if (domain === "student-profiles") return "student_profiles";
+  if (domain === "referrals") return "referrals";
   return domain;
 };
 
@@ -54,6 +50,14 @@ const parseRow = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
 };
+
+const fieldNamesFromRecord = (value: Record<string, unknown> | null): string[] =>
+  value ? Object.keys(value).filter((key) => key !== "id") : [];
+
+const fieldNamesFromRows = (rows: Record<string, unknown>[]): string[] =>
+  Array.from(
+    new Set(rows.flatMap((row) => Object.keys(row).filter((key) => key !== "id")))
+  );
 
 export const Route = createFileRoute("/api/data/$domain")({
   server: {
@@ -94,12 +98,11 @@ export const Route = createFileRoute("/api/data/$domain")({
         const session = await getSessionFromRequest(request);
         if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
 
-        const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
-        if (!permission.ok) {
-          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
-        }
-
         if (domain === "settings") {
+          const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
           return Response.json(
             { ok: false, error: "Bulk replace is not supported for settings.", requestId },
             { status: 405 }
@@ -109,6 +112,15 @@ export const Route = createFileRoute("/api/data/$domain")({
         const body = await parseBody(request);
         const rows = Array.isArray(body?.rows) ? (body?.rows as Record<string, unknown>[]) : null;
         if (!rows) return Response.json({ ok: false, error: "Invalid payload. Expected rows array.", requestId }, { status: 400 });
+
+        const permission = requirePermission(session, {
+          resource: toResource(domain),
+          action: "update",
+          fields: fieldNamesFromRows(rows),
+        });
+        if (!permission.ok) {
+          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
 
         try {
           const next = await replaceDomainRows(session, domain, rows);
@@ -128,12 +140,11 @@ export const Route = createFileRoute("/api/data/$domain")({
         const session = await getSessionFromRequest(request);
         if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
 
-        const permission = requirePermission(session, { resource: toResource(domain), action: "create" });
-        if (!permission.ok) {
-          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
-        }
-
         if (domain === "settings") {
+          const permission = requirePermission(session, { resource: toResource(domain), action: "create" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
           return Response.json(
             { ok: false, error: "Create is not supported for settings.", requestId },
             { status: 405 }
@@ -143,6 +154,15 @@ export const Route = createFileRoute("/api/data/$domain")({
         const body = await parseBody(request);
         const row = parseRow(body?.row);
         if (!row) return Response.json({ ok: false, error: "Invalid payload. Expected row object.", requestId }, { status: 400 });
+
+        const permission = requirePermission(session, {
+          resource: toResource(domain),
+          action: "create",
+          fields: fieldNamesFromRecord(row),
+        });
+        if (!permission.ok) {
+          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
 
         try {
           const created = await createDomainRow(session, domain, row);
@@ -162,12 +182,11 @@ export const Route = createFileRoute("/api/data/$domain")({
         const session = await getSessionFromRequest(request);
         if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
 
-        const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
-        if (!permission.ok) {
-          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
-        }
-
         if (domain === "settings") {
+          const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
           const body = await parseBody(request);
           if (!body) return Response.json({ ok: false, error: "Invalid settings payload.", requestId }, { status: 400 });
 
@@ -211,6 +230,15 @@ export const Route = createFileRoute("/api/data/$domain")({
         const body = await parseBody(request);
         const patch = parseRow(body?.patch);
         if (!patch) return Response.json({ ok: false, error: "Invalid payload. Expected patch object.", requestId }, { status: 400 });
+
+        const permission = requirePermission(session, {
+          resource: toResource(domain),
+          action: "update",
+          fields: fieldNamesFromRecord(patch),
+        });
+        if (!permission.ok) {
+          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
 
         try {
           const updated = await updateDomainRow(session, domain, id, patch);

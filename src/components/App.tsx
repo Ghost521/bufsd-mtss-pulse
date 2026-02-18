@@ -106,19 +106,15 @@ type SettingsAvatarResponse = {
   }>;
 };
 
-const ALL_WORKSPACE_ROLES: UserRole[] = [
-  UserRole.PRINCIPAL,
-  UserRole.TEACHER,
-  UserRole.DISTRICT,
-  UserRole.PARENT,
-];
-
 const DEFAULT_SIDEBAR_GROUP_STATE = {
   work: true,
   planning: true,
   communication: true,
   administration: true,
 };
+
+const ALLOW_ROLE_SWITCHING =
+  import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
 
 const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | null => {
   if (role === 'principal') return UserRole.PRINCIPAL;
@@ -151,7 +147,7 @@ const App: React.FC = () => {
   }, [pathname]);
 
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
-  const [availableRoles, setAvailableRoles] = useState<UserRole[]>(ALL_WORKSPACE_ROLES);
+  const [availableRoles, setAvailableRoles] = useState<UserRole[]>([UserRole.PRINCIPAL]);
   const [data, setData] = useState<DashboardData>(createEmptyDashboardData(UserRole.PRINCIPAL));
   const [settingsDisplayName, setSettingsDisplayName] = useState<string | null>(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
@@ -278,8 +274,16 @@ const App: React.FC = () => {
         );
 
         if (!isMounted || nextRoles.length === 0) return;
-        setAvailableRoles(nextRoles);
-        setCurrentRole((previous) => (nextRoles.includes(previous) ? previous : nextRoles[0]));
+
+        const lockedRole = primaryRole ?? nextRoles[0];
+        if (ALLOW_ROLE_SWITCHING) {
+          setAvailableRoles(nextRoles);
+          setCurrentRole((previous) => (nextRoles.includes(previous) ? previous : nextRoles[0]));
+          return;
+        }
+
+        setAvailableRoles([lockedRole]);
+        setCurrentRole(lockedRole);
       } catch {
         // Keep default local role state when health lookup fails.
       }
@@ -533,6 +537,7 @@ const App: React.FC = () => {
   };
 
   const handleRoleChange = (nextRole: UserRole) => {
+    if (!ALLOW_ROLE_SWITCHING) return;
     if (!availableRoles.includes(nextRole)) return;
     const targetPage = normalizePageForRole(nextRole, currentViewPage === 'profile' ? 'dashboard' : currentViewPage);
     setCurrentRole(nextRole);

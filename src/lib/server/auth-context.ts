@@ -37,7 +37,6 @@ const buildSession = (userId: string, requestedContext: TenantContext | null): S
   if (!user) return null;
   const memberships = getUserMemberships(userId);
   if (memberships.length === 0) return null;
-  const groups = getUserGroups(memberships);
 
   const availableContexts = getAccessibleContextsForMemberships(memberships);
   if (availableContexts.length === 0) return null;
@@ -47,9 +46,10 @@ const buildSession = (userId: string, requestedContext: TenantContext | null): S
       ? requestedContext
       : availableContexts[0];
 
-  const effectiveRoles = memberships
+  const contextMemberships = memberships
     .filter((membership) => canUserAccessContext(activeContext, [membership]))
-    .map((membership) => membership.role);
+  const groups = getUserGroups(contextMemberships);
+  const effectiveRoles = contextMemberships.map((membership) => membership.role);
 
   return {
     user,

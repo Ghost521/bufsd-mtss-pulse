@@ -22,6 +22,14 @@ const roleFromRequest = (raw: string | null | undefined, fallback: UserRole): Us
   return fallback;
 };
 
+const roleKeyToUserRole = (role: string): UserRole | null => {
+  if (role === "teacher") return UserRole.TEACHER;
+  if (role === "principal") return UserRole.PRINCIPAL;
+  if (role === "district_admin" || role === "org_admin") return UserRole.DISTRICT;
+  if (role === "parent") return UserRole.PARENT;
+  return null;
+};
+
 export const deriveWorkspaceRole = (session: SessionContext, raw?: string | null): UserRole => {
   const fallback = isDistrictRole(session)
     ? UserRole.DISTRICT
@@ -30,7 +38,15 @@ export const deriveWorkspaceRole = (session: SessionContext, raw?: string | null
       : session.effectiveRoles.includes("parent")
         ? UserRole.PARENT
         : UserRole.TEACHER;
-  return roleFromRequest(raw, fallback);
+
+  const requested = roleFromRequest(raw, fallback);
+  const allowedRoles = new Set(
+    session.effectiveRoles
+      .map((role) => roleKeyToUserRole(role))
+      .filter((role): role is UserRole => role !== null),
+  );
+
+  return allowedRoles.has(requested) ? requested : fallback;
 };
 
 const buildSchoolName = (session: SessionContext): string => {

@@ -11,10 +11,15 @@ export type RoleKey = "org_admin" | "district_admin" | "principal" | "teacher" |
 export type AppPermissionAction = "read" | "create" | "update" | "delete";
 export type AppResource =
   | "students"
+  | "student_profiles"
+  | "staff"
+  | "gradebook_assignments"
+  | "gradebook_grades"
   | "documents"
   | "calendar"
   | "messages"
   | "interventions"
+  | "referrals"
   | "lesson_plans"
   | "dashboard"
   | "reports"
@@ -26,6 +31,7 @@ export type PermissionGrant = {
   resource: AppResource;
   action: AppPermissionAction;
   fields?: string[];
+  effect?: "allow" | "deny";
 };
 
 export type MembershipRecord = {

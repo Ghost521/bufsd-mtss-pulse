@@ -132,6 +132,7 @@ const cloneGroup = (value: GroupRecord): GroupRecord => ({
   permissions: value.permissions.map((permission) => ({
     ...permission,
     fields: permission.fields ? [...permission.fields] : undefined,
+    effect: permission.effect,
   })),
 });
 const cloneInvite = (value: InviteRecord): InviteRecord => ({ ...value });
