@@ -6,6 +6,7 @@ import type { UserRole } from '../types';
 import { Tier } from '../types';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useStudents } from '../hooks/useStudents';
+import { extractPastedCells, parseGradeInput, type ParsedGradeScore } from '../lib/gradebook-editing';
 import { 
   Search, 
   Plus, 
@@ -32,9 +33,15 @@ import {
   MessageSquare,
   Mail,
   Sparkles,
-  Send
+  Send,
+  RotateCcw,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { CustomDatePicker } from './CustomDatePicker';
 import { generateParentMessage } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
@@ -55,6 +62,8 @@ const WEIGHT_PRESETS: Record<string, Record<AssignmentType, number>> = {
 };
 
 type PersistedGradeEntry = GradeEntry & { id: string };
+type CellSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const toGradeRowId = (studentId: string, assignmentId: string): string => `${studentId}::${assignmentId}`;
 
@@ -64,6 +73,8 @@ const toPersistedGradeEntry = (entry: GradeEntry): PersistedGradeEntry => ({
   assignmentId: entry.assignmentId,
   score: entry.score,
 });
+
+const toCellKey = (studentId: string, assignmentId: string): string => `${studentId}::${assignmentId}`;
 
 export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => {
   const assignmentCollection = useTenantCollection<Assignment>('gradebook-assignments');
@@ -107,6 +118,16 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   const [activeCell, setActiveCell] = useState<{sId: string, aId: string} | null>(null);
   const [columnMenuId, setColumnMenuId] = useState<string | null>(null);
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [cellSaveState, setCellSaveState] = useState<Record<string, CellSaveState>>({});
+  const [lastEditedCell, setLastEditedCell] = useState<{
+    studentId: string;
+    assignmentId: string;
+    previous: ParsedGradeScore;
+    next: ParsedGradeScore;
+  } | null>(null);
+  const [mobileStudentId, setMobileStudentId] = useState<string | null>(null);
+  const [mobileAssignmentId, setMobileAssignmentId] = useState<string | null>(null);
   
   // Missing Work Modal State
   const [showMissingModal, setShowMissingModal] = useState(false);
@@ -117,6 +138,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
   // Refs for keyboard nav
   const gridRef = useRef<HTMLDivElement>(null);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rosterStudents = useMemo(
     () => studentsApi.studentsQuery.data?.rows ?? CLASS_ROSTER_DATA,
@@ -184,49 +206,146 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
   // --- Helpers & Calculation Logic ---
 
-  const getScore = (studentId: string, assignmentId: string) => {
-    return grades.find(g => g.studentId === studentId && g.assignmentId === assignmentId)?.score ?? '';
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, []);
+
+  const queuePersistGrades = useCallback((nextRows: PersistedGradeEntry[], changedCellKeys: string[]) => {
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+
+    setSaveStatus('saving');
+    setCellSaveState((prev) => {
+      const next = { ...prev };
+      changedCellKeys.forEach((key) => {
+        next[key] = 'saving';
+      });
+      return next;
+    });
+
+    persistTimerRef.current = setTimeout(() => {
+      gradeCollection.replaceMutation.mutate(nextRows, {
+        onSuccess: () => {
+          setSaveStatus('saved');
+          setCellSaveState((prev) => {
+            const next = { ...prev };
+            changedCellKeys.forEach((key) => {
+              next[key] = 'saved';
+            });
+            return next;
+          });
+
+          setTimeout(() => {
+            setSaveStatus((current) => (current === 'saved' ? 'idle' : current));
+            setCellSaveState((prev) => {
+              const next = { ...prev };
+              changedCellKeys.forEach((key) => {
+                if (next[key] === 'saved') next[key] = 'idle';
+              });
+              return next;
+            });
+          }, 1200);
+        },
+        onError: () => {
+          setSaveStatus('error');
+          setCellSaveState((prev) => {
+            const next = { ...prev };
+            changedCellKeys.forEach((key) => {
+              next[key] = 'error';
+            });
+            return next;
+          });
+        },
+      });
+    }, 400);
+  }, [gradeCollection.replaceMutation]);
+
+  const upsertGradeRow = (
+    rows: PersistedGradeEntry[],
+    studentId: string,
+    assignmentId: string,
+    score: ParsedGradeScore,
+  ): PersistedGradeEntry[] => {
+    const existingIndex = rows.findIndex((grade) => grade.studentId === studentId && grade.assignmentId === assignmentId);
+    if (existingIndex >= 0) {
+      const next = [...rows];
+      next[existingIndex] = { ...next[existingIndex], score };
+      return next;
+    }
+    return [...rows, { id: toGradeRowId(studentId, assignmentId), studentId, assignmentId, score }];
   };
 
-  const updateGrade = (studentId: string, assignmentId: string, newScore: string | number | null) => {
-    setGrades(prev => {
-      const existingIndex = prev.findIndex(g => g.studentId === studentId && g.assignmentId === assignmentId);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = { ...updated[existingIndex], score: newScore };
-        gradeCollection.replaceMutation.mutate(updated);
-        return updated;
-      } else {
-        const next = [...prev, { id: toGradeRowId(studentId, assignmentId), studentId, assignmentId, score: newScore }];
-        gradeCollection.replaceMutation.mutate(next);
-        return next;
-      }
+  const getScore = (studentId: string, assignmentId: string): ParsedGradeScore => {
+    const score = grades.find((grade) => grade.studentId === studentId && grade.assignmentId === assignmentId)?.score;
+    if (score === '' || score === undefined) return null;
+    if (score === 'M' || score === 'E' || score === 'L' || score === null) return score;
+    const parsed = Number(score);
+    if (Number.isNaN(parsed)) return null;
+    return parsed;
+  };
+
+  const applyParsedScore = (studentId: string, assignmentId: string, nextScore: ParsedGradeScore) => {
+    const cellKey = toCellKey(studentId, assignmentId);
+    const previous = getScore(studentId, assignmentId);
+    if (previous === nextScore) return;
+
+    setCellSaveState((prev) => ({ ...prev, [cellKey]: 'dirty' }));
+    setLastEditedCell({ studentId, assignmentId, previous, next: nextScore });
+    setSaveStatus('saving');
+    setGrades((prev) => {
+      const next = upsertGradeRow(prev, studentId, assignmentId, nextScore);
+      queuePersistGrades(next, [cellKey]);
+      return next;
     });
   };
 
   const handleScoreChange = (studentId: string, assignmentId: string, value: string) => {
-    const upperVal = value.toUpperCase();
-    
-    // Handle Special Codes
-    if (['M', 'E', 'L'].includes(upperVal)) {
-       updateGrade(studentId, assignmentId, upperVal);
-       return;
-    }
+    const parsed = parseGradeInput(value);
+    if (parsed === undefined) return;
+    applyParsedScore(studentId, assignmentId, parsed);
+  };
 
-    // Handle Clear
-    if (value === '') {
-       updateGrade(studentId, assignmentId, null);
-       return;
-    }
+  const handleUndoLastEdit = () => {
+    if (!lastEditedCell) return;
+    const { studentId, assignmentId, previous } = lastEditedCell;
+    applyParsedScore(studentId, assignmentId, previous);
+  };
 
-    // Handle Numeric (Allow decimals and intermediate states like "9.")
-    if (/^\d*\.?\d*$/.test(value)) {
-        const num = parseFloat(value);
-        if (!isNaN(num)) {
-            if (num > 100) return; // Cap at 100
-        }
-        updateGrade(studentId, assignmentId, value);
-    }
+  const handlePasteGrades = (event: React.ClipboardEvent<HTMLInputElement>, rowIndex: number, colIndex: number) => {
+    const clipboardText = event.clipboardData.getData('text');
+    if (!clipboardText || (!clipboardText.includes('\t') && !clipboardText.includes('\n'))) return;
+
+    const pastedCells = extractPastedCells(
+      clipboardText,
+      rowIndex,
+      colIndex,
+      filteredAndSortedStudents.length,
+      filteredAssignments.length,
+    );
+    if (pastedCells.length === 0) return;
+
+    event.preventDefault();
+    const changedKeys: string[] = [];
+    setSaveStatus('saving');
+    setGrades((prev) => {
+      let next = [...prev];
+      pastedCells.forEach((pastedCell) => {
+        const student = filteredAndSortedStudents[pastedCell.row];
+        const assignment = filteredAssignments[pastedCell.col];
+        if (!student || !assignment) return;
+
+        const key = toCellKey(student.id, assignment.id);
+        changedKeys.push(key);
+        next = upsertGradeRow(next, student.id, assignment.id, pastedCell.value);
+      });
+      queuePersistGrades(next, changedKeys);
+      return next;
+    });
   };
 
   const handleCreateAssignment = () => {
@@ -292,6 +411,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   const handleBulkMissing = (assignmentId: string) => {
     setGrades(prev => {
       const newGrades = [...prev];
+      const changedCellKeys: string[] = [];
       rosterStudents.forEach(student => {
         const exists = newGrades.find(g => g.studentId === student.id && g.assignmentId === assignmentId);
         if (!exists || exists.score === null || exists.score === '') {
@@ -300,18 +420,21 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
            } else {
              newGrades.push({ id: toGradeRowId(student.id, assignmentId), studentId: student.id, assignmentId, score: 'M' });
            }
+           changedCellKeys.push(toCellKey(student.id, assignmentId));
         }
       });
-      gradeCollection.replaceMutation.mutate(newGrades);
+      queuePersistGrades(newGrades, changedCellKeys);
       return newGrades;
     });
     setColumnMenuId(null);
   };
 
-  const calculateWeightedAverage = useCallback((studentId: string) => {
-    // Only consider grades for the CURRENT SUBJECT assignments
-    const currentSubjectAssignmentIds = assignments.map(a => a.id);
-    const studentGrades = grades.filter(g => g.studentId === studentId && currentSubjectAssignmentIds.includes(g.assignmentId));
+  const calculateWeightedAverage = useCallback((studentId: string, assignmentScope: Assignment[]) => {
+    const assignmentIdSet = new Set(assignmentScope.map((assignment) => assignment.id));
+    const assignmentMap = new Map(assignmentScope.map((assignment) => [assignment.id, assignment]));
+    const studentGrades = grades.filter(
+      (grade) => grade.studentId === studentId && assignmentIdSet.has(grade.assignmentId),
+    );
     
     let totalWeightedScore = 0;
     let totalWeightUsed = 0;
@@ -319,7 +442,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     const typeGroups: Record<string, number[]> = { 'Homework': [], 'Quiz': [], 'Test': [], 'Project': [] };
 
     studentGrades.forEach(g => {
-      const asn = assignments.find(a => a.id === g.assignmentId);
+      const asn = assignmentMap.get(g.assignmentId);
       if (asn && g.score !== null && g.score !== 'E') {
         let val = 0;
         if (g.score === 'M' || g.score === 'L') val = 0;
@@ -342,11 +465,11 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
     if (totalWeightUsed === 0) return 0;
     return Math.round(totalWeightedScore / totalWeightUsed);
-  }, [assignments, grades, weights]);
+  }, [grades, weights]);
 
-  const getAssignmentAverage = (assignmentId: string) => {
+  const getAssignmentAverage = (assignmentId: string, studentIds?: Set<string>) => {
       const scores = grades
-        .filter(g => g.assignmentId === assignmentId && g.score !== null && g.score !== 'E')
+        .filter(g => g.assignmentId === assignmentId && g.score !== null && g.score !== 'E' && (!studentIds || studentIds.has(g.studentId)))
         .map(g => {
             if (g.score === 'M' || g.score === 'L') return 0;
             const val = parseFloat(String(g.score));
@@ -364,6 +487,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     cutoff.setDate(now.getDate() - (dateFilter === '30Days' ? 30 : 7));
     return assignments.filter(a => new Date(a.date) >= cutoff);
   }, [assignments, dateFilter]);
+  const assignmentIdsInScope = useMemo(() => new Set(filteredAssignments.map((assignment) => assignment.id)), [filteredAssignments]);
 
   const filteredAndSortedStudents = useMemo(() => {
     let students = rosterStudents.filter(s => 
@@ -376,26 +500,36 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
           ? a.name.localeCompare(b.name)
           : b.name.localeCompare(a.name);
       } else {
-        const avgA = calculateWeightedAverage(a.id);
-        const avgB = calculateWeightedAverage(b.id);
+        const avgA = calculateWeightedAverage(a.id, filteredAssignments);
+        const avgB = calculateWeightedAverage(b.id, filteredAssignments);
         return sortConfig.direction === 'asc' ? avgA - avgB : avgB - avgA;
       }
     });
 
     return students;
-  }, [searchQuery, sortConfig, calculateWeightedAverage, rosterStudents]);
+  }, [searchQuery, sortConfig, calculateWeightedAverage, rosterStudents, filteredAssignments]);
 
-  const classAverage = useMemo(() => {
+  const filteredAverage = useMemo(() => {
     if (filteredAndSortedStudents.length === 0) return 0;
-    const sum = filteredAndSortedStudents.reduce((acc, s) => acc + calculateWeightedAverage(s.id), 0);
+    const sum = filteredAndSortedStudents.reduce((acc, student) => {
+      return acc + calculateWeightedAverage(student.id, filteredAssignments);
+    }, 0);
     return Math.round(sum / filteredAndSortedStudents.length);
-  }, [filteredAndSortedStudents, calculateWeightedAverage]);
+  }, [filteredAndSortedStudents, calculateWeightedAverage, filteredAssignments]);
+
+  const classSubjectAverage = useMemo(() => {
+    if (rosterStudents.length === 0) return 0;
+    const sum = rosterStudents.reduce((acc, student) => {
+      return acc + calculateWeightedAverage(student.id, filteredAssignments);
+    }, 0);
+    return Math.round(sum / rosterStudents.length);
+  }, [rosterStudents, calculateWeightedAverage, filteredAssignments]);
 
   const missingWorkList = useMemo(() => {
     const results: { studentName: string; studentAvatar: string; assignmentTitle: string; dueDate: string; studentId: string }[] = [];
-    const currentAsnIds = assignments.map(a => a.id);
+    const currentAsnIds = new Set(filteredAssignments.map((assignment) => assignment.id));
     
-    grades.filter(g => g.score === 'M' && currentAsnIds.includes(g.assignmentId)).forEach(g => {
+    grades.filter(g => g.score === 'M' && currentAsnIds.has(g.assignmentId)).forEach(g => {
         const student = rosterStudents.find(s => s.id === g.studentId);
         const assign = assignments.find(a => a.id === g.assignmentId);
         if (student && assign) {
@@ -409,11 +543,48 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         }
     });
     return results;
-  }, [grades, assignments, rosterStudents]);
+  }, [grades, assignments, rosterStudents, filteredAssignments]);
+
+  const filteredStudentIds = useMemo(
+    () => new Set(filteredAndSortedStudents.map((student) => student.id)),
+    [filteredAndSortedStudents],
+  );
+
+  const missingCountInScope = useMemo(
+    () => grades.filter((grade) => grade.score === 'M' && assignmentIdsInScope.has(grade.assignmentId)).length,
+    [grades, assignmentIdsInScope],
+  );
+
+  useEffect(() => {
+    if (!filteredAndSortedStudents.length) {
+      setMobileStudentId(null);
+      return;
+    }
+    if (!mobileStudentId || !filteredAndSortedStudents.some((student) => student.id === mobileStudentId)) {
+      setMobileStudentId(filteredAndSortedStudents[0].id);
+    }
+  }, [filteredAndSortedStudents, mobileStudentId]);
+
+  useEffect(() => {
+    if (!filteredAssignments.length) {
+      setMobileAssignmentId(null);
+      return;
+    }
+    if (!mobileAssignmentId || !filteredAssignments.some((assignment) => assignment.id === mobileAssignmentId)) {
+      setMobileAssignmentId(filteredAssignments[0].id);
+    }
+  }, [filteredAssignments, mobileAssignmentId]);
 
   // --- Keyboard Navigation ---
   const handleKeyDown = (e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
+    if (
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'Enter' ||
+      e.key === 'Tab'
+    ) {
         e.preventDefault();
         let nextRow = rowIndex;
         let nextCol = colIndex;
@@ -421,7 +592,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         if (e.key === 'ArrowRight') nextCol++;
         if (e.key === 'ArrowLeft') nextCol--;
         if (e.key === 'ArrowUp') nextRow--;
-        if (e.key === 'ArrowDown' || e.key === 'Enter') nextRow++;
+        if (e.key === 'ArrowDown') nextRow++;
+        if (e.key === 'Enter') nextRow += e.shiftKey ? -1 : 1;
+        if (e.key === 'Tab') nextCol += e.shiftKey ? -1 : 1;
 
         // Boundaries
         if (nextRow < 0) nextRow = 0;
@@ -506,6 +679,66 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
   const handleMessageAllParents = () => {
       alert(`Sending bulk notification to parents of ${missingWorkList.length} students regarding missing work.`);
+  };
+
+  const totalTempWeight = useMemo(
+    () => (Object.values(tempWeights) as number[]).reduce((total, value) => total + value, 0),
+    [tempWeights],
+  );
+  const remainingWeight = 100 - totalTempWeight;
+  const mobileStudent = useMemo(
+    () => filteredAndSortedStudents.find((student) => student.id === mobileStudentId) ?? null,
+    [filteredAndSortedStudents, mobileStudentId],
+  );
+  const mobileAssignment = useMemo(
+    () => filteredAssignments.find((assignment) => assignment.id === mobileAssignmentId) ?? null,
+    [filteredAssignments, mobileAssignmentId],
+  );
+  const mobileStudentIndex = useMemo(
+    () => filteredAndSortedStudents.findIndex((student) => student.id === mobileStudentId),
+    [filteredAndSortedStudents, mobileStudentId],
+  );
+
+  const normalizeWeights = () => {
+    const entries = Object.entries(tempWeights) as Array<[AssignmentType, number]>;
+    const sum = entries.reduce((total, [, value]) => total + value, 0);
+    if (sum === 0) {
+      setTempWeights(WEIGHT_PRESETS.Standard);
+      return;
+    }
+
+    let distributed = 0;
+    const normalized: Record<AssignmentType, number> = {
+      Homework: 0,
+      Quiz: 0,
+      Test: 0,
+      Project: 0,
+    };
+    entries.forEach(([key, value], index) => {
+      if (index === entries.length - 1) {
+        normalized[key] = 100 - distributed;
+      } else {
+        const nextValue = Math.max(0, Math.round((value / sum) * 100));
+        normalized[key] = nextValue;
+        distributed += nextValue;
+      }
+    });
+    setTempWeights(normalized);
+  };
+
+  const retrySavingGrades = () => {
+    setSaveStatus('saving');
+    gradeCollection.replaceMutation.mutate(grades, {
+      onSuccess: () => setSaveStatus('saved'),
+      onError: () => setSaveStatus('error'),
+    });
+  };
+
+  const resetFiltersToDefault = () => {
+    setSelectedSubject('Mathematics');
+    setSelectedTerm('Q1');
+    setDateFilter('All');
+    setSearchQuery('');
   };
 
   return (
@@ -642,7 +875,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                     </div>
                                     <button 
                                         onClick={() => handleMessageParent(item.studentName, item.assignmentTitle)}
-                                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 shadow-sm"
                                     >
                                         <Mail size={14} /> Message Parent
                                     </button>
@@ -792,7 +1025,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               <button onClick={() => setShowWeightsModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">Cancel</button>
               <button 
                 onClick={() => { setWeights(tempWeights); setShowWeightsModal(false); }}
-                disabled={Object.values(tempWeights).reduce((a: number,b: number)=>a+b,0) !== 100}
+                disabled={totalTempWeight !== 100}
                 className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
               >
                 <Save size={16} /> Save Configuration
@@ -806,7 +1039,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                  <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
                     <LayoutTemplate size={14} /> Quick Presets
                  </div>
-                 <div className="grid grid-cols-3 gap-2">
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {Object.entries(WEIGHT_PRESETS).map(([name, presetWeights]) => (
                         <button
                             key={name}
@@ -820,31 +1053,40 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                             {name}
                         </button>
                     ))}
+                    <button
+                      onClick={normalizeWeights}
+                      className="py-2 px-2 rounded-lg text-xs font-bold border bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                    >
+                      Normalize
+                    </button>
                  </div>
               </div>
 
               <div className="flex flex-col gap-8 items-center">
                 {/* Visual Donut */}
                 <div className="w-40 h-40 relative shrink-0">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                        <PieChart>
-                        <Pie
-                            data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
-                            innerRadius={35}
-                            outerRadius={55}
-                            paddingAngle={5}
-                            dataKey="value"
-                        >
-                            {Object.entries(tempWeights).map((entry, index) => (
+                    <PieChart width={160} height={160}>
+                      <Pie
+                          data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
+                          innerRadius={35}
+                          outerRadius={55}
+                          paddingAngle={5}
+                          dataKey="value"
+                          cx={80}
+                          cy={80}
+                      >
+                          {Object.entries(tempWeights).map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                            ))}
-                        </Pie>
-                        </PieChart>
-                    </ResponsiveContainer>
+                          ))}
+                      </Pie>
+                    </PieChart>
                     <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Total</span>
-                        <span className={`text-xl font-bold transition-colors duration-300 ${Object.values(tempWeights).reduce((a: number,b: number)=>a+b,0) !== 100 ? 'text-rose-500 animate-pulse' : 'text-slate-800'}`}>
-                        {Object.values(tempWeights).reduce((a: number,b: number)=>a+b,0)}%
+                        <span className={`text-xl font-bold transition-colors duration-300 ${totalTempWeight !== 100 ? 'text-rose-500 animate-pulse' : 'text-slate-800'}`}>
+                        {totalTempWeight}%
+                        </span>
+                        <span className={`text-[10px] font-bold ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                          {remainingWeight === 0 ? 'Balanced' : `${remainingWeight > 0 ? '+' : ''}${remainingWeight}% remaining`}
                         </span>
                     </div>
                 </div>
@@ -883,8 +1125,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                 </div>
               </div>
 
-              {Object.values(tempWeights).reduce((a: number,b: number)=>a+b,0) !== 100 && (
-                <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-lg flex items-center justify-center gap-2 border border-rose-100 font-bold animate-bounce">
+              {totalTempWeight !== 100 && (
+                <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-lg flex items-center justify-center gap-2 border border-rose-100 font-bold">
                   <AlertCircle size={16} /> Weights must total exactly 100%.
                 </div>
               )}
@@ -892,159 +1134,193 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       </DraggableModal>
 
       {/* --- Header --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <SidebarToggleButton
-                onClick={onMenuClick}
-                className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+              onClick={onMenuClick}
+              className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
             />
             <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Gradebook</h2>
-                <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">
-                   <span className="font-medium text-indigo-600">Class 4-B</span> 
-                   <span className="text-slate-300">•</span> 
-                   {assignments.length} Assignments
-                </p>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Gradebook</h2>
+              <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">
+                <span className="font-medium text-indigo-600">Class 4-B</span>
+                <span className="text-slate-300">•</span>
+                {assignments.length} Assignments
+              </p>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowAddAssignmentModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+            >
+              <Plus size={18} /> New Assignment
+            </button>
+            <button
+              onClick={() => { setTempWeights(weights); setShowWeightsModal(true); }}
+              className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
+              title="Configure grade weights"
+            >
+              <PieChartIcon size={16} /> Grade Weights
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-            {/* Subject Selector */}
-            <div className="relative">
-                <select 
-                    value={selectedSubject} 
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors"
-                >
-                    {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Term Selector */}
-            <div className="relative">
-                <select 
-                    value={selectedTerm} 
-                    onChange={(e) => setSelectedTerm(e.target.value)}
-                    className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors"
-                >
-                    <option value="Q1">Quarter 1</option>
-                    <option value="Q2">Quarter 2</option>
-                    <option value="Q3">Quarter 3</option>
-                    <option value="Q4">Quarter 4</option>
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Date Range Filter */}
-            <div className="relative">
-                <CalendarDays size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <select 
-                    value={dateFilter} 
-                    onChange={(e) => setDateFilter(e.target.value as 'All' | '30Days' | '7Days')}
-                    className="appearance-none pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors"
-                >
-                    <option value="All">All Time</option>
-                    <option value="30Days">Last 30 Days</option>
-                    <option value="7Days">Last 7 Days</option>
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-
-            <div className="w-px h-8 bg-slate-200 mx-1"></div>
-
-            <button 
-                onClick={() => { setTempWeights(weights); setShowWeightsModal(true); }}
-                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm relative group" 
-                title="Configure Weights"
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="relative">
+            <select
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors w-full"
             >
-                <PieChartIcon size={20} />
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                    Grade Weights
-                </span>
-            </button>
-            
-            <button 
-                onClick={() => setShowAddAssignmentModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+              {SUBJECTS.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+            </select>
+            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+          <div className="relative">
+            <select
+              value={selectedTerm}
+              onChange={(e) => setSelectedTerm(e.target.value)}
+              className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors w-full"
             >
-                <Plus size={18} /> Assignment
-            </button>
+              <option value="Q1">Quarter 1</option>
+              <option value="Q2">Quarter 2</option>
+              <option value="Q3">Quarter 3</option>
+              <option value="Q4">Quarter 4</option>
+            </select>
+            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+          <div className="relative">
+            <CalendarDays size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as 'All' | '30Days' | '7Days')}
+              className="appearance-none pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors w-full"
+            >
+              <option value="All">All Time</option>
+              <option value="30Days">Last 30 Days</option>
+              <option value="7Days">Last 7 Days</option>
+            </select>
+            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Filters:</span>
+          <button onClick={() => setSelectedSubject('Mathematics')} className="px-2 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold">
+            {selectedSubject}
+          </button>
+          <button onClick={() => setSelectedTerm('Q1')} className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+            {selectedTerm}
+          </button>
+          <button onClick={() => setDateFilter('All')} className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+            {dateFilter === 'All' ? 'All Time' : dateFilter === '30Days' ? 'Last 30 Days' : 'Last 7 Days'}
+          </button>
+          <button onClick={resetFiltersToDefault} className="ml-auto text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg px-2 py-1">
+            Reset Filters
+          </button>
         </div>
       </div>
 
       {/* Stats Strip */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg ring-4 ring-indigo-50/50">
-                {classAverage}%
-            </div>
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Weighted Avg</p>
-                <p className="text-sm font-medium text-slate-600">Across {filteredAssignments.length} Items</p>
-            </div>
-         </div>
-         
-         {/* Missing Assignments Count */}
-         <div 
-            onClick={() => setShowMissingModal(true)}
-            className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
-         >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ring-4 transition-transform group-hover:scale-110 ${grades.filter(g => g.score === 'M').length > 5 ? 'bg-rose-50 text-rose-600 ring-rose-50/50' : 'bg-emerald-50 text-emerald-600 ring-emerald-50/50'}`}>
-                {grades.filter(g => {
-                    // Only count missing for currently displayed subject assignments
-                    const currentAsnIds = assignments.map(a => a.id);
-                    return g.score === 'M' && currentAsnIds.includes(g.assignmentId);
-                }).length}
-            </div>
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">Missing</p>
-                <p className="text-sm font-medium text-slate-600">Assignments Due</p>
-            </div>
-         </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg ring-4 ring-indigo-50/50">
+            {classSubjectAverage}%
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Weighted Avg (Class)</p>
+            <p className="text-sm font-medium text-slate-600">Across {filteredAssignments.length} Items</p>
+          </div>
+        </div>
 
-         {/* AI Analysis Button */}
-         <div className="md:col-span-2 bg-gradient-to-r from-indigo-500 to-violet-600 rounded-xl shadow-md p-4 flex items-center justify-between text-white relative overflow-hidden group cursor-pointer" onClick={() => setShowAiAnalysis(!showAiAnalysis)}>
-            <div className="relative z-10">
-                <h3 className="font-bold text-lg flex items-center gap-2">
-                    <BrainCircuit size={20} /> Grade Analysis
-                </h3>
-                <p className="text-indigo-100 text-sm">Click to view AI insights on performance trends.</p>
-            </div>
-            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm group-hover:bg-white/30 transition-colors relative z-10">
-                <TrendingUp size={24} />
-            </div>
-            <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
-         </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg ring-4 ring-blue-50/50">
+            {filteredAverage}%
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Weighted Avg (Filtered)</p>
+            <p className="text-sm font-medium text-slate-600">{filteredAndSortedStudents.length} Students</p>
+          </div>
+        </div>
+
+        <div
+          onClick={() => setShowMissingModal(true)}
+          className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+        >
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ring-4 transition-transform group-hover:scale-110 ${missingCountInScope > 5 ? 'bg-rose-50 text-rose-600 ring-rose-50/50' : 'bg-emerald-50 text-emerald-600 ring-emerald-50/50'}`}>
+            {missingCountInScope}
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">Missing</p>
+            <p className="text-sm font-medium text-slate-600">In Current Scope</p>
+          </div>
+        </div>
+
+        <button
+          className="bg-gradient-to-r from-indigo-500 to-violet-600 rounded-xl shadow-md p-4 flex items-center justify-between text-white relative overflow-hidden group cursor-pointer text-left"
+          onClick={() => setShowAiAnalysis(true)}
+        >
+          <div className="relative z-10">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <BrainCircuit size={20} /> Grade Analysis
+            </h3>
+            <p className="text-indigo-100 text-sm">Open actionable AI insights for current filters.</p>
+          </div>
+          <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm group-hover:bg-white/30 transition-colors relative z-10">
+            <TrendingUp size={24} />
+          </div>
+          <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
+        </button>
       </div>
 
-      {/* AI Analysis Panel */}
+      {/* AI Analysis Drawer */}
       {showAiAnalysis && (
-          <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded-xl p-6 animate-in fade-in slide-in-from-top-2">
-              <div className="flex gap-4 items-start">
-                  <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg mt-1">
-                      <BrainCircuit size={24} />
-                  </div>
-                  <div className="space-y-2">
-                      <h4 className="font-bold text-indigo-900">AI Performance Summary: {selectedSubject}</h4>
-                      <p className="text-sm text-indigo-800 leading-relaxed">
-                          The weighted class average has trended <strong>upwards by 3%</strong> over the last 30 days. 
-                          Performance on "Tests" (Weighted {weights['Test']}%) is strong, but "Homework" submission rates have dropped for Tier 2 students.
-                          Recommended action: Review homework policies or offer office hours.
-                      </p>
-                  </div>
-                  <button onClick={() => setShowAiAnalysis(false)} className="ml-auto text-indigo-400 hover:text-indigo-600">
-                      <X size={16} />
-                  </button>
+        <div className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-[1px] flex justify-end" onClick={() => setShowAiAnalysis(false)}>
+          <div
+            className="w-full md:w-[430px] h-full bg-white shadow-2xl border-l border-slate-200 p-5 overflow-y-auto animate-in slide-in-from-right"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-500">AI Summary</p>
+                <h4 className="font-bold text-slate-900 text-lg mt-1">Performance Insight: {selectedSubject}</h4>
               </div>
+              <button onClick={() => setShowAiAnalysis(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-4 p-4 rounded-xl border border-indigo-100 bg-indigo-50">
+              <p className="text-sm text-indigo-900 leading-relaxed">
+                The class average is <strong>{classSubjectAverage}%</strong>, while the filtered cohort is
+                <strong> {filteredAverage}%</strong>. Test performance (weight {weights.Test}%) is strongest, and homework completion remains the largest risk area.
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Recommended Actions</p>
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">
+                Send homework reminder to families with missing work
+              </button>
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">
+                Create intervention follow-up for Tier 3 students below 70%
+              </button>
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">
+                Review weight distribution before final posting
+              </button>
+            </div>
           </div>
+        </div>
       )}
 
       {/* Main Gradebook Table */}
       <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col relative">
          
          {/* Toolbar */}
-         <div className="p-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+         <div className="p-3 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50">
              <div className="relative max-w-xs w-full">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
@@ -1055,7 +1331,37 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                 />
              </div>
-             <div className="flex gap-2">
+             <div className="flex items-center gap-2 flex-wrap">
+                 <div className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+                    saveStatus === 'saving'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : saveStatus === 'saved'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : saveStatus === 'error'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                 }`}>
+                    {saveStatus === 'saving' && <Loader2 size={12} className="animate-spin" />}
+                    {saveStatus === 'saved' && <CheckCircle2 size={12} />}
+                    {saveStatus === 'error' && <AlertTriangle size={12} />}
+                    {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed' : 'Ready'}
+                 </div>
+                 <button
+                    onClick={handleUndoLastEdit}
+                    disabled={!lastEditedCell}
+                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Undo last edit"
+                 >
+                    <RotateCcw size={16} />
+                 </button>
+                 {saveStatus === 'error' && (
+                  <button
+                    onClick={retrySavingGrades}
+                    className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs font-bold hover:bg-rose-50"
+                  >
+                    Retry Save
+                  </button>
+                 )}
                  <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all" title="Download CSV">
                      <Download size={16} />
                  </button>
@@ -1063,7 +1369,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
          </div>
 
          {/* Scrollable Grid Container */}
-         <div className="flex-1 overflow-auto relative" ref={gridRef}>
+         <div className="hidden md:flex-1 overflow-auto relative" ref={gridRef}>
             <table className="w-full border-collapse text-sm min-w-max">
                 <thead className="bg-slate-50 sticky top-0 z-20 shadow-sm">
                     <tr>
@@ -1142,7 +1448,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {filteredAndSortedStudents.map((student, rowIndex) => {
-                        const avg = calculateWeightedAverage(student.id);
+                        const avg = calculateWeightedAverage(student.id, filteredAssignments);
                         
                         // Prepare Trend Data
                         const trendData = filteredAssignments.map(a => {
@@ -1244,8 +1550,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                                         e.target.select(); // Auto-select content
                                                     }}
                                                     onChange={(e) => handleScoreChange(student.id, asn.id, e.target.value)}
+                                                    onPaste={(e) => handlePasteGrades(e, rowIndex, colIndex)}
                                                     onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                                                    className={`w-full h-full absolute inset-0 text-center bg-transparent focus:bg-white focus:ring-2 focus:ring-inset focus:ring-indigo-500 outline-none text-sm transition-all ${colorClass} hover:bg-slate-50 cursor-pointer z-0 pr-2`}
+                                                    className={`w-full h-full absolute inset-0 text-center bg-transparent focus:bg-white focus:ring-2 focus:ring-inset focus:ring-indigo-500 outline-none text-sm transition-all ${colorClass} hover:bg-slate-50 cursor-pointer z-0 pr-2 ${
+                                                      cellSaveState[toCellKey(student.id, asn.id)] === 'error'
+                                                        ? 'ring-2 ring-rose-300'
+                                                        : cellSaveState[toCellKey(student.id, asn.id)] === 'saving'
+                                                        ? 'ring-2 ring-amber-300'
+                                                        : ''
+                                                    }`}
                                                     placeholder="-"
                                                 />
                                                 
@@ -1307,10 +1620,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                             {/* Spacer for Profile column */}
                         </td>
                         <td className="sticky left-[340px] bg-slate-50 border-r border-slate-200 p-2 text-center z-30 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-                            <span className="text-xs font-bold text-slate-800">{classAverage}%</span>
+                            <span className="text-xs font-bold text-slate-800">{filteredAverage}%</span>
                         </td>
                         {filteredAssignments.map(asn => {
-                            const avg = getAssignmentAverage(asn.id);
+                            const avg = getAssignmentAverage(asn.id, filteredStudentIds);
                             return (
                                 <td key={asn.id} className="text-center py-3 border-r border-slate-200">
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${
@@ -1327,6 +1640,105 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     </tr>
                 </tbody>
             </table>
+         </div>
+
+         {/* Mobile Grade Entry */}
+         <div className="md:hidden flex-1 overflow-auto p-3 space-y-3">
+            {mobileStudent && mobileAssignment ? (
+              <>
+                <div className="grid grid-cols-1 gap-2">
+                  <select
+                    value={mobileStudent.id}
+                    onChange={(e) => setMobileStudentId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium bg-white"
+                  >
+                    {filteredAndSortedStudents.map((student) => (
+                      <option key={student.id} value={student.id}>{student.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={mobileAssignment.id}
+                    onChange={(e) => setMobileAssignmentId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium bg-white"
+                  >
+                    {filteredAssignments.map((assignment) => (
+                      <option key={assignment.id} value={assignment.id}>{assignment.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => {
+                      if (mobileStudentIndex <= 0) return;
+                      setMobileStudentId(filteredAndSortedStudents[mobileStudentIndex - 1].id);
+                    }}
+                    disabled={mobileStudentIndex <= 0}
+                    className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 disabled:opacity-40"
+                  >
+                    <span className="inline-flex items-center gap-1"><ChevronLeft size={14} /> Prev</span>
+                  </button>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {mobileStudentIndex + 1} / {filteredAndSortedStudents.length}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (mobileStudentIndex >= filteredAndSortedStudents.length - 1) return;
+                      setMobileStudentId(filteredAndSortedStudents[mobileStudentIndex + 1].id);
+                    }}
+                    disabled={mobileStudentIndex >= filteredAndSortedStudents.length - 1}
+                    className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 disabled:opacity-40"
+                  >
+                    <span className="inline-flex items-center gap-1">Next <ChevronRight size={14} /></span>
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">{mobileStudent.name}</p>
+                      <p className="text-xs text-slate-500">{mobileAssignment.title} • {new Date(mobileAssignment.date).toLocaleDateString()}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${getTierBadgeColor(mobileStudent.tier)}`}>
+                      {mobileStudent.tier}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Score</label>
+                    <input
+                      type="text"
+                      value={getScore(mobileStudent.id, mobileAssignment.id) === null ? '' : String(getScore(mobileStudent.id, mobileAssignment.id))}
+                      onChange={(e) => handleScoreChange(mobileStudent.id, mobileAssignment.id, e.target.value)}
+                      className={`w-full rounded-lg border border-slate-200 px-3 py-3 text-lg font-bold text-center ${getScoreColor(getScore(mobileStudent.id, mobileAssignment.id))}`}
+                      placeholder="-"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'M')} className="py-2 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold">Missing</button>
+                    <button onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'E')} className="py-2 rounded-lg bg-amber-100 text-amber-700 text-xs font-bold">Excused</button>
+                    <button onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'L')} className="py-2 rounded-lg bg-yellow-100 text-yellow-700 text-xs font-bold">Late</button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    {[100, 90, 80, 70].map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, value)}
+                        className="py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold"
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                No student or assignment available in current filters.
+              </div>
+            )}
          </div>
          
          {/* Footer Legend */}
