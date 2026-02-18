@@ -388,11 +388,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-                <p className="truncate text-xs text-slate-400">{schoolName} | {currentRole}</p>
+                <p className="truncate text-xs text-slate-400">{schoolName}</p>
+                <span className="mt-2 inline-flex self-start rounded-full border border-brand-400/50 bg-brand-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-100">
+                  {currentRole}
+                </span>
               </div>
-              <span className="rounded-full border border-brand-400/50 bg-brand-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-100">
-                {currentRole}
-              </span>
             </div>
 
             <div className="mt-3 space-y-3">
