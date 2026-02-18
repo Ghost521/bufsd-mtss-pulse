@@ -69,19 +69,18 @@ export type LandingCopyContent = {
     resourcesLinks: [string, string, string];
     conversionTitle: string;
     conversionBody: string;
-    emailPlaceholder: string;
     submitCta: string;
   };
 };
 
 export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
   control: {
-    brandName: "MTSS Genius",
+    brandName: "MTSS Pulse",
     nav: {
       home: "Home",
       features: "Features",
-      support: "Testimonials",
-      howItWorks: "Pricing",
+      support: "Capabilities",
+      howItWorks: "Next Steps",
     },
     header: {
       demoCta: "Request A Demo",
@@ -156,8 +155,7 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
       resourcesTitle: "Resources",
       resourcesLinks: ["Health", "Roster Table", "Reports"],
       conversionTitle: "Ready to start?",
-      conversionBody: "Sign up for updates",
-      emailPlaceholder: "Email Address",
+      conversionBody: "Continue to secure sign in.",
       submitCta: "Submit",
     },
   },
@@ -166,8 +164,8 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
     nav: {
       home: "Home",
       features: "Capabilities",
-      support: "District Results",
-      howItWorks: "How It Works",
+      support: "Capabilities",
+      howItWorks: "Next Steps",
     },
     header: {
       demoCta: "Schedule District Demo",
@@ -243,9 +241,7 @@ export const LANDING_COPY: Record<LandingCopyVariant, LandingCopyContent> = {
       resourcesLinks: ["System Health", "Roster Table", "Reports"],
       conversionTitle: "Planning district rollout?",
       conversionBody: "Request a leadership walkthrough.",
-      emailPlaceholder: "District work email",
       submitCta: "Request Walkthrough",
     },
   },
 };
-

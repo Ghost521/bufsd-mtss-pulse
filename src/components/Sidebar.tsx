@@ -253,8 +253,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         {isDesktopCollapsed && !isMobile ? null : (
           <>
             <div className="mt-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">MTSS Workspace</p>
-              <p className="text-xs font-semibold text-slate-300">Your role view</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
             </div>
             <div className="mt-3">
               <label htmlFor={`sidebar-search-${mode}`} className="sr-only">
@@ -420,7 +419,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 to={buildWorkspacePath("settings")}
                 activeOptions={{ exact: true }}
                 onClick={onClose}
-                className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
                   activePage === "settings"
                     ? "border-brand-500/60 bg-brand-500/20 text-white"
                     : "border-slate-700 bg-slate-900/40 text-slate-200 hover:border-slate-500 hover:text-white"
@@ -430,7 +429,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <Settings size={16} />
                   <span className="text-sm font-medium">Settings</span>
                 </span>
-                <span className="text-[11px] text-slate-400">Open</span>
               </Link>
 
               {showSidebarTestControls ? (

@@ -91,8 +91,11 @@ describe("Sidebar containment safeguards", () => {
     expect(contentWrapper?.className).toContain("min-w-0");
     expect(contentWrapper?.className).toContain("overflow-hidden");
     expect(handle.container.textContent).toContain("Nina Principal");
+    expect(handle.container.textContent).toContain("Workspace");
+    expect(handle.container.textContent).not.toContain("Your role view");
     expect(handle.container.textContent).not.toContain("Account & Workspace");
     expect(handle.container.textContent).toContain("NP");
+    expect(handle.container.textContent).not.toContain("Open");
 
     await cleanupRender(handle);
   });

@@ -393,7 +393,6 @@ export function LandingPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.11em]">{copy.brandName}</p>
             </div>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-[#9a8b7f]">{copy.footer.body}</p>
-            <p className="mt-4 text-xs text-[#b4a79b]">{helperText}</p>
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a19285]">{copy.footer.productTitle}</p>
@@ -414,14 +413,7 @@ export function LandingPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a19285]">{copy.footer.conversionTitle}</p>
             <p className="mt-3 text-sm text-[#988a7f]">{copy.footer.conversionBody}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="email"
-                value=""
-                readOnly
-                placeholder={copy.footer.emailPlaceholder}
-                className="w-full rounded-full border border-[#dfd3c2] bg-[#fffaf2] px-3 py-2 text-xs text-[#6f6258] placeholder:text-[#ac9f93]"
-              />
+            <div className="mt-2 flex items-center">
               <a
                 href={buttonDisabled ? undefined : primaryHref}
                 aria-disabled={buttonDisabled}
