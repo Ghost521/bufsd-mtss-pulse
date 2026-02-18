@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { canSwitchUsersInSession, getSessionFromRequest, getSessionSummary, resolveSessionChange } from "../../lib/server/auth-context";
+import {
+  appendActivityCookie,
+  canSwitchUsersInSession,
+  getSessionAuthFailureReason,
+  getSessionFromRequest,
+  getSessionSummary,
+  resolveSessionChange,
+} from "../../lib/server/auth-context";
 import { getAuditCount, newRequestId } from "../../lib/server/audit-log";
 import { getPersistenceDiagnostics } from "../../lib/server/persistence";
 import { getUsers, isWorkOSAutoProvisionEnabled } from "../../lib/server/tenant-store";
@@ -12,11 +19,12 @@ export const Route = createFileRoute("/api/health")({
         const requestId = newRequestId();
         const session = await getSessionFromRequest(request);
         const summary = getSessionSummary(session);
+        const authReason = getSessionAuthFailureReason(request);
         const auditCount = session ? await getAuditCount(session.activeContext) : 0;
         const canSwitchUsers = canSwitchUsersInSession();
         const workosEnabled = isWorkOSEnabled();
 
-        return Response.json({
+        const response = Response.json({
           ok: true,
           timestamp: new Date().toISOString(),
           environment: "start-server-route" as const,
@@ -26,6 +34,7 @@ export const Route = createFileRoute("/api/health")({
           auth: {
             workosEnabled,
             signedIn: Boolean(summary),
+            reason: !summary && authReason ? authReason : undefined,
             canSwitchUsers,
             autoProvisionEnabled: isWorkOSAutoProvisionEnabled(),
             workos: getWorkOSConfigSummary(),
@@ -41,13 +50,18 @@ export const Route = createFileRoute("/api/health")({
           auditCount,
           persistence: getPersistenceDiagnostics(),
         });
+        return summary ? appendActivityCookie(response) : response;
       },
       POST: async ({ request }) => {
         const requestId = newRequestId();
         const body = (await request.json().catch(() => null)) as unknown;
         const changed = await resolveSessionChange(request, body);
         if ("error" in changed) {
-          return Response.json({ ok: false, error: changed.error, requestId }, { status: changed.status });
+          const authReason = changed.status === 401 ? getSessionAuthFailureReason(request) : null;
+          return Response.json(
+            { ok: false, error: changed.error, reason: authReason ?? undefined, requestId },
+            { status: changed.status }
+          );
         }
 
         const response = Response.json({

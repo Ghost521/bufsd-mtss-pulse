@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { clearSessionCookieHeaders } from "../../../lib/server/auth-context";
+import { clearSessionCookieHeaders, LAST_ACTIVITY_COOKIE } from "../../../lib/server/auth-context";
 import { clearCookie, parseCookieHeader } from "../../../lib/server/cookies";
 import {
   WORKOS_OAUTH_STATE_COOKIE,
@@ -50,6 +50,15 @@ export const Route = createFileRoute("/api/auth/logout")({
         headers.append(
           "Set-Cookie",
           clearCookie(WORKOS_RETURN_TO_COOKIE, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "Lax",
+            secure: COOKIE_SECURE,
+          })
+        );
+        headers.append(
+          "Set-Cookie",
+          clearCookie(LAST_ACTIVITY_COOKIE, {
             path: "/",
             httpOnly: true,
             sameSite: "Lax",

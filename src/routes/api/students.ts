@@ -7,7 +7,12 @@ import {
   updateMasterStudent,
   type StudentScope,
 } from "../../lib/server/student-store";
-import { getSessionFromRequest, getSessionSummary } from "../../lib/server/auth-context";
+import {
+  appendActivityCookie,
+  getSessionAuthFailureReason,
+  getSessionFromRequest,
+  getSessionSummary,
+} from "../../lib/server/auth-context";
 import { requirePermission } from "../../lib/server/rbac";
 import { newRequestId, writeAuditLog } from "../../lib/server/audit-log";
 import { createStudentInputSchema, updateStudentInputSchema } from "../../lib/schemas/students";
@@ -21,7 +26,8 @@ export const Route = createFileRoute("/api/students")({
         const requestId = newRequestId();
         const session = await getSessionFromRequest(request);
         if (!session) {
-          return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
         }
         const permission = requirePermission(session, { resource: "students", action: "read" });
         if (!permission.ok) {
@@ -37,7 +43,7 @@ export const Route = createFileRoute("/api/students")({
           requesterRoles: session.effectiveRoles,
         });
 
-        return Response.json({
+        return appendActivityCookie(Response.json({
           ok: true,
           rows,
           total: rows.length,
@@ -45,13 +51,14 @@ export const Route = createFileRoute("/api/students")({
           requestId,
           context: session.activeContext,
           session: getSessionSummary(session),
-        });
+        }));
       },
       POST: async ({ request }) => {
         const requestId = newRequestId();
         const session = await getSessionFromRequest(request);
         if (!session) {
-          return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
         }
 
         const body = (await request.json().catch(() => null)) as unknown;
@@ -90,17 +97,18 @@ export const Route = createFileRoute("/api/students")({
           requestId,
         });
 
-        return Response.json({
+        return appendActivityCookie(Response.json({
           ok: true,
           row: created,
           requestId,
-        }, { status: 201 });
+        }, { status: 201 }));
       },
       PATCH: async ({ request }) => {
         const requestId = newRequestId();
         const session = await getSessionFromRequest(request);
         if (!session) {
-          return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
         }
 
         const url = new URL(request.url);
@@ -152,13 +160,14 @@ export const Route = createFileRoute("/api/students")({
           requestId,
         });
 
-        return Response.json({ ok: true, row: updated, requestId });
+        return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
       },
       DELETE: async ({ request }) => {
         const requestId = newRequestId();
         const session = await getSessionFromRequest(request);
         if (!session) {
-          return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
         }
 
         const url = new URL(request.url);
@@ -199,7 +208,7 @@ export const Route = createFileRoute("/api/students")({
           requestId,
         });
 
-        return Response.json({ ok: true, row: deleted, requestId });
+        return appendActivityCookie(Response.json({ ok: true, row: deleted, requestId }));
       },
     },
   },

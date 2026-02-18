@@ -15,10 +15,15 @@ import type { SessionContext, TenantContext } from "./tenant-types";
 
 export const USER_COOKIE = "mtss_user";
 export const CONTEXT_COOKIE = "mtss_ctx";
+export const LAST_ACTIVITY_COOKIE = "mtss_last_activity";
+export const IDLE_TIMEOUT_SECONDS = 60 * 30;
 const DEFAULT_USER_ID = "u-principal-ne";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const COOKIE_SECURE = process.env.NODE_ENV === "production";
 const ALLOW_IMPERSONATION = process.env.MTSS_ALLOW_IMPERSONATION === "true";
+const IDLE_TIMEOUT_MILLISECONDS = IDLE_TIMEOUT_SECONDS * 1000;
+type SessionAuthFailureReason = "IDLE_TIMEOUT";
+const sessionFailureReasonByRequest = new WeakMap<Request, SessionAuthFailureReason | null>();
 
 const parseTenantContext = (value: string | null | undefined): TenantContext | null => {
   if (!value) return null;
@@ -84,10 +89,53 @@ const resolveUserIdFromWorkOS = async (request: Request): Promise<string | null>
 
 export const canSwitchUsersInSession = (): boolean => !isWorkOSEnabled() || ALLOW_IMPERSONATION;
 
+export const getSessionAuthFailureReason = (request: Request): SessionAuthFailureReason | null =>
+  sessionFailureReasonByRequest.get(request) ?? null;
+
+const setSessionAuthFailureReason = (request: Request, reason: SessionAuthFailureReason | null): void => {
+  sessionFailureReasonByRequest.set(request, reason);
+};
+
+export const isSessionIdleExpired = (lastActivity: string | null, now: Date = new Date()): boolean => {
+  if (!lastActivity) return true;
+  const timestamp = Number(lastActivity);
+  if (!Number.isFinite(timestamp)) return true;
+  const elapsed = now.getTime() - timestamp;
+  return elapsed >= IDLE_TIMEOUT_MILLISECONDS;
+};
+
+export const createActivityCookieHeaders = (now: Date = new Date()): Headers => {
+  const headers = new Headers();
+  headers.append(
+    "Set-Cookie",
+    serializeCookie(LAST_ACTIVITY_COOKIE, `${now.getTime()}`, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: COOKIE_SECURE,
+      maxAge: IDLE_TIMEOUT_SECONDS,
+    })
+  );
+  return headers;
+};
+
+export const appendActivityCookie = (response: Response, now: Date = new Date()): Response => {
+  const headers = createActivityCookieHeaders(now);
+  headers.forEach((value, key) => response.headers.append(key, value));
+  return response;
+};
+
 export const getSessionFromRequest = async (request: Request): Promise<SessionContext | null> => {
   await ensureTenantStoreHydrated();
+  setSessionAuthFailureReason(request, null);
   const cookies = parseCookieHeader(request.headers.get("cookie"));
   const requestedContext = parseTenantContext(request.headers.get("x-mtss-context") ?? cookies[CONTEXT_COOKIE]);
+  const sealedSession = cookies[WORKOS_SESSION_COOKIE] ?? null;
+
+  if (isWorkOSEnabled() && sealedSession && isSessionIdleExpired(cookies[LAST_ACTIVITY_COOKIE] ?? null)) {
+    setSessionAuthFailureReason(request, "IDLE_TIMEOUT");
+    return null;
+  }
 
   const userId = isWorkOSEnabled()
     ? await resolveUserIdFromWorkOS(request)
@@ -134,6 +182,8 @@ export const createSessionCookieHeaders = (input: {
       maxAge: COOKIE_MAX_AGE_SECONDS,
     })
   );
+  const activityHeaders = createActivityCookieHeaders();
+  activityHeaders.forEach((value, key) => headers.append(key, value));
   return headers;
 };
 

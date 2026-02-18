@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { serializeCookie } from "../../../lib/server/cookies";
+import { clearSessionCookieHeaders, LAST_ACTIVITY_COOKIE } from "../../../lib/server/auth-context";
+import { clearCookie, serializeCookie } from "../../../lib/server/cookies";
 import {
   WORKOS_OAUTH_STATE_COOKIE,
   WORKOS_RETURN_TO_COOKIE,
+  WORKOS_SESSION_COOKIE,
   createWorkOSLoginUrl,
   getWorkOSConfigSummary,
   isWorkOSEnabled,
@@ -16,6 +18,8 @@ const sanitizeReturnTo = (value: string | null): string => {
   if (!value.startsWith("/") || value.startsWith("//")) return "/";
   return value;
 };
+
+const isForcedReauth = (value: string | null): boolean => value === "1";
 
 export const Route = createFileRoute("/api/auth/login")({
   server: {
@@ -35,6 +39,7 @@ export const Route = createFileRoute("/api/auth/login")({
         const url = new URL(request.url);
         const state = crypto.randomUUID();
         const returnTo = sanitizeReturnTo(url.searchParams.get("returnTo"));
+        const forceReauth = isForcedReauth(url.searchParams.get("reauth"));
         const loginUrl = createWorkOSLoginUrl(state, request.url);
 
         if (!loginUrl) {
@@ -43,6 +48,28 @@ export const Route = createFileRoute("/api/auth/login")({
 
         const headers = new Headers();
         headers.set("Location", loginUrl);
+        if (forceReauth) {
+          const localSessionHeaders = clearSessionCookieHeaders();
+          localSessionHeaders.forEach((value, key) => headers.append(key, value));
+          headers.append(
+            "Set-Cookie",
+            clearCookie(LAST_ACTIVITY_COOKIE, {
+              path: "/",
+              httpOnly: true,
+              sameSite: "Lax",
+              secure: COOKIE_SECURE,
+            })
+          );
+          headers.append(
+            "Set-Cookie",
+            clearCookie(WORKOS_SESSION_COOKIE, {
+              path: "/",
+              httpOnly: true,
+              sameSite: "Lax",
+              secure: COOKIE_SECURE,
+            })
+          );
+        }
         headers.append(
           "Set-Cookie",
           serializeCookie(WORKOS_OAUTH_STATE_COOKIE, state, {

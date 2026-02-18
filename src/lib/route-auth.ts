@@ -2,17 +2,20 @@ type HealthPayload = {
   auth?: {
     signedIn?: boolean;
     workosEnabled?: boolean;
+    reason?: string;
   };
 };
 
 export type RouteAuthStatus = {
   signedIn: boolean;
   workosEnabled: boolean;
+  reason: string | null;
 };
 
 const UNAUTHORIZED_STATUS: RouteAuthStatus = {
   signedIn: false,
   workosEnabled: false,
+  reason: null,
 };
 
 const BYPASS_QUERY_KEY = "bypassAuth";
@@ -46,11 +49,18 @@ export const getRouteAuthStatus = async (
     return {
       signedIn: Boolean(payload?.auth?.signedIn),
       workosEnabled: Boolean(payload?.auth?.workosEnabled),
+      reason: typeof payload?.auth?.reason === "string" ? payload.auth.reason : null,
     };
   } catch {
     return UNAUTHORIZED_STATUS;
   }
 };
 
-export const buildLoginRedirectHref = (returnTo: string): string =>
-  `/api/auth/login?returnTo=${encodeURIComponent(returnTo || "/app")}`;
+export const buildLoginRedirectHref = (returnTo: string, forceReauth = false): string => {
+  const params = new URLSearchParams();
+  params.set("returnTo", returnTo || "/app");
+  if (forceReauth) {
+    params.set("reauth", "1");
+  }
+  return `/api/auth/login?${params.toString()}`;
+};

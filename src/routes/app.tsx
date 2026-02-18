@@ -10,8 +10,9 @@ export const Route = createFileRoute("/app")({
     if (auth.signedIn) return;
 
     if (auth.workosEnabled) {
+      const forceReauth = auth.reason === "IDLE_TIMEOUT";
       throw redirect({
-        href: buildLoginRedirectHref(location.href),
+        href: buildLoginRedirectHref(location.href, forceReauth),
       });
     }
 

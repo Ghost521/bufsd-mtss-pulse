@@ -23,6 +23,7 @@ describe("route auth helpers", () => {
     expect(status).toEqual({
       signedIn: true,
       workosEnabled: true,
+      reason: null,
     });
   });
 
@@ -34,8 +35,8 @@ describe("route auth helpers", () => {
       })
     );
 
-    expect(nonOk).toEqual({ signedIn: false, workosEnabled: false });
-    expect(thrown).toEqual({ signedIn: false, workosEnabled: false });
+    expect(nonOk).toEqual({ signedIn: false, workosEnabled: false, reason: null });
+    expect(thrown).toEqual({ signedIn: false, workosEnabled: false, reason: null });
   });
 
   it("preserves workos mode for signed-out sessions", async () => {
@@ -56,12 +57,41 @@ describe("route auth helpers", () => {
     expect(status).toEqual({
       signedIn: false,
       workosEnabled: true,
+      reason: null,
+    });
+  });
+
+  it("returns idle-timeout reason when health reports it", async () => {
+    const status = await getRouteAuthStatus(
+      asFetch(async () =>
+        new Response(
+          JSON.stringify({
+            auth: {
+              signedIn: false,
+              workosEnabled: true,
+              reason: "IDLE_TIMEOUT",
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    expect(status).toEqual({
+      signedIn: false,
+      workosEnabled: true,
+      reason: "IDLE_TIMEOUT",
     });
   });
 
   it("builds encoded login redirect urls", () => {
     const href = buildLoginRedirectHref("/app/calendar?filter=open&day=2026-02-18");
     expect(href).toBe("/api/auth/login?returnTo=%2Fapp%2Fcalendar%3Ffilter%3Dopen%26day%3D2026-02-18");
+  });
+
+  it("builds login redirect urls with explicit reauth flag", () => {
+    const href = buildLoginRedirectHref("/app", true);
+    expect(href).toBe("/api/auth/login?returnTo=%2Fapp&reauth=1");
   });
 
   it("enables bypass only when explicitly requested in dev", () => {

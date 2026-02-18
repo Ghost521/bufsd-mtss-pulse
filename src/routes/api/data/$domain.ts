@@ -8,7 +8,7 @@ import {
   updateDomainRow,
   type DataDomain,
 } from "../../../lib/server/collection-store";
-import { getSessionFromRequest } from "../../../lib/server/auth-context";
+import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
 import type { AppResource } from "../../../lib/server/tenant-types";
 import { newRequestId } from "../../../lib/server/audit-log";
@@ -68,7 +68,10 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (!domain) return Response.json({ ok: false, error: "Unsupported domain.", requestId }, { status: 404 });
 
         const session = await getSessionFromRequest(request);
-        if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+        if (!session) {
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+        }
 
         const permission = requirePermission(session, { resource: toResource(domain), action: "read" });
         if (!permission.ok) {
@@ -77,12 +80,12 @@ export const Route = createFileRoute("/api/data/$domain")({
 
         if (domain === "settings") {
           const settings = await getOrCreateUserSettings(session);
-          return Response.json({ ok: true, rows: [settings], total: 1, requestId });
+          return appendActivityCookie(Response.json({ ok: true, rows: [settings], total: 1, requestId }));
         }
 
         try {
           const rows = await listDomainRows<Record<string, unknown>>(session, domain);
-          return Response.json({ ok: true, rows, total: rows.length, requestId });
+          return appendActivityCookie(Response.json({ ok: true, rows, total: rows.length, requestId }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
             return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
@@ -96,7 +99,10 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (!domain) return Response.json({ ok: false, error: "Unsupported domain.", requestId }, { status: 404 });
 
         const session = await getSessionFromRequest(request);
-        if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+        if (!session) {
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+        }
 
         if (domain === "settings") {
           const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
@@ -124,7 +130,7 @@ export const Route = createFileRoute("/api/data/$domain")({
 
         try {
           const next = await replaceDomainRows(session, domain, rows);
-          return Response.json({ ok: true, rows: next, total: next.length, requestId });
+          return appendActivityCookie(Response.json({ ok: true, rows: next, total: next.length, requestId }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
             return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
@@ -138,7 +144,10 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (!domain) return Response.json({ ok: false, error: "Unsupported domain.", requestId }, { status: 404 });
 
         const session = await getSessionFromRequest(request);
-        if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+        if (!session) {
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+        }
 
         if (domain === "settings") {
           const permission = requirePermission(session, { resource: toResource(domain), action: "create" });
@@ -166,7 +175,7 @@ export const Route = createFileRoute("/api/data/$domain")({
 
         try {
           const created = await createDomainRow(session, domain, row);
-          return Response.json({ ok: true, row: created, requestId }, { status: 201 });
+          return appendActivityCookie(Response.json({ ok: true, row: created, requestId }, { status: 201 }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
             return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
@@ -180,7 +189,10 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (!domain) return Response.json({ ok: false, error: "Unsupported domain.", requestId }, { status: 404 });
 
         const session = await getSessionFromRequest(request);
-        if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+        if (!session) {
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+        }
 
         if (domain === "settings") {
           const permission = requirePermission(session, { resource: toResource(domain), action: "update" });
@@ -214,7 +226,7 @@ export const Route = createFileRoute("/api/data/$domain")({
 
           try {
             const updated = await updateUserSettingsSection(session, parsed.data.section, parsed.data.data);
-            return Response.json({ ok: true, row: updated, requestId });
+            return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
           } catch (error) {
             if (error instanceof SettingsStoreError) {
               return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
@@ -244,7 +256,7 @@ export const Route = createFileRoute("/api/data/$domain")({
           const updated = await updateDomainRow(session, domain, id, patch);
           if (!updated) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
 
-          return Response.json({ ok: true, row: updated, requestId });
+          return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
             return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });
@@ -258,7 +270,10 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (!domain) return Response.json({ ok: false, error: "Unsupported domain.", requestId }, { status: 404 });
 
         const session = await getSessionFromRequest(request);
-        if (!session) return Response.json({ ok: false, error: "Unauthorized.", requestId }, { status: 401 });
+        if (!session) {
+          const reason = getSessionAuthFailureReason(request);
+          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+        }
 
         const permission = requirePermission(session, { resource: toResource(domain), action: "delete" });
         if (!permission.ok) {
@@ -280,7 +295,7 @@ export const Route = createFileRoute("/api/data/$domain")({
           const deleted = await deleteDomainRow(session, domain, id);
           if (!deleted) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
 
-          return Response.json({ ok: true, row: deleted, requestId });
+          return appendActivityCookie(Response.json({ ok: true, row: deleted, requestId }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
             return Response.json({ ok: false, error: error.message, requestId }, { status: error.status });

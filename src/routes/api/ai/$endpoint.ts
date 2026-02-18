@@ -14,7 +14,7 @@ import type {
   AiStreamMetaEvent,
 } from "../../../services/aiContracts";
 import { newRequestId } from "../../../lib/server/audit-log";
-import { getSessionFromRequest } from "../../../lib/server/auth-context";
+import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
 import type { CalendarEvent } from "../../../types";
 
@@ -84,13 +84,15 @@ const aiSuccess = <TPayload extends Record<string, unknown>>(
   payload: TPayload,
   metaOverrides: Partial<AiResponseMeta> = {}
 ): Response =>
-  Response.json({
-    ok: true,
-    requestId,
-    data: payload,
-    ...payload,
-    meta: buildMeta(endpoint, metaOverrides),
-  });
+  appendActivityCookie(
+    Response.json({
+      ok: true,
+      requestId,
+      data: payload,
+      ...payload,
+      meta: buildMeta(endpoint, metaOverrides),
+    })
+  );
 
 const aiError = (
   requestId: string,
@@ -98,7 +100,8 @@ const aiError = (
   message: string,
   status: number,
   code: AiErrorCode,
-  retryable = status >= 500
+  retryable = status >= 500,
+  reason?: string
 ): Response =>
   Response.json(
     {
@@ -106,6 +109,7 @@ const aiError = (
       requestId,
       data: null,
       error: message,
+      reason,
       errorDetail: {
         code,
         message,
@@ -335,7 +339,10 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         const endpoint = params.endpoint;
 
         const session = await getSessionFromRequest(request);
-        if (!session) return aiError(requestId, endpoint, "Unauthorized.", 401, "UNAUTHORIZED", false);
+        if (!session) {
+          const reason = getSessionAuthFailureReason(request);
+          return aiError(requestId, endpoint, "Unauthorized.", 401, "UNAUTHORIZED", false, reason ?? undefined);
+        }
 
         const permission = requirePermission(session, { resource: "ai", action: "read" });
         if (!permission.ok) return aiError(requestId, endpoint, permission.error, permission.status, "FORBIDDEN", false);
@@ -359,7 +366,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           }
 
           if (wantsStream) {
-            return streamTextEndpoint({
+            return appendActivityCookie(streamTextEndpoint({
               requestId,
               endpoint,
               model: TEXT_MODEL,
@@ -380,7 +387,7 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
                   tools: result.tools,
                 };
               },
-            });
+            }));
           }
 
           return withEndpoint({
@@ -409,12 +416,12 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           }
 
           if (wantsStream) {
-            return streamTextEndpoint({
+            return appendActivityCookie(streamTextEndpoint({
               requestId,
               endpoint,
               model: TEXT_MODEL,
               run: (onChunk) => agents.reportingAgent.generateDashboardBriefingStream(body.data as never, body.previousFeedback, onChunk),
-            });
+            }));
           }
 
           return withEndpoint({
@@ -439,12 +446,12 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           }
 
           if (wantsStream) {
-            return streamTextEndpoint({
+            return appendActivityCookie(streamTextEndpoint({
               requestId,
               endpoint,
               model: TEXT_MODEL,
               run: (onChunk) => agents.reportingAgent.generateStudentProfileSummaryStream(body.student as never, body.previousFeedback, onChunk),
-            });
+            }));
           }
 
           return withEndpoint({
@@ -467,12 +474,12 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           if (!body || !Array.isArray(body.notes)) return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
 
           if (wantsStream) {
-            return streamTextEndpoint({
+            return appendActivityCookie(streamTextEndpoint({
               requestId,
               endpoint,
               model: TEXT_MODEL,
               run: (onChunk) => agents.reportingAgent.generateNotesSummaryStream(body.notes as never[], onChunk),
-            });
+            }));
           }
 
           return withEndpoint({
@@ -497,12 +504,12 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           }
 
           if (wantsStream) {
-            return streamTextEndpoint({
+            return appendActivityCookie(streamTextEndpoint({
               requestId,
               endpoint,
               model: TEXT_MODEL,
               run: (onChunk) => agents.reportingAgent.refineDraftNoteStream(body.draft, body.category, onChunk),
-            });
+            }));
           }
 
           return withEndpoint({
@@ -584,12 +591,12 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           }
 
           if (wantsStream) {
-            return streamTextEndpoint({
+            return appendActivityCookie(streamTextEndpoint({
               requestId,
               endpoint,
               model: TEXT_MODEL,
               run: (onChunk) => agents.interventionAgent.generateParentMessageStream(body.studentName, body.assignmentTitle, body.parentName, onChunk),
-            });
+            }));
           }
 
           return withEndpoint({
