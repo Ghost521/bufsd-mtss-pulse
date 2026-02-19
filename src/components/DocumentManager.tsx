@@ -798,7 +798,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   };
 
   return (
-    <div ref={rootRef} className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col relative">
+    <div ref={rootRef} className="app-responsive-pane relative flex min-h-[600px] min-w-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
       
       {/* View Document Modal (Draggable) */}
       <DraggableModal
@@ -931,18 +931,18 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       )}
 
       {/* Header */}
-      <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col items-start justify-between gap-4 border-b border-slate-200 p-4 sm:p-6 md:flex-row md:items-center">
+        <div className="flex min-w-0 items-center gap-3">
           <SidebarToggleButton
             onClick={onMenuClick}
             className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
           />
-          <div>
+          <div className="min-w-0">
             <h2 className="text-xl font-bold text-slate-900">Resource Library</h2>
             <p className="text-slate-500 text-sm">Upload, organize, and share school resources securely.</p>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="app-responsive-actions w-full md:w-auto md:justify-end">
           <button
             type="button"
             onClick={() => setActiveTab('browse')}
@@ -978,7 +978,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       </div>
 
       {/* Content */}
-      <div className="p-6 flex-1 bg-slate-50/30">
+      <div className="app-responsive-content flex-1 bg-slate-50/30 p-4 sm:p-6">
         
         {/* BROWSE TAB */}
         {activeTab === 'browse' && (

@@ -1332,7 +1332,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="app-shell flex min-h-screen font-sans text-slate-900">
+    <div className="app-shell flex min-h-screen w-full min-w-0 overflow-x-hidden font-sans text-slate-900">
       
       {/* Global Chatbot */}
       <Suspense fallback={null}>
@@ -1389,8 +1389,10 @@ const App: React.FC = () => {
       />
       
       <main
-        className={`app-main mx-auto w-full max-w-[1600px] flex-1 p-4 transition-all duration-300 md:p-8 ${
-          sidebarState.isDesktopCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        className={`app-main relative mx-auto w-full min-w-0 flex-1 overflow-x-hidden p-4 transition-all duration-300 md:p-8 ${
+          sidebarState.isDesktopCollapsed
+            ? "lg:ml-20 lg:max-w-[calc(100vw-5rem)]"
+            : "lg:ml-64 lg:max-w-[calc(100vw-16rem)]"
         }`}
       >
         <Suspense fallback={<LazyViewFallback />}>

@@ -597,9 +597,9 @@ export const DataImporter: React.FC<DataImporterProps> = ({
   const connectorSource = isConnectorSource(sourceType) ? sourceType : null;
 
   return (
-    <div className="flex flex-col h-full bg-white animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between p-6 border-b border-slate-200">
-        <div className="flex items-center gap-3">
+    <div className="app-responsive-pane flex h-full min-w-0 flex-col bg-white animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 p-4 sm:p-6">
+        <div className="flex min-w-0 items-center gap-3">
           <SidebarToggleButton
             onClick={onMenuClick}
             className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
@@ -612,7 +612,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden md:flex md:flex-wrap md:items-center md:justify-end md:gap-2">
           {["Select Source", "Load Data", "Map Columns", "Review"].map((label, idx) => {
             const isActive = currentStepIndex === idx;
             const isCompleted = currentStepIndex > idx;
@@ -648,11 +648,11 @@ export const DataImporter: React.FC<DataImporterProps> = ({
         </div>
       </div>
 
-      <div className="px-6 py-3 border-b border-slate-100 text-sm text-slate-500 md:hidden">
+      <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-500 md:hidden sm:px-6">
         Step {Math.max(1, currentStepIndex + 1)} of 4
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+      <div className="app-responsive-content flex-1 bg-slate-50/30 p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
           {importError && (
             <div className="mb-4 p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-lg text-sm flex items-start gap-2">
@@ -915,18 +915,18 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   return (
                     <div
                       key={`${mapping.sourceHeader}-${index}`}
-                      className={`flex items-center gap-4 p-3 rounded-lg border ${
-                        isDuplicate ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-100"
+                      className={`flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:gap-4 ${
+                        isDuplicate ? "border-rose-200 bg-rose-50" : "border-slate-100 bg-slate-50"
                       }`}
                     >
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <label className="text-xs font-bold text-slate-400 uppercase block mb-1">
                           Source Header
                         </label>
-                        <div className="font-mono text-sm text-slate-700 font-medium">{mapping.sourceHeader}</div>
+                        <div className="truncate font-mono text-sm font-medium text-slate-700">{mapping.sourceHeader}</div>
                       </div>
-                      <ArrowRight size={16} className="text-slate-300" />
-                      <div className="flex-1">
+                      <ArrowRight size={16} className="hidden text-slate-300 md:block" />
+                      <div className="min-w-0 flex-1">
                         <label className="text-xs font-bold text-indigo-500 uppercase block mb-1">
                           Target Field
                         </label>

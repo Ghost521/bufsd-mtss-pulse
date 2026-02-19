@@ -12,6 +12,7 @@
     "lint:icons": "node scripts/check-icon-consistency.mjs",
     "test": "vitest run",
     "test:sidebar-bounds": "vitest run tests/sidebar-layout.containment.test.ts",
+    "test:responsive": "vitest run tests/responsive-layout.containment.test.ts",
     "test:watch": "vitest",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",

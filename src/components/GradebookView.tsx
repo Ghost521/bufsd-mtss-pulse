@@ -742,7 +742,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-40px)] animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+    <div className="app-responsive-pane relative flex h-[calc(100vh-40px)] min-w-0 flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* --- Missing Work Modal (Draggable) --- */}
       <DraggableModal
@@ -1278,9 +1278,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
       {/* AI Analysis Drawer */}
       {showAiAnalysis && (
-        <div className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-[1px] flex justify-end" onClick={() => setShowAiAnalysis(false)}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/35 backdrop-blur-[1px]" onClick={() => setShowAiAnalysis(false)}>
           <div
-            className="w-full md:w-[430px] h-full bg-white shadow-2xl border-l border-slate-200 p-5 overflow-y-auto animate-in slide-in-from-right"
+            className="h-full w-full border-l border-slate-200 bg-white p-5 shadow-2xl overflow-y-auto sm:w-[420px] md:w-[430px] animate-in slide-in-from-right"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1317,7 +1317,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       )}
 
       {/* Main Gradebook Table */}
-      <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col relative">
+      <div className="app-responsive-pane relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
          
          {/* Toolbar */}
          <div className="p-3 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50">

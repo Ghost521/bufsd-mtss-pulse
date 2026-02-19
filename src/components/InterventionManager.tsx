@@ -472,7 +472,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
   ].filter(Boolean).length;
 
   return (
-    <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-slate-50/50">
+    <div className="app-responsive-pane flex h-full min-w-0 flex-col bg-slate-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Share Modal */}
       <DraggableModal
@@ -690,8 +690,8 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
       {/* Header & Stats */}
       <div className="bg-white border-b border-slate-200 p-6 pb-0">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div className="flex items-center gap-3">
+        <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+            <div className="flex min-w-0 items-center gap-3">
                 <SidebarToggleButton
                     onClick={onMenuClick}
                     className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
@@ -702,7 +702,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 </div>
             </div>
             
-            <div className="flex gap-3">
+            <div className="app-responsive-actions w-full md:w-auto">
                 <button 
                     onClick={handleScanClass}
                     disabled={isScanning}
@@ -972,37 +972,37 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="app-responsive-content flex-1 p-4 sm:p-6">
         <div className="space-y-6 max-w-7xl mx-auto">
             
             {/* Sticky Header for List View */}
             {layout === 'List' && (
-                <div className="sticky top-0 z-10 flex items-center justify-between p-3 bg-slate-50 border-b border-slate-200 rounded-t-xl text-xs font-bold text-slate-500 uppercase tracking-wider shadow-sm">
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-slate-200 bg-slate-50 p-3 text-xs font-bold uppercase tracking-wider text-slate-500 shadow-sm">
                     <div 
-                        className="flex items-center gap-2 w-1/4 min-w-[200px] cursor-pointer hover:text-indigo-600"
+                        className="flex min-w-0 flex-[1.4] items-center gap-2 cursor-pointer hover:text-indigo-600"
                         onClick={() => handleHeaderSort('Last Name')}
                     >
                         Student Name {renderSortIcon('Last Name')}
                     </div>
                     <div 
-                        className="w-1/6 hidden md:flex items-center gap-2 cursor-pointer hover:text-indigo-600"
+                        className="hidden flex-1 items-center gap-2 cursor-pointer hover:text-indigo-600 md:flex"
                         onClick={() => handleHeaderSort('Teacher')}
                     >
                         Teacher / Grade {renderSortIcon('Teacher')}
                     </div>
                     <div 
-                        className="w-1/6 hidden sm:flex items-center gap-2 cursor-pointer hover:text-indigo-600"
+                        className="hidden flex-[0.8] items-center gap-2 cursor-pointer hover:text-indigo-600 sm:flex"
                         onClick={() => handleHeaderSort('Tier')}
                     >
                         Tier {renderSortIcon('Tier')}
                     </div>
                     <div 
-                        className="w-1/4 flex items-center gap-2 cursor-pointer hover:text-indigo-600"
+                        className="flex min-w-0 flex-[1.2] items-center gap-2 cursor-pointer hover:text-indigo-600"
                         onClick={() => handleHeaderSort('Progress')}
                     >
                         Plan Progress {renderSortIcon('Progress')}
                     </div>
-                    <div className="w-1/12 text-right">Actions</div>
+                    <div className="w-auto shrink-0 text-right">Actions</div>
                 </div>
             )}
 
@@ -1114,28 +1114,28 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                         <div 
                                             key={item.id}
                                             onClick={() => onStudentClick(item.studentName)} 
-                                            className="flex items-center justify-between p-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors cursor-pointer group"
+                                            className="group flex items-center justify-between gap-2 border-b border-slate-100 p-3 transition-colors last:border-0 cursor-pointer hover:bg-slate-50"
                                         >
-                                            <div className="flex items-center gap-4 w-1/4 min-w-[200px]">
+                                            <div className="flex min-w-0 flex-[1.4] items-center gap-3">
                                                 <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
                                                     <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${item.avatarSeed}&backgroundColor=e0e7ff`} alt={item.studentName} />
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600">{item.studentName}</h4>
+                                                <div className="min-w-0">
+                                                    <h4 className="truncate text-sm font-bold text-slate-800 group-hover:text-indigo-600">{item.studentName}</h4>
                                                     <p className="text-[10px] text-slate-500 hidden sm:block">{item.id}</p>
                                                 </div>
                                             </div>
 
-                                            <div className="w-1/6 hidden md:block">
+                                            <div className="hidden flex-1 md:block">
                                                 <p className="text-xs font-semibold text-slate-700">{item.teacher}</p>
                                                 <p className="text-[10px] text-slate-500">{item.grade}</p>
                                             </div>
 
-                                            <div className="w-1/6 hidden sm:block">
+                                            <div className="hidden flex-[0.8] sm:block">
                                                 {getTierBadge(item.tier)}
                                             </div>
 
-                                            <div className="w-1/4">
+                                            <div className="min-w-0 flex-[1.2]">
                                                 <div className="flex items-center gap-2">
                                                     {getProgressBar(item.progress)}
                                                     <span className="text-xs font-bold text-slate-700 w-8 text-right">{item.progress}%</span>
@@ -1143,7 +1143,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                                 <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[120px]">{item.planName}</p>
                                             </div>
 
-                                            <div className="w-1/12 text-right flex justify-end gap-2">
+                                            <div className="w-auto shrink-0 text-right flex justify-end gap-2">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
                                                     className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors"

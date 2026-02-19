@@ -820,7 +820,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+    <div className="app-responsive-pane relative flex h-[calc(100vh-100px)] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* --- Video Call Overlay --- */}
       {isVideoCallActive && activeMeta && (
@@ -1106,7 +1106,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       )}
 
       {deletedMessageState && (
-          <div className="absolute bottom-5 right-5 z-[56] bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3">
+          <div className="absolute bottom-4 left-4 right-4 z-[56] flex items-center gap-3 rounded-lg bg-slate-900 px-4 py-3 text-white shadow-xl md:bottom-5 md:left-auto md:right-5">
             <span className="text-sm">Message deleted.</span>
             <button
               type="button"
@@ -1118,13 +1118,13 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           </div>
       )}
 
-      <div className="flex h-full">
+      <div className="flex h-full min-w-0">
         
         {/* Sidebar / Conversation List */}
         <div className={`w-full md:w-80 lg:w-96 border-r border-slate-200 flex flex-col bg-slate-50 ${isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
           {/* Header */}
-          <div className="p-5 border-b border-slate-200 bg-white shadow-sm z-10">
-            <div className="flex items-center justify-between mb-5">
+          <div className="border-b border-slate-200 bg-white p-4 shadow-sm z-10 sm:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
               <div className="flex items-center gap-3">
                 <SidebarToggleButton
                     onClick={onMenuClick}
@@ -1153,7 +1153,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-transparent rounded-xl text-sm focus:bg-white focus:border-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
               />
             </div>
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {([
                 { id: 'all', label: 'All' },
                 { id: 'intervention', label: 'Interventions' },
@@ -1263,13 +1263,13 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         </div>
 
         {/* Chat Window */}
-        <div className={`flex-1 flex flex-col bg-white relative ${!isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`relative flex min-w-0 flex-1 flex-col bg-white ${!isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
           {activeConversation && activeMeta ? (
             <>
               {/* Chat Header */}
-              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-20">
+              <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/80 px-4 py-4 backdrop-blur-sm sm:px-6">
                 <div
-                  className="flex items-center gap-4 cursor-pointer group"
+                  className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 sm:gap-4"
                   onClick={() => setShowGroupInfoModal(true)}
                   role="button"
                   tabIndex={0}
@@ -1298,8 +1298,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                         />
                     )}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 group-hover:text-indigo-600 transition-colors">
+                  <div className="min-w-0">
+                    <h3 className="flex items-center gap-2 truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-indigo-600">
                         {activeMeta.name}
                         {activeConversation.isGroup && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-medium">{activeConversation.participants?.length}</span>}
                     </h3>
@@ -1315,7 +1315,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   {isStaffUser && (
                     <>
                       <button 
@@ -1448,7 +1448,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               </div>
 
               {/* Input Area */}
-              <div className="p-4 sm:p-6 bg-white relative z-20">
+              <div className="relative z-20 bg-white p-4 sm:p-6">
                  {composerError && (
                     <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                       {composerError}
@@ -1481,10 +1481,10 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                  )}
 
                  {/* Picker Popovers */}
-                 <div className="absolute bottom-20 left-6 z-30 flex gap-2">
+                 <div className="absolute bottom-20 left-2 right-2 z-30 flex max-w-[calc(100%-1rem)] gap-2 sm:left-6 sm:right-auto sm:max-w-none">
                     {/* Emoji Picker */}
                     {showEmojiPicker && (
-                        <div className="picker-container bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 w-72 animate-in zoom-in-95 slide-in-from-bottom-2 origin-bottom-left">
+                        <div className="picker-container w-[min(18rem,calc(100vw-1rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 origin-bottom-left">
                             <p className="text-xs font-bold text-slate-400 mb-2 px-1 uppercase tracking-wider">Emojis</p>
                             <div className="grid grid-cols-6 gap-1 max-h-60 overflow-y-auto custom-scrollbar">
                                 {EMOJIS.map((emoji, idx) => (
@@ -1502,7 +1502,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
                     {/* GIF Picker */}
                     {showGifPicker && (
-                        <div className="picker-container bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 w-80 animate-in zoom-in-95 slide-in-from-bottom-2 origin-bottom-left flex flex-col gap-2">
+                        <div className="picker-container flex w-[min(20rem,calc(100vw-1rem))] flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 origin-bottom-left">
                             <div className="relative">
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                 <input 

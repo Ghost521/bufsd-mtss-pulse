@@ -1023,7 +1023,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const todayDayKey = toTimeZoneDayKey(new Date(), userTimeZone);
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+    <div className="app-responsive-pane relative flex h-full min-w-0 flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Hidden File Input */}
       <input 
@@ -1771,21 +1771,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Main Layout - Full Width Calendar */}
-      <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[600px]">
+      <div className="app-responsive-pane flex flex-1 min-h-[600px] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             
             {/* Calendar Header with Integrated Filters */}
-            <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white relative z-10">
-                <div className="flex items-center gap-4">
+            <div className="relative z-10 flex flex-col items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:p-6">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     <div className="flex items-center gap-3 lg:hidden">
                         <SidebarToggleButton
                             onClick={onMenuClick}
                             className="p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
                         />
                     </div>
-                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
                         {headerTitle}
                     </h2>
-                    <div className="flex items-center bg-slate-100/80 rounded-lg p-1 border border-slate-200 ml-2">
+                    <div className="ml-0 flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-1 sm:ml-2">
                         <button
                             onClick={handlePreviousRange}
                             aria-label="Previous month"
@@ -1804,7 +1804,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
                 </div>
                 
-                <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
                     <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                         {(['month', 'week', 'day'] as CalendarViewMode[]).map(mode => (
                             <button
@@ -1821,7 +1821,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </div>
 
                     {/* Filter Dropdown */}
-                    <div className="relative">
+                    <div className="relative w-full sm:w-auto">
                         <button 
                             ref={filterButtonRef}
                             onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
@@ -1845,7 +1845,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 ref={filterPanelRef}
                                 role="dialog"
                                 aria-label="Filter events by type"
-                                className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 z-30 p-2 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5"
+                            className="absolute right-0 mt-2 w-full max-w-[20rem] rounded-xl border border-slate-100 bg-white p-2 shadow-xl z-30 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5"
                             >
                                 <div className="px-3 py-2 border-b border-slate-50 mb-2 flex justify-between items-center">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Event Types</span>
@@ -2031,7 +2031,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </>
             ) : (
                 <div className="flex-1 overflow-auto bg-white">
-                    <div className={`${viewMode === 'week' ? 'min-w-[1100px]' : 'min-w-[760px]'}`}>
+                    <div className={`${viewMode === 'week' ? 'min-w-[900px] lg:min-w-[1100px]' : 'min-w-[640px] md:min-w-[760px]'}`}>
                         <div
                             className="grid border-b border-slate-200 bg-slate-50/70"
                             style={{ gridTemplateColumns: `76px repeat(${visibleTimeGridDays.length}, minmax(0, 1fr))` }}
