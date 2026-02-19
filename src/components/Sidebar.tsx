@@ -232,6 +232,22 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const showAvatarImage = Boolean(userAvatarUrl && userAvatarUrl.trim().length > 0 && !avatarLoadFailed);
   const showBrandLogo = Boolean(brandLogoUrl && brandLogoUrl.trim().length > 0 && !brandLogoLoadFailed);
   const isCollapsedDesktop = isDesktopCollapsed && !isMobile;
+  const displaySchoolName = schoolName.trim().length > 0 ? schoolName : "School Workspace";
+  const displayMascotName = mascotName?.trim() ? mascotName : null;
+  const brandMark = (
+    <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-600">
+      {showBrandLogo ? (
+        <img
+          src={brandLogoUrl ?? undefined}
+          alt="District logo"
+          className="h-7 w-7 rounded-md object-cover"
+          onError={() => setBrandLogoLoadFailed(true)}
+        />
+      ) : (
+        <GraduationCap size={iconSize("xl")} className="text-white" />
+      )}
+    </div>
+  );
   const SettingsIcon = getRouteIcon("settings");
 
   useEffect(() => {
@@ -244,59 +260,68 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-      <div className={`sticky top-0 z-10 border-b border-slate-800 bg-slate-900 ${isCollapsedDesktop ? "p-3" : "p-4"}`}>
-        <div className={isCollapsedDesktop ? "flex flex-col items-center gap-2" : "flex items-start justify-between gap-2"}>
-          <div className={`flex gap-3 ${isCollapsedDesktop ? "items-center justify-center" : "min-w-0 items-start"}`}>
-            <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-600">
-              {showBrandLogo ? (
-                <img
-                  src={brandLogoUrl ?? undefined}
-                  alt="District logo"
-                  className="h-7 w-7 rounded-md object-cover"
-                  onError={() => setBrandLogoLoadFailed(true)}
-                />
-              ) : (
-                <GraduationCap size={iconSize("xl")} className="text-white" />
-              )}
-            </div>
-            {isCollapsedDesktop ? null : (
-              <div className="min-w-0 overflow-hidden pt-0.5">
-                <h1 id={isMobile ? "workspace-menu-title" : undefined} className="whitespace-nowrap text-lg font-bold leading-tight text-white">
-                  MTSS Pulse
-                </h1>
-                <p className="max-w-[165px] truncate text-xs font-medium tracking-wide text-slate-400">{schoolName}</p>
-                {mascotName ? (
-                  <p className="max-w-[165px] truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-200">
-                    {mascotName}
-                  </p>
-                ) : null}
-              </div>
-            )}
-          </div>
-
-          {isMobile ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-              aria-label="Close workspace menu"
-            >
-              <X size={iconSize("lg")} />
-            </button>
-          ) : (
+      <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 p-3">
+        {isCollapsedDesktop ? (
+          <div className="flex flex-col items-center gap-2">
+            {brandMark}
             <button
               type="button"
               onClick={onDesktopCollapseToggle}
-              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
-              aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
             >
-              {isDesktopCollapsed ? <ChevronRight size={iconSize("md")} /> : <ChevronLeft size={iconSize("md")} />}
+              <ChevronRight size={iconSize("md")} />
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div>
+            <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2">
+              <div className="justify-self-start">{brandMark}</div>
+              <div className="min-w-0 text-left leading-tight">
+                <h1
+                  id={isMobile ? "workspace-menu-title" : undefined}
+                  className="truncate text-[13px] font-semibold text-slate-100"
+                  title={displaySchoolName}
+                  style={{ color: "#f8fafc" }}
+                >
+                  {displaySchoolName}
+                </h1>
+                {displayMascotName ? (
+                  <p
+                    className="truncate text-[10px] font-medium uppercase tracking-[0.08em] text-slate-300"
+                    title={displayMascotName}
+                    style={{ color: "#cbd5e1" }}
+                  >
+                    {displayMascotName}
+                  </p>
+                ) : null}
+              </div>
+              {isMobile ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+                  aria-label="Close workspace menu"
+                >
+                  <X size={iconSize("lg")} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onDesktopCollapseToggle}
+                  className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+                  aria-label="Collapse sidebar"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft size={iconSize("md")} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
-        <div className={`mt-3 flex ${isDesktopCollapsed && !isMobile ? "justify-center" : "justify-start"}`}>
+        <div className={`mt-2 flex ${isDesktopCollapsed && !isMobile ? "justify-center" : "justify-start"}`}>
           <NotificationBellPopover
             activeNotifications={activeNotifications}
             archivedNotifications={archivedNotifications}
@@ -316,7 +341,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
         {isDesktopCollapsed && !isMobile ? null : (
           <>
-            <div className="mt-3 border-t border-slate-800/80 pt-3">
+            <div className="mt-2 border-t border-slate-800/80 pt-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
             </div>
             <div className="mt-3">
