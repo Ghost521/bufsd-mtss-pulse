@@ -311,11 +311,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               <button
                 type="button"
                 onClick={onDesktopCollapseToggle}
-                className={
-                  isDesktopCollapsed
-                    ? "hidden"
-                    : "hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
-                }
+                className="hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
                 aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >

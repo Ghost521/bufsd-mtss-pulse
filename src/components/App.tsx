@@ -1570,6 +1570,15 @@ const App: React.FC = () => {
         onNotificationRestore={(id) => notifications.restore(id)}
         onNotificationMarkSeen={(ids) => notifications.markSeen(ids)}
       />
+
+      {!sidebarState.isMobileOpen ? (
+        <SidebarToggleButton
+          onClick={openMobileMenu}
+          className="fixed bottom-4 left-4 z-40 rounded-full border border-slate-200 bg-white/95 shadow-lg backdrop-blur lg:hidden"
+          ariaLabel="Open workspace menu"
+          iconSize={20}
+        />
+      ) : null}
       
       <main
         className={`app-main relative mx-auto w-full min-w-0 flex-1 overflow-x-hidden p-4 transition-all duration-300 md:p-8 ${

@@ -112,7 +112,8 @@ describe("Sidebar containment safeguards", () => {
   });
 
   it("uses collapsed controls that avoid top-row overflow pressure", async () => {
-    const handle = await renderSidebar({ isDesktopCollapsed: true });
+    const onDesktopCollapseToggle = vi.fn();
+    const handle = await renderSidebar({ isDesktopCollapsed: true, onDesktopCollapseToggle });
 
     const desktopAside = handle.container.querySelector("aside.fixed.inset-y-0.left-0.z-30");
     expect(desktopAside).toBeInstanceOf(HTMLElement);
@@ -125,7 +126,13 @@ describe("Sidebar containment safeguards", () => {
 
     const topExpandButton = handle.container.querySelector('button[aria-label="Expand sidebar"]') as HTMLElement | null;
     expect(topExpandButton).toBeInstanceOf(HTMLButtonElement);
-    expect(topExpandButton?.className).toContain("hidden");
+    expect(topExpandButton?.className).toContain("rounded-md");
+    expect(topExpandButton?.className).toContain("lg:inline-flex");
+
+    await act(async () => {
+      topExpandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onDesktopCollapseToggle).toHaveBeenCalledTimes(1);
 
     await cleanupRender(handle);
   });
