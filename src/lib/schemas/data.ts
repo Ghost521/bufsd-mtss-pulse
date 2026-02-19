@@ -143,6 +143,7 @@ export const lessonPlanRowSchema = aiInterventionPlanSchema.extend({
   subject: nonEmptyTrimmedString("Subject", 120),
   grade: nonEmptyTrimmedString("Grade", 24),
   createdDate: nonEmptyTrimmedString("Created date", 160),
+  updatedAt: nonEmptyTrimmedString("Updated date", 160).optional(),
   author: nonEmptyTrimmedString("Author", 160),
   ownerId: nonEmptyTrimmedString("Owner id", 160),
   isShared: z.boolean(),

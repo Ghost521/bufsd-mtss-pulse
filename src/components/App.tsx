@@ -1250,6 +1250,8 @@ const App: React.FC = () => {
           <LessonPlanLibrary 
              onMenuClick={openMobileMenu}
              currentUserRole={currentRole}
+             currentUserName={data.userName}
+             onComposeMessage={handleNavigateToMessages}
           />
         );
       case 'documents':

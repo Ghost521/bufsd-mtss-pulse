@@ -1,6 +1,7 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
+  AlertCircle,
   BookCopy, 
   Search, 
   Clock, 
@@ -20,9 +21,11 @@ import {
   Lock,
   Globe,
   Edit3,
-  ChevronDown
+  ChevronDown,
+  SlidersHorizontal,
+  X
 } from 'lucide-react';
-import { UserRole } from '../types';
+import { UserRole, type MessagesLaunchContext, type StudentRosterItem } from '../types';
 import { DraggableModal } from './DraggableModal';
 import type { AIInterventionPlan } from '../services/geminiService';
 import { generateStructuredIntervention } from '../services/geminiService';
@@ -31,11 +34,22 @@ import { RichTextRenderer } from './RichTextRenderer';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { useStudents } from '../hooks/useStudents';
-import type { StudentRosterItem } from '../types';
+import {
+  areLessonPlansEqual,
+  isLessonPlanOwnedBy,
+  isLessonPlanVisible,
+  matchesLessonPlanSearch,
+  normalizeOwnerKey,
+  sortLessonPlans,
+  type LessonPlanSort,
+} from '../lib/lesson-plan-utils';
 
 interface LessonPlanLibraryProps {
   onMenuClick: () => void;
   currentUserRole: UserRole;
+  currentUserName: string;
+  currentUserId?: string;
+  onComposeMessage?: (launch: MessagesLaunchContext) => void;
 }
 
 interface LessonPlan extends AIInterventionPlan {
@@ -43,6 +57,7 @@ interface LessonPlan extends AIInterventionPlan {
   subject: string;
   grade: string;
   createdDate: string;
+  updatedAt?: string;
   author: string;
   ownerId: string; // To track ownership
   isShared: boolean;
@@ -52,11 +67,17 @@ interface LessonPlan extends AIInterventionPlan {
 type ViewFilter = 'All' | 'My Plans' | 'Shared';
 const VIEW_FILTERS: ViewFilter[] = ['All', 'My Plans', 'Shared'];
 
-export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClick, currentUserRole }) => {
+export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
+  onMenuClick,
+  currentUserRole,
+  currentUserName,
+  currentUserId,
+  onComposeMessage,
+}) => {
   const lessonPlanCollection = useTenantCollection<LessonPlan>('lesson-plans');
   const studentsApi = useStudents('class');
-  // Assuming current user name is Mr. Davis for this demo context usually, but checking role.
-  const currentUserId = currentUserRole === UserRole.TEACHER ? 'Mr. Davis' : 'Rosa Cortese';
+  const ownerKey = normalizeOwnerKey(currentUserId ?? currentUserName);
+  const userLabel = currentUserName.trim() || 'MTSS User';
   const classRoster = (studentsApi.studentsQuery.data?.rows ?? []) as StudentRosterItem[];
   
   const [plans, setPlans] = useState<LessonPlan[]>([]);
@@ -64,10 +85,12 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
   const [subjectFilter, setSubjectFilter] = useState('All');
   const [gradeFilter, setGradeFilter] = useState('All');
   const [viewFilter, setViewFilter] = useState<ViewFilter>('All');
+  const [sortBy, setSortBy] = useState<LessonPlanSort>('Newest');
   
   // Create State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationMode, setGenerationMode] = useState<'Topic' | 'Group'>('Topic');
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   
@@ -85,6 +108,14 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
   const [selectedPlan, setSelectedPlan] = useState<LessonPlan | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedPlan, setEditedPlan] = useState<LessonPlan | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [pendingDeletePlan, setPendingDeletePlan] = useState<LessonPlan | null>(null);
+  const [discardIntent, setDiscardIntent] = useState<'close' | 'cancel-edit' | null>(null);
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareRecipient, setShareRecipient] = useState<UserRole>(UserRole.TEACHER);
+  const [shareNote, setShareNote] = useState('');
+  const [actionNotice, setActionNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null);
   const hasHydratedRef = useRef(false);
   const lastPersistedRef = useRef("");
 
@@ -110,23 +141,29 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
     };
   }, [lessonPlanCollection.replaceMutation, plans]);
 
-  // Computed
-  const filteredPlans = plans.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.lessonPlan.objective.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSubject = subjectFilter === 'All' || p.subject === subjectFilter;
-    const matchesGrade = gradeFilter === 'All' || p.grade === gradeFilter;
-    
-    // Privacy & Share Logic
-    const isMine = p.ownerId === currentUserId;
-    const isVisible = isMine || p.isShared;
-    
-    if (!isVisible) return false;
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timeout = window.setTimeout(() => setActionNotice(null), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [actionNotice]);
 
-    if (viewFilter === 'My Plans' && !isMine) return false;
-    if (viewFilter === 'Shared' && (!p.isShared || isMine)) return false;
-    
-    return matchesSearch && matchesSubject && matchesGrade;
-  });
+  // Computed
+  const hasActiveFilters = searchQuery.trim().length > 0 || subjectFilter !== 'All' || gradeFilter !== 'All' || viewFilter !== 'All';
+  const filteredPlans = useMemo(() => {
+    const visible = plans.filter((plan) => {
+      const matchesSubject = subjectFilter === 'All' || plan.subject === subjectFilter;
+      const matchesGrade = gradeFilter === 'All' || plan.grade === gradeFilter;
+      const matchesSearch = matchesLessonPlanSearch(plan, searchQuery);
+      if (!matchesSubject || !matchesGrade || !matchesSearch) return false;
+      return isLessonPlanVisible(plan, ownerKey, viewFilter);
+    });
+    return sortLessonPlans(visible, sortBy);
+  }, [gradeFilter, ownerKey, plans, searchQuery, sortBy, subjectFilter, viewFilter]);
+
+  const isEditDirty = useMemo(
+    () => (isEditMode ? !areLessonPlansEqual(selectedPlan, editedPlan) : false),
+    [editedPlan, isEditMode, selectedPlan],
+  );
 
   const toggleStudentSelection = (id: string) => {
       const newSet = new Set(selectedStudentIds);
@@ -138,6 +175,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
   const handleGenerate = async () => {
     if (!newPlanData.topic) return;
     setIsGenerating(true);
+    setGenerationError(null);
     
     try {
       let target = "Classroom";
@@ -165,6 +203,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
       setGeneratedPlan(plan);
     } catch (e) {
       console.error(e);
+      setGenerationError(e instanceof Error ? e.message : 'Unable to generate a lesson plan right now.');
     } finally {
       setIsGenerating(false);
     }
@@ -184,8 +223,9 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
       subject: newPlanData.subject,
       grade: newPlanData.grade,
       createdDate: new Date().toISOString().split('T')[0],
-      author: currentUserId,
-      ownerId: currentUserId,
+      updatedAt: new Date().toISOString(),
+      author: userLabel,
+      ownerId: userLabel,
       isShared: false, // Default private
       studentGroup: groupNames
     };
@@ -195,26 +235,46 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
     setNewPlanData({ topic: '', grade: '4th', subject: 'Math', focusArea: '', duration: '30 min', frequency: 'Daily' });
     setSelectedStudentIds(new Set());
     setGenerationMode('Topic');
+    setGenerationError(null);
+    setActionNotice({ tone: 'success', text: 'Lesson plan saved to your library.' });
   };
 
-  const toggleShare = (planId: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      setPlans(prev => prev.map(p => 
-          p.id === planId && p.ownerId === currentUserId 
-            ? { ...p, isShared: !p.isShared } 
-            : p
-      ));
+  const toggleShare = (planId: string, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      const target = plans.find((plan) => plan.id === planId);
+      if (!target || !isLessonPlanOwnedBy(target, ownerKey)) return;
+      setPlans((prev) =>
+        prev.map((plan) =>
+          plan.id === planId
+            ? { ...plan, isShared: !plan.isShared, updatedAt: new Date().toISOString() }
+            : plan,
+        ),
+      );
+      setActionNotice({
+        tone: 'success',
+        text: target.isShared ? 'Plan visibility set to private.' : 'Plan shared with your team.',
+      });
   };
 
-  const deletePlan = (planId: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if(window.confirm("Delete this lesson plan?")) {
-          setPlans(prev => prev.filter(p => p.id !== planId));
-          if(selectedPlan?.id === planId) {
-              setSelectedPlan(null);
-              setIsEditMode(false);
-          }
+  const requestDeletePlan = (planId: string, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      const target = plans.find((plan) => plan.id === planId);
+      if (!target || !isLessonPlanOwnedBy(target, ownerKey)) return;
+      setPendingDeletePlan(target);
+      setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeletePlan = () => {
+      if (!pendingDeletePlan) return;
+      setPlans((prev) => prev.filter((plan) => plan.id !== pendingDeletePlan.id));
+      if (selectedPlan?.id === pendingDeletePlan.id) {
+        setSelectedPlan(null);
+        setIsEditMode(false);
+        setEditedPlan(null);
       }
+      setActionNotice({ tone: 'success', text: 'Lesson plan deleted.' });
+      setPendingDeletePlan(null);
+      setIsDeleteConfirmOpen(false);
   };
 
   // Edit Handlers
@@ -225,17 +285,104 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
     }
   };
 
-  const cancelEditing = () => {
+  const requestCancelEditing = () => {
+    if (isEditDirty) {
+      setDiscardIntent('cancel-edit');
+      setIsDiscardConfirmOpen(true);
+      return;
+    }
     setIsEditMode(false);
     setEditedPlan(null);
   };
 
   const saveEditedPlan = () => {
     if (!editedPlan) return;
-    setPlans(prev => prev.map(p => p.id === editedPlan.id ? editedPlan : p));
-    setSelectedPlan(editedPlan);
+    const updatedPlan = { ...editedPlan, updatedAt: new Date().toISOString() };
+    setPlans(prev => prev.map(p => p.id === editedPlan.id ? updatedPlan : p));
+    setSelectedPlan(updatedPlan);
     setIsEditMode(false);
     setEditedPlan(null);
+    setActionNotice({ tone: 'success', text: 'Lesson plan changes saved.' });
+  };
+
+  const closeDetailModal = () => {
+    setSelectedPlan(null);
+    setIsEditMode(false);
+    setEditedPlan(null);
+    setDiscardIntent(null);
+  };
+
+  const requestCloseDetailModal = () => {
+    if (isEditDirty) {
+      setDiscardIntent('close');
+      setIsDiscardConfirmOpen(true);
+      return;
+    }
+    closeDetailModal();
+  };
+
+  const confirmDiscardChanges = () => {
+    if (discardIntent === 'cancel-edit') {
+      setIsEditMode(false);
+      setEditedPlan(null);
+    } else {
+      closeDetailModal();
+    }
+    setDiscardIntent(null);
+    setIsDiscardConfirmOpen(false);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSubjectFilter('All');
+    setGradeFilter('All');
+    setViewFilter('All');
+    setSortBy('Newest');
+  };
+
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setGenerationError(null);
+    setGeneratedPlan(null);
+    setNewPlanData({ topic: '', grade: '4th', subject: 'Math', focusArea: '', duration: '30 min', frequency: 'Daily' });
+    setSelectedStudentIds(new Set());
+    setGenerationMode('Topic');
+  };
+
+  const openShareComposer = () => {
+    if (!selectedPlan) return;
+    if (!onComposeMessage) {
+      setActionNotice({ tone: 'error', text: 'Messages is not available right now.' });
+      return;
+    }
+    const recipientNameByRole: Record<UserRole, string> = {
+      [UserRole.TEACHER]: 'Mr. Davis',
+      [UserRole.PRINCIPAL]: 'Rosa Cortese',
+      [UserRole.DISTRICT]: 'Dr. Aris Thorne',
+      [UserRole.PARENT]: 'Family Contact',
+    };
+    const fallbackStudentName = selectedPlan.studentGroup?.[0] ?? selectedPlan.title;
+    const defaultDraft = `Sharing "${selectedPlan.title}" (${selectedPlan.subject}, ${selectedPlan.grade}) for review and follow-up.`;
+    const messagePayload: MessagesLaunchContext = {
+      recipientRole: shareRecipient,
+      recipientName: recipientNameByRole[shareRecipient],
+      draft: shareNote.trim() || defaultDraft,
+      context: {
+        type: 'intervention',
+        studentName: fallbackStudentName,
+        interventionId: selectedPlan.id,
+        interventionPlanName: selectedPlan.title,
+      },
+    };
+    onComposeMessage(messagePayload);
+    setIsShareModalOpen(false);
+    setShareNote('');
+    setActionNotice({ tone: 'success', text: 'Opened Messages with plan context.' });
+  };
+
+  const handlePrintPlan = () => {
+    window.print();
+    setActionNotice({ tone: 'info', text: 'Print dialog opened.' });
   };
 
   const getSubjectColor = (subject: string) => {
@@ -267,14 +414,14 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Lesson Plan Library</h1>
-                    <p className="text-slate-500 text-sm mt-1">Generate, organize, and share instructional plans.</p>
+                    <p className="text-slate-500 text-sm mt-1">Build, refine, and share lesson plans with your MTSS team.</p>
                 </div>
             </div>
             <button 
                 onClick={() => setIsCreateModalOpen(true)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95"
             >
-                <Sparkles size={18} /> AI Lesson Generator
+                <Sparkles size={18} /> Create Plan
             </button>
         </div>
 
@@ -285,9 +432,10 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input 
                         type="text" 
-                        placeholder="Search topics, standards..." 
+                        placeholder="Search plans, objective, student, subject..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        aria-label="Search lesson plans"
                         className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                 </div>
@@ -300,6 +448,20 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                     >
                         <option value="All">All Grades</option>
                         {['K', '1st', '2nd', '3rd', '4th', '5th', '6th'].map(g => <option key={g} value={g}>{g} Grade</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+
+                <div className="relative">
+                    <SlidersHorizontal size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <select 
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as LessonPlanSort)}
+                        className="appearance-none pl-8 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-white transition-colors"
+                    >
+                        <option value="Newest">Newest</option>
+                        <option value="Recently Updated">Recently Updated</option>
+                        <option value="Title A-Z">Title A-Z</option>
                     </select>
                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
@@ -323,105 +485,177 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                 </div>
             </div>
             
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-                {VIEW_FILTERS.map((view) => (
+            <div className="flex items-center gap-2">
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                    {VIEW_FILTERS.map((view) => (
+                        <button
+                            key={view}
+                            onClick={() => setViewFilter(view)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewFilter === view ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            {view}
+                        </button>
+                    ))}
+                </div>
+                {hasActiveFilters ? (
                     <button
-                        key={view}
-                        onClick={() => setViewFilter(view)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewFilter === view ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        type="button"
+                        onClick={clearFilters}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                     >
-                        {view}
+                        <X size={14} />
+                        Clear
                     </button>
-                ))}
+                ) : null}
             </div>
         </div>
       </div>
 
       {/* Grid Content */}
       <div className="p-6 overflow-y-auto flex-1">
-         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredPlans.map(plan => (
-                <div 
-                    key={plan.id}
-                    onClick={() => { setSelectedPlan(plan); setIsEditMode(false); }}
-                    className="bg-white border border-slate-200 rounded-xl p-5 hover:border-indigo-300 hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full relative overflow-hidden"
+        {actionNotice ? (
+          <div
+            className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+              actionNotice.tone === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : actionNotice.tone === 'error'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  : 'border-indigo-200 bg-indigo-50 text-indigo-700'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {actionNotice.text}
+          </div>
+        ) : null}
+
+        {filteredPlans.length === 0 ? (
+          <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <BookCopy size={24} />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">
+              {hasActiveFilters ? 'No plans match these filters.' : 'No lesson plans yet.'}
+            </h3>
+            <p className="mt-2 text-sm text-slate-500">
+              {hasActiveFilters
+                ? 'Adjust filters or clear them to find plans in your library.'
+                : 'Generate your first plan to build your library.'}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                    <div className="flex justify-between items-start mb-3 relative z-10">
-                        <div className="flex gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${getSubjectColor(plan.subject)}`}>
-                                {plan.subject}
-                            </span>
-                            {plan.studentGroup && (
-                                <span className="text-[10px] font-bold px-2 py-1 rounded border bg-violet-50 text-violet-700 border-violet-200 flex items-center gap-1">
-                                    <Users size={10} /> Group ({plan.studentGroup.length})
-                                </span>
-                            )}
-                        </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {plan.ownerId === currentUserId && (
-                                <button 
-                                    onClick={(e) => toggleShare(plan.id, e)}
-                                    className={`p-1.5 rounded hover:bg-slate-100 ${plan.isShared ? 'text-emerald-600' : 'text-slate-400'}`}
-                                    title={plan.isShared ? "Shared" : "Private"}
-                                >
-                                    {plan.isShared ? <Globe size={16} /> : <Lock size={16} />}
-                                </button>
-                            )}
-                            {plan.ownerId === currentUserId && (
-                                <button 
-                                    onClick={(e) => deletePlan(plan.id, e)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            )}
-                        </div>
+                  Clear Filters
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                Create Plan
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {filteredPlans.map((plan) => {
+              const isMine = isLessonPlanOwnedBy(plan, ownerKey);
+              return (
+                <article
+                  key={plan.id}
+                  className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-indigo-300 hover:shadow-lg"
+                >
+                  <div className="mb-3 flex items-start justify-between">
+                    <div className="flex gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${getSubjectColor(plan.subject)}`}>
+                        {plan.subject}
+                      </span>
+                      {plan.studentGroup ? (
+                        <span className="flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700">
+                          <Users size={10} /> Group ({plan.studentGroup.length})
+                        </span>
+                      ) : null}
                     </div>
-                    
-                    <h3 className="font-bold text-slate-800 text-lg mb-2 leading-tight group-hover:text-indigo-700 transition-colors relative z-10 line-clamp-2">
-                        {plan.title}
+                    {isMine ? (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={(event) => toggleShare(plan.id, event)}
+                          className={`rounded p-1.5 transition-colors hover:bg-slate-100 ${plan.isShared ? 'text-emerald-600' : 'text-slate-400'}`}
+                          title={plan.isShared ? "Set private" : "Share with team"}
+                          aria-label={plan.isShared ? `Set ${plan.title} to private` : `Share ${plan.title} with team`}
+                        >
+                          {plan.isShared ? <Globe size={16} /> : <Lock size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => requestDeletePlan(plan.id, event)}
+                          className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                          aria-label={`Delete ${plan.title}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedPlan(plan); setIsEditMode(false); setEditedPlan(null); }}
+                    className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-lg"
+                    aria-label={`Open lesson plan ${plan.title}`}
+                  >
+                    <h3 className="mb-2 line-clamp-2 text-lg font-bold leading-tight text-slate-800 transition-colors hover:text-indigo-700">
+                      {plan.title}
                     </h3>
-                    
-                    <div className="text-sm text-slate-500 line-clamp-3 mb-4 flex-1 relative z-10">
-                        <RichTextRenderer content={plan.lessonPlan.objective} />
+
+                    <div className="mb-4 flex-1 line-clamp-3 text-sm text-slate-500">
+                      <RichTextRenderer content={plan.lessonPlan.objective} />
                     </div>
 
-                    {plan.studentGroup && (
-                        <div className="mb-4 flex flex-wrap gap-1 relative z-10">
-                            {plan.studentGroup.slice(0, 3).map((name, i) => (
-                                <span key={i} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
-                                    {name.split(' ')[0]}
-                                </span>
-                            ))}
-                            {plan.studentGroup.length > 3 && (
-                                <span className="text-[10px] text-slate-400 px-1">+{plan.studentGroup.length - 3}</span>
-                            )}
-                        </div>
-                    )}
+                    {plan.studentGroup ? (
+                      <div className="mb-4 flex flex-wrap gap-1">
+                        {plan.studentGroup.slice(0, 3).map((name, index) => (
+                          <span key={index} className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                            {name.split(' ')[0]}
+                          </span>
+                        ))}
+                        {plan.studentGroup.length > 3 ? (
+                          <span className="px-1 text-[10px] text-slate-400">+{plan.studentGroup.length - 3}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
 
-                    <div className="flex items-center gap-4 text-xs font-medium text-slate-400 border-t border-slate-100 pt-4 mt-auto relative z-10">
-                        <span className="flex items-center gap-1.5">
-                            <Clock size={14} /> {plan.duration}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <User size={14} /> {plan.author === currentUserId ? 'You' : plan.author}
-                        </span>
-                        <span className="ml-auto bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                            {plan.grade}
-                        </span>
+                    <div className="mt-auto flex items-center gap-4 border-t border-slate-100 pt-4 text-xs font-medium text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Clock size={14} /> {plan.duration}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <User size={14} /> {isMine ? 'You' : plan.author}
+                      </span>
+                      <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
+                        {plan.grade}
+                      </span>
                     </div>
-                    
-                    {/* Decorative bg element */}
-                    <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-indigo-50/50 rounded-full blur-2xl group-hover:bg-indigo-100/50 transition-colors pointer-events-none"></div>
-                </div>
-            ))}
-         </div>
+                  </button>
+
+                  <div className="pointer-events-none absolute -bottom-6 -right-6 h-24 w-24 rounded-full bg-indigo-50/50 blur-2xl transition-colors group-hover:bg-indigo-100/50" />
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
       <DraggableModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={closeCreateModal}
         title={
             <div className="flex items-center gap-2">
                 <Sparkles size={20} className="text-indigo-600" />
@@ -432,28 +666,42 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
         initialHeight={800}
         footer={
             <div className="flex justify-end gap-3 w-full">
-                <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button onClick={closeCreateModal} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button 
                     onClick={handleSave} 
                     disabled={!generatedPlan}
                     className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
                 >
-                    <Save size={16} /> Save to Library
+                    <Save size={16} /> Save Plan
                 </button>
             </div>
         }
       >
           <div className="p-6 space-y-6">
+              {generationError ? (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
+                      <div className="flex items-start gap-2">
+                          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                          <p>{generationError}</p>
+                      </div>
+                  </div>
+              ) : null}
               {/* Generation Mode Switch */}
               <div className="bg-slate-100 p-1 rounded-xl flex w-fit mx-auto mb-6">
                   <button 
-                    onClick={() => setGenerationMode('Topic')}
+                    onClick={() => {
+                      setGenerationMode('Topic');
+                      setGenerationError(null);
+                    }}
                     className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${generationMode === 'Topic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                       <BookOpen size={16} /> Standard Lesson
                   </button>
                   <button 
-                    onClick={() => setGenerationMode('Group')}
+                    onClick={() => {
+                      setGenerationMode('Group');
+                      setGenerationError(null);
+                    }}
                     className={`px-6 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${generationMode === 'Group' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                       <Users size={16} /> Targeted Group
@@ -543,19 +791,33 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                           <div className="flex-1 flex flex-col h-64">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Select Students</label>
                               <div className="border border-slate-200 rounded-lg flex-1 overflow-y-auto p-2 bg-slate-50">
-                                  {classRoster.map(student => (
-                                      <div 
-                                        key={student.id} 
-                                        onClick={() => toggleStudentSelection(student.id)}
-                                        className={`flex items-center justify-between p-2 rounded-lg cursor-pointer mb-1 border transition-all ${selectedStudentIds.has(student.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:border-slate-200'}`}
-                                      >
-                                          <div>
-                                              <p className="text-sm font-bold text-slate-700">{student.name}</p>
-                                              <p className="text-[10px] text-slate-500">Tier {student.tier} • {student.readingLevel}</p>
-                                          </div>
-                                          {selectedStudentIds.has(student.id) && <Check size={16} className="text-indigo-600" />}
+                                  {studentsApi.studentsQuery.isLoading ? (
+                                      <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                                          <Loader2 size={14} className="mr-2 animate-spin" />
+                                          Loading class roster...
                                       </div>
-                                  ))}
+                                  ) : studentsApi.studentsQuery.error ? (
+                                      <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                                          Unable to load students for group selection.
+                                      </div>
+                                  ) : classRoster.length === 0 ? (
+                                      <div className="py-6 text-center text-xs text-slate-500">No students available yet.</div>
+                                  ) : (
+                                      classRoster.map(student => (
+                                          <button
+                                            type="button"
+                                            key={student.id}
+                                            onClick={() => toggleStudentSelection(student.id)}
+                                            className={`mb-1 flex w-full items-center justify-between rounded-lg border p-2 text-left transition-all ${selectedStudentIds.has(student.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-transparent hover:border-slate-200'}`}
+                                          >
+                                              <div>
+                                                  <p className="text-sm font-bold text-slate-700">{student.name}</p>
+                                                  <p className="text-[10px] text-slate-500">Tier {student.tier} ? {student.readingLevel}</p>
+                                              </div>
+                                              {selectedStudentIds.has(student.id) ? <Check size={16} className="text-indigo-600" /> : null}
+                                          </button>
+                                      ))
+                                  )}
                               </div>
                               <p className="text-[10px] text-slate-400 mt-1 italic">
                                   Selected students' profiles (Tier, Reading Level, etc.) will be used to generate specific differentiation strategies.
@@ -569,7 +831,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                         className="w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 shadow-sm mt-auto"
                       >
                           {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />}
-                          {isGenerating ? 'Generating Plan...' : 'Generate Lesson Plan'}
+                          {isGenerating ? 'Generating Plan...' : 'Generate Plan'}
                       </button>
                   </div>
 
@@ -693,11 +955,147 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
           </div>
       </DraggableModal>
 
+      <DraggableModal
+        isOpen={isDeleteConfirmOpen && !!pendingDeletePlan}
+        onClose={() => {
+          setIsDeleteConfirmOpen(false);
+          setPendingDeletePlan(null);
+        }}
+        title={<span className="text-base font-bold text-slate-900">Delete lesson plan?</span>}
+        initialWidth={460}
+        initialHeight={280}
+        footer={
+          <div className="flex w-full justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDeleteConfirmOpen(false);
+                setPendingDeletePlan(null);
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeletePlan}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+            >
+              Delete Plan
+            </button>
+          </div>
+        }
+      >
+        <div className="p-6">
+          <p className="text-sm text-slate-600">
+            This removes
+            <span className="mx-1 font-semibold text-slate-900">{pendingDeletePlan?.title ?? 'this plan'}</span>
+            from your library.
+          </p>
+        </div>
+      </DraggableModal>
+
+      <DraggableModal
+        isOpen={isDiscardConfirmOpen}
+        onClose={() => {
+          setIsDiscardConfirmOpen(false);
+          setDiscardIntent(null);
+        }}
+        title={<span className="text-base font-bold text-slate-900">Discard unsaved changes?</span>}
+        initialWidth={460}
+        initialHeight={280}
+        footer={
+          <div className="flex w-full justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDiscardConfirmOpen(false);
+                setDiscardIntent(null);
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Keep Editing
+            </button>
+            <button
+              type="button"
+              onClick={confirmDiscardChanges}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+            >
+              Discard Changes
+            </button>
+          </div>
+        }
+      >
+        <div className="p-6">
+          <p className="text-sm text-slate-600">
+            Your edits have not been saved and will be lost.
+          </p>
+        </div>
+      </DraggableModal>
+
+      <DraggableModal
+        isOpen={isShareModalOpen}
+        onClose={() => {
+          setIsShareModalOpen(false);
+          setShareNote('');
+        }}
+        title={<span className="text-base font-bold text-slate-900">Share plan in Messages</span>}
+        initialWidth={520}
+        initialHeight={360}
+        footer={
+          <div className="flex w-full justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsShareModalOpen(false);
+                setShareNote('');
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={openShareComposer}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              Open Messages
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4 p-6">
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Send To</label>
+            <select
+              value={shareRecipient}
+              onChange={(event) => setShareRecipient(event.target.value as UserRole)}
+              className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value={UserRole.TEACHER}>Teacher</option>
+              <option value={UserRole.PRINCIPAL}>Principal</option>
+              <option value={UserRole.DISTRICT}>District Admin</option>
+              <option value={UserRole.PARENT}>Family Contact</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Message Note (Optional)</label>
+            <textarea
+              value={shareNote}
+              onChange={(event) => setShareNote(event.target.value)}
+              rows={4}
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white p-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Add context for this plan before opening Messages..."
+            />
+          </div>
+        </div>
+      </DraggableModal>
+
       {/* View Modal with Edit Support */}
       {selectedPlan && currentPlan && (
         <DraggableModal
             isOpen={!!selectedPlan}
-            onClose={() => { setSelectedPlan(null); setIsEditMode(false); setEditedPlan(null); }}
+            onClose={requestCloseDetailModal}
             title={
                 <div className="flex items-center gap-2">
                     <Layout size={20} className="text-indigo-600" />
@@ -711,11 +1109,11 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                     {/* Left Actions */}
                     <div className="flex gap-2">
                       {isEditMode ? (
-                         <button onClick={cancelEditing} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                         <button onClick={requestCancelEditing} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                       ) : (
-                         selectedPlan.ownerId === currentUserId && (
+                         isLessonPlanOwnedBy(selectedPlan, ownerKey) && (
                             <button 
-                                onClick={(e) => deletePlan(selectedPlan.id, e)} 
+                                onClick={(e) => requestDeletePlan(selectedPlan.id, e)} 
                                 className="text-rose-500 hover:text-rose-700 p-2 rounded hover:bg-rose-50 transition-colors" 
                                 title="Delete Plan"
                             >
@@ -730,13 +1128,14 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                         {isEditMode ? (
                             <button 
                                 onClick={saveEditedPlan}
-                                className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2"
+                                disabled={!isEditDirty}
+                                className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
                             >
                                 <Save size={16} /> Save Changes
                             </button>
                         ) : (
                             <>
-                                {selectedPlan.ownerId === currentUserId && (
+                                {isLessonPlanOwnedBy(selectedPlan, ownerKey) && (
                                     <button 
                                         onClick={startEditing}
                                         className="px-4 py-2 text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 flex items-center gap-2"
@@ -744,10 +1143,20 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                                         <Edit3 size={16} /> Edit
                                     </button>
                                 )}
-                                <button className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2">
+                                <button
+                                  onClick={handlePrintPlan}
+                                  className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
+                                >
                                     <Printer size={16} /> Print
                                 </button>
-                                <button className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setShareRecipient(currentUserRole === UserRole.TEACHER ? UserRole.PRINCIPAL : UserRole.TEACHER);
+                                    setShareNote('');
+                                    setIsShareModalOpen(true);
+                                  }}
+                                  className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm flex items-center gap-2"
+                                >
                                     <Share2 size={16} /> Share
                                 </button>
                             </>
@@ -787,6 +1196,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({ onMenuClic
                         </div>
                         <div className="text-right text-xs text-slate-400">
                             <p>Created: {new Date(currentPlan.createdDate).toLocaleDateString()}</p>
+                            {currentPlan.updatedAt ? <p>Updated: {new Date(currentPlan.updatedAt).toLocaleDateString()}</p> : null}
                             <p>Author: {currentPlan.author}</p>
                         </div>
                     </div>
