@@ -84,6 +84,8 @@ const baseProps: React.ComponentProps<typeof Sidebar> = {
   onNotificationDelete: vi.fn(),
   onNotificationRestore: vi.fn(),
   onNotificationMarkSeen: vi.fn(),
+  onNotificationMarkAllRead: vi.fn(),
+  onNotificationArchiveRead: vi.fn(),
 };
 
 const renderSidebar = async (overrides: Partial<typeof baseProps> = {}): Promise<RenderHandle> => {
@@ -144,6 +146,62 @@ describe("sidebar notifications", () => {
     expect(readRow?.getAttribute("data-unread")).toBe("false");
     expect(readRow?.className.includes("bg-white")).toBe(true);
     expect(readRow?.querySelector('[data-unread-dot="true"]')).toBe(null);
+
+    await cleanupRender(handle);
+  });
+
+  it("supports bulk mark-all-read and archive-read actions", async () => {
+    const onNotificationMarkAllRead = vi.fn();
+    const onNotificationArchiveRead = vi.fn();
+    const handle = await renderSidebar({
+      activeNotifications: [sampleNotification, readNotification],
+      notificationUnseenCount: 1,
+      onNotificationMarkAllRead,
+      onNotificationArchiveRead,
+    });
+
+    const bell = handle.container.querySelector('button[aria-label="Notifications (1 unread)"]') as HTMLButtonElement | null;
+    expect(bell).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      bell?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const markAllReadButton = document.body.querySelector("button");
+    const buttons = Array.from(document.body.querySelectorAll("button")) as HTMLButtonElement[];
+    const readAction = buttons.find((button) => button.textContent?.includes("Mark all read"));
+    const archiveAction = buttons.find((button) => button.textContent?.includes("Archive read"));
+    expect(markAllReadButton).toBeInstanceOf(HTMLButtonElement);
+    expect(readAction).toBeInstanceOf(HTMLButtonElement);
+    expect(archiveAction).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      readAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      archiveAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onNotificationMarkAllRead).toHaveBeenCalledTimes(1);
+    expect(onNotificationArchiveRead).toHaveBeenCalledTimes(1);
+
+    await cleanupRender(handle);
+  });
+
+  it("hides settings fallback CTA for unauthorized notification errors", async () => {
+    const handle = await renderSidebar({
+      notificationError: "Unauthorized.",
+      notificationLoading: false,
+    });
+    const bell = handle.container.querySelector('button[aria-label="Notifications (1 unread)"]') as HTMLButtonElement | null;
+    expect(bell).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      bell?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const signInLink = Array.from(document.body.querySelectorAll("a")).find((anchor) => anchor.textContent?.includes("Sign in again"));
+    const manageLink = Array.from(document.body.querySelectorAll("a")).find((anchor) => anchor.textContent?.includes("Manage notifications"));
+    expect(signInLink).toBeInstanceOf(HTMLAnchorElement);
+    expect(manageLink).toBeUndefined();
 
     await cleanupRender(handle);
   });

@@ -45,6 +45,9 @@ interface SidebarProps {
   onNotificationDelete?: (id: string) => void;
   onNotificationRestore?: (id: string) => void;
   onNotificationMarkSeen?: (ids: string[]) => void;
+  onNotificationMarkAllRead?: () => void;
+  onNotificationArchiveRead?: () => void;
+  onBeforeOpenNotificationSheet?: () => void;
 }
 
 type WorkspaceNavItem = {
@@ -161,6 +164,9 @@ type SidebarContentProps = {
   onNotificationDelete: (id: string) => void;
   onNotificationRestore: (id: string) => void;
   onNotificationMarkSeen: (ids: string[]) => void;
+  onNotificationMarkAllRead: () => void;
+  onNotificationArchiveRead: () => void;
+  onBeforeOpenNotificationSheet: () => void;
   onSearchKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   highlightedItemId: WorkspacePageId | null;
   onClose: () => void;
@@ -195,6 +201,9 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   onNotificationDelete,
   onNotificationRestore,
   onNotificationMarkSeen,
+  onNotificationMarkAllRead,
+  onNotificationArchiveRead,
+  onBeforeOpenNotificationSheet,
   onSearchKeyDown,
   highlightedItemId,
   onClose,
@@ -336,6 +345,9 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             onNotificationDelete={onNotificationDelete}
             onNotificationRestore={onNotificationRestore}
             onNotificationMarkSeen={onNotificationMarkSeen}
+            onNotificationMarkAllRead={onNotificationMarkAllRead}
+            onNotificationArchiveRead={onNotificationArchiveRead}
+            onBeforeOpenSheet={onBeforeOpenNotificationSheet}
           />
         </div>
 
@@ -578,6 +590,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNotificationDelete,
   onNotificationRestore,
   onNotificationMarkSeen,
+  onNotificationMarkAllRead,
+  onNotificationArchiveRead,
+  onBeforeOpenNotificationSheet,
 }) => {
   const navigate = useNavigate();
   const mobileDialogRef = useRef<HTMLDivElement | null>(null);
@@ -677,6 +692,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleNotificationMarkSeen = (ids: string[]) => {
     onNotificationMarkSeen?.(ids);
   };
+  const handleNotificationMarkAllRead = () => {
+    onNotificationMarkAllRead?.();
+  };
+  const handleNotificationArchiveRead = () => {
+    onNotificationArchiveRead?.();
+  };
+  const handleBeforeOpenNotificationSheet = () => {
+    onBeforeOpenNotificationSheet?.();
+  };
 
   return (
     <>
@@ -722,6 +746,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onNotificationDelete={handleNotificationDelete}
               onNotificationRestore={handleNotificationRestore}
               onNotificationMarkSeen={handleNotificationMarkSeen}
+              onNotificationMarkAllRead={handleNotificationMarkAllRead}
+              onNotificationArchiveRead={handleNotificationArchiveRead}
+              onBeforeOpenNotificationSheet={handleBeforeOpenNotificationSheet}
               onSearchKeyDown={handleSearchKeyDown}
               highlightedItemId={highlightedItemId}
               onClose={onMobileClose}
@@ -764,6 +791,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onNotificationDelete={handleNotificationDelete}
           onNotificationRestore={handleNotificationRestore}
           onNotificationMarkSeen={handleNotificationMarkSeen}
+          onNotificationMarkAllRead={handleNotificationMarkAllRead}
+          onNotificationArchiveRead={handleNotificationArchiveRead}
+          onBeforeOpenNotificationSheet={handleBeforeOpenNotificationSheet}
           highlightedItemId={highlightedItemId}
           onClose={() => {
             // Desktop nav should remain open; no-op for shared link handlers.

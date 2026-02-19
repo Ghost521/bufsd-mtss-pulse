@@ -19,6 +19,9 @@ type NotificationBellPopoverProps = {
   onNotificationDelete: (id: string) => void;
   onNotificationRestore: (id: string) => void;
   onNotificationMarkSeen: (ids: string[]) => void;
+  onNotificationMarkAllRead?: () => void;
+  onNotificationArchiveRead?: () => void;
+  onBeforeOpenSheet?: () => void;
 };
 
 const MOBILE_BREAKPOINT_QUERY = "(max-width: 1023px)";
@@ -57,14 +60,19 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
   onNotificationDelete,
   onNotificationRestore,
   onNotificationMarkSeen,
+  onNotificationMarkAllRead,
+  onNotificationArchiveRead,
+  onBeforeOpenSheet,
 }) => {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"active" | "archived">("active");
+  const [activeFilter, setActiveFilter] = useState<"all" | "unread" | "critical">("all");
   const [position, setPosition] = useState({ top: 56, left: 16 });
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const lastSeenSignatureRef = useRef<string>("");
+  const wasOpenRef = useRef(false);
 
   const visibleActive = useMemo(() => activeNotifications.slice(0, 8), [activeNotifications]);
   const visibleArchived = useMemo(() => archivedNotifications.slice(0, 8), [archivedNotifications]);
@@ -102,6 +110,23 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
       return;
     }
   }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      return;
+    }
+    if (wasOpenRef.current) {
+      triggerRef.current?.focus();
+      wasOpenRef.current = false;
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (tab === "archived" && activeFilter !== "all") {
+      setActiveFilter("all");
+    }
+  }, [activeFilter, tab]);
 
   useEffect(() => {
     if (!open || loading || hasError) return;
@@ -159,7 +184,15 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
     };
   }, [open]);
 
-  const activeRows = tab === "active" ? visibleActive : visibleArchived;
+  const filteredActive = useMemo(() => {
+    if (activeFilter === "unread") return visibleActive.filter((row) => !row.readAt);
+    if (activeFilter === "critical") return visibleActive.filter((row) => row.severity === "critical");
+    return visibleActive;
+  }, [activeFilter, visibleActive]);
+
+  const canMarkAllRead = useMemo(() => visibleActive.some((row) => !row.readAt), [visibleActive]);
+  const canArchiveRead = useMemo(() => visibleActive.some((row) => Boolean(row.readAt)), [visibleActive]);
+  const activeRows = tab === "active" ? filteredActive : visibleArchived;
 
   const content = (
     <>
@@ -167,7 +200,7 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-slate-900">Notifications</p>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600" aria-live="polite">
               {unseenCount} unread
             </span>
             {resolvedPresentation === "sheet" ? (
@@ -202,6 +235,57 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
             Archived
           </button>
         </div>
+        {tab === "active" && !loading && !hasError ? (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setActiveFilter("all")}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  activeFilter === "all" ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter("unread")}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  activeFilter === "unread" ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Unread
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveFilter("critical")}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  activeFilter === "critical" ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Critical
+              </button>
+            </div>
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onNotificationMarkAllRead?.()}
+                disabled={!canMarkAllRead}
+                className="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Mark all read
+              </button>
+              <button
+                type="button"
+                onClick={() => onNotificationArchiveRead?.()}
+                disabled={!canArchiveRead}
+                className="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Archive read
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className={`${resolvedPresentation === "sheet" ? "max-h-[58vh]" : "max-h-[380px]"} overflow-y-auto p-2`}>
@@ -286,8 +370,8 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
                             event.stopPropagation();
                             onNotificationDismiss(notification.id);
                           }}
-                          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          aria-label="Dismiss notification"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                          aria-label={`Dismiss notification: ${notification.title}`}
                           title="Dismiss"
                         >
                           <X size={13} />
@@ -298,8 +382,8 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
                             event.stopPropagation();
                             onNotificationArchive(notification.id);
                           }}
-                          className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          aria-label="Archive notification"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                          aria-label={`Archive notification: ${notification.title}`}
                           title="Archive"
                         >
                           <Archive size={13} />
@@ -312,8 +396,8 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
                           event.stopPropagation();
                           onNotificationRestore(notification.id);
                         }}
-                        className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                        aria-label="Restore notification"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={`Restore notification: ${notification.title}`}
                         title="Restore"
                       >
                         <Check size={13} />
@@ -325,8 +409,8 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
                         event.stopPropagation();
                         onNotificationDelete(notification.id);
                       }}
-                      className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-700"
-                      aria-label="Delete notification"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-700"
+                      aria-label={`Delete notification: ${notification.title}`}
                       title="Delete"
                     >
                       <Trash2 size={13} />
@@ -339,14 +423,16 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
           : null}
       </div>
 
-      <div className="border-t border-slate-200 p-2">
-        <a
-          href="/app/settings"
-          className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-        >
-          Manage notifications
-        </a>
-      </div>
+      {!showReauthAction ? (
+        <div className="border-t border-slate-200 p-2">
+          <a
+            href="/app/settings"
+            className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            Manage notifications
+          </a>
+        </div>
+      ) : null}
     </>
   );
 
@@ -355,7 +441,15 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen((previous) => !previous)}
+        onClick={() =>
+          setOpen((previous) => {
+            const next = !previous;
+            if (next && resolvedPresentation === "sheet") {
+              onBeforeOpenSheet?.();
+            }
+            return next;
+          })
+        }
         className={`relative inline-flex items-center justify-center border border-slate-700 bg-slate-800/80 text-slate-100 transition-colors hover:border-slate-500 hover:text-white ${
           isCompact ? "h-8 w-8 rounded-md" : "h-9 w-9 rounded-lg"
         }`}
@@ -370,41 +464,39 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
         ) : null}
       </button>
 
-      {open
-        ? createPortal(
-            resolvedPresentation === "sheet" ? (
-              <>
-                <button
-                  type="button"
-                  className="fixed inset-0 z-[69] bg-slate-900/45"
-                  aria-label="Close notifications"
-                  onClick={() => setOpen(false)}
-                />
-                <div
-                  ref={panelRef}
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Notifications"
-                  className="fixed inset-x-0 bottom-0 z-[70] max-h-[82vh] rounded-t-2xl border border-slate-200 bg-white shadow-2xl"
-                >
-                  <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-slate-300" />
-                  {content}
-                </div>
-              </>
-            ) : (
-              <div
-                ref={panelRef}
-                className="fixed z-[70] w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 bg-white shadow-2xl"
-                style={{ top: position.top, left: position.left }}
-                role="dialog"
-                aria-label="Notifications"
-              >
-                {content}
-              </div>
-            ),
+      {open ? (
+        resolvedPresentation === "sheet" ? (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-[69] bg-slate-900/45 lg:hidden"
+              aria-label="Close notifications"
+              onClick={() => setOpen(false)}
+            />
+            <section
+              ref={panelRef}
+              aria-label="Notifications"
+              className="fixed inset-x-0 bottom-0 z-[70] max-h-[82vh] rounded-t-2xl border border-slate-200 bg-white shadow-2xl lg:hidden"
+            >
+              <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-slate-300" />
+              {content}
+            </section>
+          </>
+        ) : (
+          createPortal(
+            <div
+              ref={panelRef}
+              className="fixed z-[70] w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 bg-white shadow-2xl"
+              style={{ top: position.top, left: position.left }}
+              role="dialog"
+              aria-label="Notifications"
+            >
+              {content}
+            </div>,
             document.body,
           )
-        : null}
+        )
+      ) : null}
     </>
   );
 };

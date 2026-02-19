@@ -1578,6 +1578,8 @@ const App: React.FC = () => {
         onNotificationDelete={(id) => notifications.deleteNotification(id)}
         onNotificationRestore={(id) => notifications.restore(id)}
         onNotificationMarkSeen={(ids) => notifications.markSeen(ids)}
+        onNotificationMarkAllRead={() => notifications.markAllRead()}
+        onNotificationArchiveRead={() => notifications.archiveRead()}
       />
 
       {!sidebarState.isMobileOpen && isMobileViewport === true ? (

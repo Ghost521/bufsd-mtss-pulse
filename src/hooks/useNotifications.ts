@@ -113,6 +113,25 @@ export const useNotifications = (input: {
     [updateMany],
   );
 
+  const markAllRead = useCallback(() => {
+    const unreadIds = activeNotifications.filter((row) => !row.readAt).map((row) => row.id);
+    if (unreadIds.length === 0) return;
+    updateMany(unreadIds, (row) => ({
+      seenAt: row.seenAt ?? nowIso(),
+      readAt: row.readAt ?? nowIso(),
+    }));
+  }, [activeNotifications, updateMany]);
+
+  const archiveRead = useCallback(() => {
+    const readIds = activeNotifications.filter((row) => Boolean(row.readAt)).map((row) => row.id);
+    if (readIds.length === 0) return;
+    updateMany(readIds, (row) => ({
+      seenAt: row.seenAt ?? nowIso(),
+      readAt: row.readAt ?? nowIso(),
+      archivedAt: row.archivedAt ?? nowIso(),
+    }));
+  }, [activeNotifications, updateMany]);
+
   const dismiss = useCallback(
     (id: string) => {
       updateMany([id], (row) => ({
@@ -210,6 +229,8 @@ export const useNotifications = (input: {
     unreadCount,
     markSeen,
     markRead,
+    markAllRead,
+    archiveRead,
     dismiss,
     archive,
     restore,
