@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Conversation, Message, Attachment } from '../types';
 import { UserRole } from '../types';
 import { 
@@ -29,6 +29,13 @@ import {
 } from 'lucide-react';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
+import {
+  filterConversationsByQuery,
+  formatMessageTimeLabel,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  sortConversationsByLastActivity,
+  validateAttachment,
+} from '../lib/messages-utils';
 
 interface MessagesViewProps {
   currentUserRole: UserRole;
@@ -48,27 +55,16 @@ const MOCK_CONTACTS = [
   { id: 'c7', name: 'Mr. Thompson', role: UserRole.TEACHER },
 ];
 
+const STAFF_ROLES = new Set<UserRole>([UserRole.TEACHER, UserRole.PRINCIPAL, UserRole.DISTRICT]);
+
 // Expanded Emoji List
 const EMOJIS = [
-  // Faces
-  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '🥲', '😊', 
-  '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', 
-  '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', 
-  '🥸', '🤩', '🥳', '😏', '😒', '😞', '😔', 'worried', '😕', '🙁', 
-  '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', 
-  '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', 'mwuhaha', '😨', '😰',
-  // Hands/Gestures
-  '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', 
-  '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '👍', '👎', 
-  '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏',
-  // Objects/Symbols
-  '✍️', '💅', '🤳', '💪', '🧠', '🫀', '👀', '👁️', '🗣️', '👤',
-  '👥', '🫂', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔',
-  '🎒', '📚', '📝', '✏️', '📏', '💻', '🖥️', '🖨️', '💡', '⏰',
-  '✅', '❌', '💯', '💢', '💥', '💫', '💦', '💨', '🕳️', '🎉',
-  '🎊', '🎈', '🎂', '🎁', '🎖️', '🏆', '🏅', '🥇', '🥈', '🥉'
+  '😀', '😃', '😄', '😁', '😅', '😂', '😊', '🙂', '😉', '😍',
+  '😘', '😎', '🤩', '🥳', '😇', '🤔', '😮', '😢', '😭', '😡',
+  '👋', '👌', '🙏', '👍', '👎', '👏', '🙌', '🤝', '✍️', '💪',
+  '🧠', '👀', '🗣️', '🎒', '📚', '📝', '💡', '⏰', '✅', '❌',
+  '🎉', '🎯', '🏆', '📎', '📅', '📈', '📣', '🤗', '❤️', '⭐'
 ];
-
 // Mock GIF Database for Search Simulation
 const MOCK_GIF_DB = [
     { id: 'g1', url: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDdtZ2Z4Z2Z4Z2Z4Z2Z4Z2Z4Z2Z4Z2Z4Z2Z4Z2Z4Z2Z4Z2Z4/3o7abKhOpu0NwenH3O/giphy.gif', tags: ['excited', 'happy', 'minions', 'yay', 'party'] },
@@ -84,7 +80,7 @@ const MOCK_GIF_DB = [
 ];
 
 export const MessagesView: React.FC<MessagesViewProps> = ({ 
-  currentUserRole: _currentUserRole, 
+  currentUserRole, 
   currentUserName, 
   onMenuClick,
   targetRecipient 
@@ -114,11 +110,19 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   // Modal States
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
+  const [showDeleteConversationModal, setShowDeleteConversationModal] = useState(false);
   
   // New Message / Group Creation State
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [deletedMessageState, setDeletedMessageState] = useState<{
+    conversationId: string;
+    message: Message;
+    index: number;
+    timeoutId: number;
+  } | null>(null);
 
   // --- Video Call State ---
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
@@ -130,8 +134,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const newMessageButtonRef = useRef<HTMLButtonElement>(null);
+  const emptyStateNewMessageButtonRef = useRef<HTMLButtonElement>(null);
+  const convoDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const gifSearchRequestRef = useRef(0);
+  const modalTriggerRef = useRef<HTMLElement | null>(null);
   const hasHydratedRef = useRef(false);
   const lastPersistedRef = useRef("");
+  const isStaffUser = STAFF_ROLES.has(currentUserRole);
 
   // Load conversations specific to the current user
   useEffect(() => {
@@ -142,8 +152,9 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         const userConvos = source.filter(c => 
             c.participants?.includes(currentUserName) || c.isGroup // Include groups for simplicity or filter deeper
         );
-        lastPersistedRef.current = JSON.stringify(userConvos);
-        setConversations(userConvos);
+        const sortedConversations = sortConversationsByLastActivity(userConvos);
+        lastPersistedRef.current = JSON.stringify(sortedConversations);
+        setConversations(sortedConversations);
         setSelectedConversationId(null); // Reset selection on user switch
         setIsMobileChatOpen(false);
     }
@@ -157,8 +168,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       );
       
       if (existing) {
-        setSelectedConversationId(existing.id);
-        setIsMobileChatOpen(true);
+        openConversation(existing.id);
       } else {
         // Create temp conversation locally if not exists
         const newId = `new-${Date.now()}`;
@@ -176,8 +186,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           participants: [currentUserName, targetRecipient]
         };
         setConversations(prev => [newConvo, ...prev]);
-        setSelectedConversationId(newId);
-        setIsMobileChatOpen(true);
+        openConversation(newId);
       }
     }
   }, [targetRecipient, currentUserName, conversations]);
@@ -231,6 +240,81 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (showDeleteConversationModal) {
+        setShowDeleteConversationModal(false);
+        convoDeleteButtonRef.current?.focus();
+        return;
+      }
+      if (showGroupInfoModal) {
+        setShowGroupInfoModal(false);
+        return;
+      }
+      if (showNewMessageModal) {
+        setShowNewMessageModal(false);
+        setSelectedContacts([]);
+        setGroupName('');
+        setContactSearch('');
+        modalTriggerRef.current?.focus?.();
+        return;
+      }
+      if (showEmojiPicker) setShowEmojiPicker(false);
+      if (showGifPicker) setShowGifPicker(false);
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showDeleteConversationModal, showGroupInfoModal, showNewMessageModal, showEmojiPicker, showGifPicker]);
+
+  useEffect(() => {
+    return () => {
+      if (deletedMessageState) {
+        window.clearTimeout(deletedMessageState.timeoutId);
+      }
+    };
+  }, [deletedMessageState]);
+
+  useEffect(() => {
+    if (!showNewMessageModal) return;
+    const timer = window.setTimeout(() => {
+      const searchField = document.querySelector<HTMLInputElement>('input[placeholder="Search people..."]');
+      searchField?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [showNewMessageModal]);
+
+  useEffect(() => {
+    const modalRoot = document.querySelector<HTMLElement>('[data-modal="true"]');
+    if (!modalRoot) return;
+
+    const handleTabLock = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const focusable = modalRoot.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey) {
+        if (active === first || !modalRoot.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleTabLock);
+    return () => document.removeEventListener('keydown', handleTabLock);
+  }, [showNewMessageModal, showGroupInfoModal, showDeleteConversationModal]);
+
   // --- Helper to get display name/avatar for a conversation relative to current user ---
   const getConversationMeta = (convo: Conversation) => {
       if (convo.isGroup) {
@@ -253,17 +337,65 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const activeConversation = conversations.find(c => c.id === selectedConversationId);
   const activeMeta = activeConversation ? getConversationMeta(activeConversation) : null;
 
-  const filteredConversations = conversations.filter(c => {
-      const meta = getConversationMeta(c);
-      return meta.name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const sortedConversations = useMemo(
+    () => sortConversationsByLastActivity(conversations),
+    [conversations],
+  );
+
+  const filteredConversations = useMemo(
+    () => filterConversationsByQuery(sortedConversations, (conversation) => getConversationMeta(conversation).name, searchQuery),
+    [sortedConversations, searchQuery, currentUserName],
+  );
+  const hasActiveSearch = searchQuery.trim().length > 0;
 
   const availableContacts = MOCK_CONTACTS.filter(c => 
     c.name !== currentUserName && 
-    c.name.toLowerCase().includes(contactSearch.toLowerCase())
+    c.name.toLowerCase().includes(contactSearch.toLowerCase()) &&
+    (isStaffUser || STAFF_ROLES.has(c.role))
   );
 
   // --- Handlers ---
+
+  const openConversation = (conversationId: string) => {
+    setSelectedConversationId((previous) => (previous === conversationId ? previous : conversationId));
+    setIsMobileChatOpen(true);
+    setConversations((prev) => {
+      let changed = false;
+      const next = prev.map((conversation) => {
+        if (conversation.id !== conversationId || conversation.unreadCount === 0) {
+          return conversation;
+        }
+        changed = true;
+        return { ...conversation, unreadCount: 0 };
+      });
+      return changed ? next : prev;
+    });
+  };
+
+  const openNewMessageModal = (trigger?: HTMLElement | null) => {
+    modalTriggerRef.current = trigger ?? null;
+    setShowNewMessageModal(true);
+  };
+
+  const closeNewMessageModal = () => {
+    setShowNewMessageModal(false);
+    setSelectedContacts([]);
+    setGroupName('');
+    setContactSearch('');
+    modalTriggerRef.current?.focus?.();
+  };
+
+  const closeDeleteConversationModal = () => {
+    setShowDeleteConversationModal(false);
+    convoDeleteButtonRef.current?.focus();
+  };
+
+  const scheduleUndoToastReset = (timeoutId: number) => {
+    setDeletedMessageState((prev) => {
+      if (!prev || prev.timeoutId !== timeoutId) return prev;
+      return null;
+    });
+  };
 
   const handleSendMessage = () => {
     if ((!newMessage.trim() && pendingAttachments.length === 0) || !selectedConversationId) return;
@@ -273,26 +405,30 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       senderId: 'me',
       senderName: currentUserName, // Use real name
       content: newMessage,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: new Date().toISOString(),
       isRead: true,
       isMe: true,
       attachments: [...pendingAttachments]
     };
 
-    setConversations(prev => prev.map(c => {
-      if (c.id === selectedConversationId) {
-        return {
-          ...c,
-          messages: [...c.messages, msg],
-          lastMessage: pendingAttachments.length > 0 && !newMessage ? 'Sent an attachment' : newMessage,
-          lastMessageTime: 'Just now'
-        };
-      }
-      return c;
-    }));
+    setConversations(prev =>
+      prev.map(c => {
+        if (c.id === selectedConversationId) {
+          return {
+            ...c,
+            unreadCount: 0,
+            messages: [...c.messages, msg],
+            lastMessage: pendingAttachments.length > 0 && !newMessage ? 'Sent an attachment' : newMessage,
+            lastMessageTime: msg.timestamp,
+          };
+        }
+        return c;
+      }),
+    );
 
     setNewMessage('');
     setPendingAttachments([]);
+    setComposerError(null);
     setShowEmojiPicker(false);
     setShowGifPicker(false);
   };
@@ -300,7 +436,15 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
         const files = Array.from(e.target.files);
+        setComposerError(null);
+        let nextAttachmentCount = pendingAttachments.length;
         files.forEach((file: File) => {
+            const validation = validateAttachment(file, nextAttachmentCount);
+            if (!validation.ok) {
+                setComposerError(validation.error);
+                return;
+            }
+            nextAttachmentCount += 1;
             const reader = new FileReader();
             reader.onloadend = () => {
                 const isImage = file.type.startsWith('image/');
@@ -325,6 +469,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   };
 
   const handleEmojiClick = (emoji: string) => {
+      setComposerError(null);
       setNewMessage(prev => prev + emoji);
   };
 
@@ -332,9 +477,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const handleSearchGifs = (query: string) => {
       setGifSearchQuery(query);
       setIsSearchingGifs(true);
+      const requestId = gifSearchRequestRef.current + 1;
+      gifSearchRequestRef.current = requestId;
       
       // Debounce simulation
       setTimeout(() => {
+          if (requestId !== gifSearchRequestRef.current) {
+              return;
+          }
           if (!query.trim()) {
               setAvailableGifs(MOCK_GIF_DB.slice(0, 4)); // Trending
           } else {
@@ -348,6 +498,10 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   };
 
   const handleGifSelect = (gifUrl: string) => {
+      if (pendingAttachments.length >= MAX_ATTACHMENTS_PER_MESSAGE) {
+          setComposerError(`You can attach up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message.`);
+          return;
+      }
       const gifAttachment: Attachment = {
           id: `gif-${Date.now()}`,
           type: 'image',
@@ -356,32 +510,97 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           size: 'GIF'
       };
       setPendingAttachments(prev => [...prev, gifAttachment]);
+      setComposerError(null);
       setShowGifPicker(false);
   };
 
   const handleDeleteMessage = (messageId: string) => {
     if (!selectedConversationId) return;
-    setConversations(prev => prev.map(c => {
-      if (c.id === selectedConversationId) {
+    let deletedPayload:
+      | {
+          conversationId: string;
+          message: Message;
+          index: number;
+        }
+      | null = null;
+
+    setConversations(prev =>
+      prev.map(c => {
+        if (c.id !== selectedConversationId) return c;
+
+        const targetIndex = c.messages.findIndex((message) => message.id === messageId);
+        if (targetIndex < 0) return c;
+        const removed = c.messages[targetIndex];
+        const remainingMessages = c.messages.filter((message) => message.id !== messageId);
+        const latestRemaining = remainingMessages[remainingMessages.length - 1];
+        const lastMessageLabel = latestRemaining
+          ? latestRemaining.content || (latestRemaining.attachments?.length ? 'Sent an attachment' : '')
+          : '';
+        const lastMessageTime = latestRemaining?.timestamp ?? '';
+
+        deletedPayload = {
+          conversationId: c.id,
+          message: removed,
+          index: targetIndex,
+        };
+
         return {
           ...c,
-          messages: c.messages.filter(m => m.id !== messageId)
+          messages: remainingMessages,
+          lastMessage: lastMessageLabel,
+          lastMessageTime,
         };
+      }),
+    );
+
+    if (!deletedPayload) return;
+
+    setDeletedMessageState((previous) => {
+      if (previous) {
+        window.clearTimeout(previous.timeoutId);
       }
-      return c;
-    }));
+      const timeoutId = window.setTimeout(() => scheduleUndoToastReset(timeoutId), 5000);
+      return { ...deletedPayload, timeoutId };
+    });
   };
 
-  const handleDeleteConversation = (e?: React.MouseEvent) => {
+  const handleUndoDelete = () => {
+    if (!deletedMessageState) return;
+    window.clearTimeout(deletedMessageState.timeoutId);
+    setConversations((prev) =>
+      prev.map((conversation) => {
+        if (conversation.id !== deletedMessageState.conversationId) return conversation;
+        const nextMessages = [...conversation.messages];
+        nextMessages.splice(deletedMessageState.index, 0, deletedMessageState.message);
+        const latestMessage = nextMessages[nextMessages.length - 1];
+        return {
+          ...conversation,
+          messages: nextMessages,
+          lastMessage: latestMessage?.content || (latestMessage?.attachments?.length ? 'Sent an attachment' : ''),
+          lastMessageTime: latestMessage?.timestamp ?? '',
+        };
+      }),
+    );
+    setDeletedMessageState(null);
+  };
+
+  const handleDeleteConversationRequest = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!selectedConversationId) return;
-    // Simple custom modal or native confirm for now
-    if (window.confirm("Are you sure you want to delete this conversation?")) {
-        setConversations(prev => prev.filter(c => c.id !== selectedConversationId));
-        setSelectedConversationId(null);
-        setIsMobileChatOpen(false);
-        setShowGroupInfoModal(false);
+    setShowDeleteConversationModal(true);
+  };
+
+  const handleDeleteConversationConfirm = () => {
+    if (!selectedConversationId) return;
+    if (deletedMessageState?.conversationId === selectedConversationId) {
+      window.clearTimeout(deletedMessageState.timeoutId);
+      setDeletedMessageState(null);
     }
+    setConversations(prev => prev.filter(c => c.id !== selectedConversationId));
+    setSelectedConversationId(null);
+    setIsMobileChatOpen(false);
+    setShowGroupInfoModal(false);
+    setShowDeleteConversationModal(false);
   };
 
   const handleCreateConversation = () => {
@@ -408,7 +627,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     });
 
     if (existing) {
-        setSelectedConversationId(existing.id);
+        openConversation(existing.id);
     } else {
         const newConvo: Conversation = {
             id: `new-${Date.now()}`,
@@ -423,17 +642,21 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             isGroup: isGroup,
             participants: participants
         };
-        setConversations([newConvo, ...conversations]);
-        setSelectedConversationId(newConvo.id);
+        setConversations(sortConversationsByLastActivity([newConvo, ...conversations]));
+        openConversation(newConvo.id);
     }
 
-    setShowNewMessageModal(false);
+    closeNewMessageModal();
     setSelectedContacts([]);
     setGroupName('');
-    setIsMobileChatOpen(true);
+    setContactSearch('');
   };
 
   const handleToggleContact = (contactName: string) => {
+    if (!isStaffUser) {
+        setSelectedContacts((prev) => (prev.includes(contactName) ? [] : [contactName]));
+        return;
+    }
     if (selectedContacts.includes(contactName)) {
         setSelectedContacts(prev => prev.filter(c => c !== contactName));
     } else {
@@ -639,6 +862,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       <input 
         type="file" 
         multiple 
+        accept="image/*,.pdf,.doc,.docx,.txt"
         ref={fileInputRef}
         onChange={handleFileSelect}
         className="hidden" 
@@ -646,18 +870,18 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
       {/* New Message Modal */}
       {showNewMessageModal && (
-          <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div data-modal="true" className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-slate-100">
                   <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                       <h3 className="font-bold text-lg text-slate-900">New Conversation</h3>
-                      <button onClick={() => setShowNewMessageModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors rounded-full p-1 hover:bg-slate-100"><X size={20} /></button>
+                      <button onClick={closeNewMessageModal} className="text-slate-400 hover:text-slate-600 transition-colors rounded-full p-1 hover:bg-slate-100" aria-label="Close new conversation dialog"><X size={20} /></button>
                   </div>
                   
                   <div className="p-5 border-b border-slate-100 space-y-4 bg-slate-50/50">
-                      {selectedContacts.length > 1 && (
+                      {selectedContacts.length > 1 && isStaffUser && (
                           <input 
                             type="text" 
-                            placeholder="Group Name (Optional)" 
+                            placeholder="Group name (optional)" 
                             value={groupName}
                             onChange={(e) => setGroupName(e.target.value)}
                             className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
@@ -712,7 +936,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                         disabled={selectedContacts.length === 0}
                         className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                       >
-                          {selectedContacts.length > 1 ? `Create Group (${selectedContacts.length})` : 'Start Chat'}
+                          {selectedContacts.length > 1 && isStaffUser ? `Create Group (${selectedContacts.length})` : 'Start Conversation'}
                       </button>
                   </div>
               </div>
@@ -721,11 +945,11 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
       {/* Group Info / Manage Modal */}
       {showGroupInfoModal && activeConversation && activeMeta && (
-          <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div data-modal="true" className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-slate-100 overflow-hidden">
                   <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
                       <h3 className="font-bold text-slate-800">Chat Details</h3>
-                      <button onClick={() => setShowGroupInfoModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200 transition-colors"><X size={20} /></button>
+                      <button onClick={() => setShowGroupInfoModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200 transition-colors" aria-label="Close chat details"><X size={20} /></button>
                   </div>
                   
                   <div className="p-8 text-center border-b border-slate-100">
@@ -759,7 +983,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                                       </div>
                                       {name} {name === currentUserName && '(You)'}
                                   </span>
-                                  {activeConversation.isGroup && (
+                                  {activeConversation.isGroup && isStaffUser && (
                                       <button onClick={() => handleRemoveParticipant(name)} className="text-slate-300 hover:text-rose-500 p-1 transition-colors" title="Remove">
                                           <UserMinus size={16} />
                                       </button>
@@ -768,7 +992,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                           ))}
                       </div>
                       
-                      {activeConversation.isGroup && (
+                      {activeConversation.isGroup && isStaffUser && (
                           <div className="mt-4 pt-4 border-t border-slate-200">
                               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Add Participant</p>
                               <div className="relative">
@@ -791,13 +1015,55 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
                   <div className="p-5 border-t border-slate-100 bg-slate-50 rounded-b-xl">
                       <button 
-                        onClick={handleDeleteConversation}
+                        ref={convoDeleteButtonRef}
+                        onClick={handleDeleteConversationRequest}
                         className="w-full py-3 bg-white border border-rose-200 text-rose-600 rounded-lg font-bold shadow-sm hover:bg-rose-50 hover:border-rose-300 transition-all flex items-center justify-center gap-2 text-sm"
+                        aria-label="Delete conversation"
                       >
                           <Trash2 size={16} /> Delete Conversation
                       </button>
                   </div>
               </div>
+          </div>
+      )}
+
+      {showDeleteConversationModal && (
+          <div data-modal="true" className="absolute inset-0 z-[55] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-sm bg-white rounded-xl shadow-2xl border border-slate-100 p-6">
+                  <h3 className="text-lg font-bold text-slate-900">Delete conversation?</h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    This removes the conversation and message history from your workspace view.
+                  </p>
+                  <div className="mt-5 flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={closeDeleteConversationModal}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteConversationConfirm}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {deletedMessageState && (
+          <div className="absolute bottom-5 right-5 z-[56] bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3">
+            <span className="text-sm">Message deleted.</span>
+            <button
+              type="button"
+              onClick={handleUndoDelete}
+              className="text-sm font-bold text-indigo-200 hover:text-indigo-100"
+            >
+              Undo
+            </button>
           </div>
       )}
 
@@ -816,9 +1082,11 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 <h2 className="text-xl font-bold text-slate-900">Messages</h2>
               </div>
               <button 
-                onClick={() => setShowNewMessageModal(true)}
+                ref={newMessageButtonRef}
+                onClick={(event) => openNewMessageModal(event.currentTarget)}
                 className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all active:scale-95"
                 title="New Message"
+                aria-label="Start new conversation"
               >
                 <Plus size={20} />
               </button>
@@ -830,25 +1098,35 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 placeholder="Search messages..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search conversations"
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-transparent rounded-xl text-sm focus:bg-white focus:border-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
               />
             </div>
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2" role="listbox" aria-label="Conversations">
             {filteredConversations.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
-                    <p className="text-sm font-medium">No conversations found.</p>
+                    <p className="text-sm font-medium">
+                      {hasActiveSearch ? 'No matches for this search.' : 'No messages yet.'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {hasActiveSearch ? 'Try a different keyword.' : 'Start a new conversation to begin collaborating.'}
+                    </p>
                 </div>
             ) : (
                 filteredConversations.map(convo => {
                     const meta = getConversationMeta(convo);
                     return (
-                        <div 
+                        <button
                             key={convo.id}
-                            onClick={() => { setSelectedConversationId(convo.id); setIsMobileChatOpen(true); }}
-                            className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent group relative ${
+                            type="button"
+                            role="option"
+                            aria-selected={selectedConversationId === convo.id}
+                            aria-label={`Open conversation with ${meta.name}`}
+                            onClick={() => openConversation(convo.id)}
+                            className={`w-full text-left p-3 rounded-xl transition-all border border-transparent group relative ${
                                 selectedConversationId === convo.id 
                                 ? 'bg-white border-indigo-100 shadow-sm' 
                                 : 'hover:bg-white hover:border-slate-200 hover:shadow-sm'
@@ -883,7 +1161,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                                         {meta.name}
                                         </h3>
                                         <span className={`text-[10px] whitespace-nowrap ${convo.unreadCount > 0 ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
-                                            {convo.lastMessageTime}
+                                            {formatMessageTimeLabel(convo.lastMessageTime) || 'New'}
                                         </span>
                                     </div>
                                     <p className={`text-xs truncate leading-relaxed ${convo.unreadCount > 0 ? 'font-semibold text-slate-800' : 'text-slate-500 group-hover:text-slate-600'}`}>
@@ -891,7 +1169,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                                     </p>
                                 </div>
                             </div>
-                        </div>
+                        </button>
                     );
                 })
             )}
@@ -904,10 +1182,22 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             <>
               {/* Chat Header */}
               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-20">
-                <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setShowGroupInfoModal(true)}>
+                <div
+                  className="flex items-center gap-4 cursor-pointer group"
+                  onClick={() => setShowGroupInfoModal(true)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setShowGroupInfoModal(true);
+                    }
+                  }}
+                >
                   <button 
                     onClick={(e) => { e.stopPropagation(); setIsMobileChatOpen(false); }}
                     className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                    aria-label="Back to conversations"
                   >
                     <ArrowLeft size={20} />
                   </button>
@@ -933,24 +1223,31 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => alert("Sending SMS notification...")}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors hidden sm:block"
-                    title="Send SMS"
-                  >
-                    <Smartphone size={18} />
-                  </button>
-                  <button 
-                    onClick={handleStartCall}
-                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors hidden sm:block"
-                    title="Start Video Call"
-                  >
-                    <Video size={18} />
-                  </button>
-                  <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+                  {isStaffUser && (
+                    <>
+                      <button 
+                        onClick={() => alert("Sending SMS notification...")}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors hidden sm:block"
+                        title="Send SMS"
+                        aria-label="Send SMS"
+                      >
+                        <Smartphone size={18} />
+                      </button>
+                      <button 
+                        onClick={handleStartCall}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors hidden sm:block"
+                        title="Start Video Call"
+                        aria-label="Start video call"
+                      >
+                        <Video size={18} />
+                      </button>
+                      <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+                    </>
+                  )}
                   <button 
                     onClick={() => setShowGroupInfoModal(true)}
                     className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    aria-label="Open chat details"
                   >
                     <MoreVertical size={18} />
                   </button>
@@ -968,11 +1265,12 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     
                     {/* Hover Actions (Left side for Me) */}
                     {isMe && (
-                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity mr-2">
+                        <div className="flex items-center opacity-70 group-hover:opacity-100 transition-opacity mr-2">
                             <button 
                                 onClick={() => handleDeleteMessage(msg.id)}
                                 className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
                                 title="Delete"
+                                aria-label="Delete message"
                             >
                                 <Trash2 size={14} />
                             </button>
@@ -1019,7 +1317,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                         
                         <div className={`flex items-center gap-1.5 justify-end mt-1.5 text-[10px] font-medium ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
-                            <span>{msg.timestamp}</span>
+                            <span>{formatMessageTimeLabel(msg.timestamp)}</span>
                             {isMe && (
                                 msg.isRead ? <CheckCheck size={14} className="opacity-90" /> : <Check size={14} className="opacity-90" />
                             )}
@@ -1029,11 +1327,12 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
                     {/* Hover Actions (Right side for Others) */}
                     {!isMe && (
-                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                        <div className="flex items-center opacity-70 group-hover:opacity-100 transition-opacity ml-2">
                              <button 
                                 onClick={() => handleDeleteMessage(msg.id)}
                                 className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
                                 title="Delete"
+                                aria-label="Delete message"
                             >
                                 <Trash2 size={14} />
                             </button>
@@ -1047,6 +1346,11 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
               {/* Input Area */}
               <div className="p-4 sm:p-6 bg-white relative z-20">
+                 {composerError && (
+                    <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      {composerError}
+                    </div>
+                 )}
                  
                  {/* Pending Attachments Preview */}
                  {pendingAttachments.length > 0 && (
@@ -1064,6 +1368,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                                  <button 
                                     onClick={() => handleRemoveAttachment(att.id)}
                                     className="absolute top-1 right-1 bg-black/50 hover:bg-rose-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all"
+                                    aria-label="Remove attachment"
                                  >
                                      <X size={10} />
                                  </button>
@@ -1141,6 +1446,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             onClick={() => fileInputRef.current?.click()}
                             className="p-2 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
                             title="Attach File"
+                            aria-label="Attach file"
                         >
                             <Plus size={20} />
                         </button>
@@ -1148,6 +1454,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             onClick={(e) => { e.stopPropagation(); setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}
                             className={`picker-trigger p-2 rounded-lg transition-colors ${showGifPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                             title="Add GIF"
+                            aria-label="Add GIF"
                         >
                             <Sticker size={20} />
                         </button>
@@ -1155,6 +1462,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }}
                             className={`picker-trigger p-2 rounded-lg transition-colors ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                             title="Add Emoji"
+                            aria-label="Add emoji"
                         >
                             <Smile size={20} />
                         </button>
@@ -1186,6 +1494,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                         onClick={handleSendMessage}
                         disabled={(!newMessage.trim() && pendingAttachments.length === 0)}
                         className="p-2.5 mb-0.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                        aria-label="Send message"
                     >
                         <Send size={18} className={newMessage.trim() || pendingAttachments.length > 0 ? "ml-0.5" : ""} />
                     </button>
@@ -1200,13 +1509,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 </div>
                 <h3 className="text-lg font-bold text-slate-700 mb-2">Your Messages</h3>
                 <p className="text-sm text-slate-500 max-w-xs text-center leading-relaxed mb-8">
-                    Select a conversation from the list or start a new chat to collaborate with staff and parents.
+                    Select a conversation from the list or start a new conversation to collaborate with your MTSS team.
                 </p>
                 <button 
-                    onClick={() => setShowNewMessageModal(true)}
+                    ref={emptyStateNewMessageButtonRef}
+                    onClick={(event) => openNewMessageModal(event.currentTarget)}
                     className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center gap-2"
                 >
-                    <Plus size={18} /> Start New Chat
+                    <Plus size={18} /> New Conversation
                 </button>
             </div>
           )}
@@ -1215,3 +1525,4 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     </div>
   );
 };
+
