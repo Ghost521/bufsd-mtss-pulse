@@ -18,6 +18,10 @@ import { newRequestId, writeAuditLog } from "../../lib/server/audit-log";
 import { createStudentInputSchema, updateStudentInputSchema } from "../../lib/schemas/students";
 
 const toScope = (value: string | null): StudentScope => (value === "master" ? "master" : "class");
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+type BatchStudentError = { index: number; reason: string };
 
 export const Route = createFileRoute("/api/students")({
   server: {
@@ -61,15 +65,6 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
         }
 
-        const body = (await request.json().catch(() => null)) as unknown;
-        const parsed = createStudentInputSchema.safeParse(body);
-        if (!parsed.success) {
-          return Response.json(
-            { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid student payload.", requestId },
-            { status: 400 }
-          );
-        }
-
         const permission = requirePermission(session, {
           resource: "students",
           action: "create",
@@ -77,6 +72,64 @@ export const Route = createFileRoute("/api/students")({
         });
         if (!permission.ok) {
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+        }
+
+        const body = (await request.json().catch(() => null)) as unknown;
+
+        if (isRecord(body) && Array.isArray(body.rows)) {
+          if (body.rows.length === 0) {
+            return Response.json({ ok: false, error: "Rows array must include at least one item.", requestId }, { status: 400 });
+          }
+
+          const createdRows: Array<Awaited<ReturnType<typeof createMasterStudent>>> = [];
+          const errors: BatchStudentError[] = [];
+
+          for (let index = 0; index < body.rows.length; index += 1) {
+            const candidate = body.rows[index];
+            const parsedRow = createStudentInputSchema.safeParse(candidate);
+            if (!parsedRow.success) {
+              errors.push({ index, reason: parsedRow.error.issues[0]?.message ?? "Invalid student payload." });
+              continue;
+            }
+
+            const created = await createMasterStudent(parsedRow.data, session.activeContext, session.user.id);
+            if (!created) {
+              errors.push({ index, reason: "Could not resolve target school for create." });
+              continue;
+            }
+
+            createdRows.push(created);
+            writeAuditLog({
+              actorUserId: session.user.id,
+              actorName: session.user.name,
+              context: session.activeContext,
+              resourceType: "students",
+              resourceId: created.id,
+              action: "create",
+              changedFields: ["name", "grade", "tier", "gpa", "attendance", "readingLevel", "schoolId"],
+              before: null,
+              after: created,
+              requestId,
+            });
+          }
+
+          return appendActivityCookie(Response.json({
+            ok: errors.length === 0,
+            total: body.rows.length,
+            succeeded: createdRows.length,
+            failed: errors.length,
+            errors,
+            rows: createdRows,
+            requestId,
+          }));
+        }
+
+        const parsed = createStudentInputSchema.safeParse(body);
+        if (!parsed.success) {
+          return Response.json(
+            { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid student payload.", requestId },
+            { status: 400 }
+          );
         }
 
         const created = await createMasterStudent(parsed.data, session.activeContext, session.user.id);

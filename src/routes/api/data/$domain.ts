@@ -193,6 +193,55 @@ export const Route = createFileRoute("/api/data/$domain")({
         }
 
         const body = await parseBody(request);
+        const batchRows = Array.isArray(body?.rows) ? body.rows.map(parseRow) : null;
+        if (batchRows) {
+          if (batchRows.length === 0) {
+            return Response.json({ ok: false, error: "Invalid payload. Expected non-empty rows array.", requestId }, { status: 400 });
+          }
+
+          const validRows = batchRows.filter((row): row is Record<string, unknown> => Boolean(row));
+          const permission = requirePermission(session, {
+            resource: toResource(domain),
+            action: "create",
+            fields: fieldNamesFromRows(validRows),
+          });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
+
+          const createdRows: Record<string, unknown>[] = [];
+          const errors: Array<{ index: number; reason: string }> = [];
+
+          for (let index = 0; index < batchRows.length; index += 1) {
+            const row = batchRows[index];
+            if (!row) {
+              errors.push({ index, reason: "Invalid row payload. Expected object." });
+              continue;
+            }
+
+            try {
+              const created = await createDomainRow(session, domain, row);
+              createdRows.push(created as Record<string, unknown>);
+            } catch (error) {
+              if (error instanceof CollectionStoreError) {
+                errors.push({ index, reason: error.message });
+                continue;
+              }
+              errors.push({ index, reason: "Unable to create record." });
+            }
+          }
+
+          return appendActivityCookie(Response.json({
+            ok: errors.length === 0,
+            total: batchRows.length,
+            succeeded: createdRows.length,
+            failed: errors.length,
+            errors,
+            rows: createdRows,
+            requestId,
+          }));
+        }
+
         const row = parseRow(body?.row);
         if (!row) return Response.json({ ok: false, error: "Invalid payload. Expected row object.", requestId }, { status: 400 });
 
