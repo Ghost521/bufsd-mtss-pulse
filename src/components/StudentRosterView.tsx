@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Clock,
   Download,
   Filter,
@@ -21,6 +22,14 @@ import {
 } from "lucide-react";
 import { Tier, type StudentRosterItem } from "../types";
 import { useStudents } from "../hooks/useStudents";
+import {
+  getAttendanceTone,
+  getGpaTone,
+  getReadingTone,
+  getTierTone,
+  riskToneLabel,
+  type RiskTone,
+} from "../lib/student-risk";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { ReferralModal } from "./ReferralModal";
 import { DraggableModal } from "./DraggableModal";
@@ -115,6 +124,20 @@ const sortStudents = (students: LocalStudent[], sortBy: SortBy, desc: boolean): 
     return desc ? value * -1 : value;
   });
   return sorted;
+};
+
+const signalToneClass = (tone: RiskTone): string => {
+  if (tone === "good") return "signal-good";
+  if (tone === "warn") return "signal-warn";
+  if (tone === "risk") return "signal-risk";
+  return "signal-neutral";
+};
+
+const activateWithKeyboard = (event: React.KeyboardEvent, callback: () => void) => {
+  if (event.target !== event.currentTarget) return;
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  callback();
 };
 
 const csvName = (scope: "master" | "class") => {
@@ -670,45 +693,100 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
           {filteredStudents.map((student) => {
             const selected = selectedIds.has(student.id);
             const attendanceStatus = attendanceMap[student.id] ?? "Present";
+            const tierTone = getTierTone(student.tier);
+            const attendanceTone = getAttendanceTone(student.attendance);
+            const gpaTone = getGpaTone(student.gpa);
+            const readingTone = getReadingTone(student.readingLevel);
+            const canOpenDetails = !isBulkMode && !isAttendanceMode;
+            const isCardInteractive = !isAttendanceMode;
+            const handleCardActivate = () => {
+              if (isBulkMode) {
+                selectStudent(student.id);
+                return;
+              }
+              onStudentClick(student.name);
+            };
             return (
-              <article key={student.id} className={`app-card rounded-xl p-4 ${selected ? "ring-2 ring-brand-500" : ""}`}>
+              <article
+                key={student.id}
+                className={`app-card rounded-xl p-4 ${selected ? "ring-2 ring-brand-500" : ""} ${isCardInteractive ? "student-card-clickable" : ""}`}
+                role={isCardInteractive ? "button" : undefined}
+                tabIndex={isCardInteractive ? 0 : undefined}
+                onClick={isCardInteractive ? handleCardActivate : undefined}
+                onKeyDown={isCardInteractive ? (event) => activateWithKeyboard(event, handleCardActivate) : undefined}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
                     {isBulkMode ? (
-                      <button type="button" onClick={() => selectStudent(student.id)} className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${selected ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white text-slate-400"}`}><Check size={16} /></button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          selectStudent(student.id);
+                        }}
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${selected ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white text-slate-400"}`}
+                        aria-label={`Select ${student.name}`}
+                      >
+                        <Check size={16} />
+                      </button>
                     ) : (
                       <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${student.avatarSeed}&backgroundColor=e0e7ff`} alt={student.name} className="h-10 w-10 rounded-full border border-slate-200" />
                     )}
                     <div>
-                      <button type="button" className="text-left font-semibold text-slate-800 hover:text-brand-700" onClick={() => (isBulkMode ? selectStudent(student.id) : onStudentClick(student.name))}>{student.name}</button>
+                      <p className="font-semibold text-slate-800">{student.name}</p>
                       <p className="text-xs text-slate-500">{student.id}</p>
                       {viewType === "master" ? <p className="text-xs text-slate-500">{student.teacherName}</p> : null}
                     </div>
                   </div>
-                  {student.alerts > 0 ? <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700"><AlertCircle size={12} className="mr-1 inline" />{student.alerts}</span> : null}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {student.alerts > 0 ? (
+                      <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                        <AlertCircle size={12} className="mr-1 inline" />
+                        {student.alerts}
+                      </span>
+                    ) : null}
+                    {canOpenDetails ? (
+                      <span className="student-open-cue">
+                        Open
+                        <ChevronRight size={14} />
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wide">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">{student.tier}</span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">{statusLabel(student.status)}</span>
-                  {isAttendanceMode ? <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">{attendanceStatus}</span> : null}
+                  <span className={`signal-pill ${signalToneClass(tierTone)}`}>{student.tier}</span>
+                  <span className="signal-pill signal-neutral">{statusLabel(student.status)}</span>
+                  {isAttendanceMode ? <span className="signal-pill signal-neutral">{attendanceStatus}</span> : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="rounded-md border border-slate-100 bg-slate-50 p-2"><p className="text-slate-500">GPA</p><p className="font-semibold text-slate-800">{student.gpa}</p></div>
-                  <div className="rounded-md border border-slate-100 bg-slate-50 p-2"><p className="text-slate-500">Attend</p><p className="font-semibold text-slate-800">{student.attendance}%</p></div>
-                  <div className="rounded-md border border-slate-100 bg-slate-50 p-2"><p className="text-slate-500">Reading</p><p className="font-semibold text-slate-800">{student.readingLevel}</p></div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  <div className={`signal-tile ${signalToneClass(gpaTone)}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">GPA</p>
+                    <p className="mt-1 text-base font-semibold leading-tight">{student.gpa}</p>
+                    <p className="text-[11px] opacity-90">{riskToneLabel(gpaTone)}</p>
+                  </div>
+                  <div className={`signal-tile ${signalToneClass(attendanceTone)}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Attendance</p>
+                    <p className="mt-1 text-base font-semibold leading-tight">{student.attendance}%</p>
+                    <p className="text-[11px] opacity-90">{riskToneLabel(attendanceTone)}</p>
+                  </div>
+                  <div className={`signal-tile ${signalToneClass(readingTone)}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Reading</p>
+                    <p className="mt-1 text-base font-semibold leading-tight">{student.readingLevel}</p>
+                    <p className="text-[11px] opacity-90">{riskToneLabel(readingTone)}</p>
+                  </div>
                 </div>
 
                 <div className="mt-4 border-t border-slate-100 pt-3">
                   {isAttendanceMode ? (
                     <div className="grid grid-cols-3 gap-2">
-                      <Button size="sm" variant="secondary" onClick={() => markAttendance(student.id, "Present")}>Present</Button>
-                      <Button size="sm" variant="secondary" onClick={() => markAttendance(student.id, "Late")}>Late</Button>
-                      <Button size="sm" variant="secondary" onClick={() => markAttendance(student.id, "Absent")}>Absent</Button>
+                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Present"); }}>Present</Button>
+                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Late"); }}>Late</Button>
+                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Absent"); }}>Absent</Button>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
                       {isMasterScope ? <Button size="sm" variant="secondary" onClick={() => startEditStudent(student)} className="flex-1 gap-1"><Pencil size={12} /> Edit</Button> : null}
                       <Button size="sm" variant="secondary" onClick={() => openReferral(student.id)} className="flex-1 gap-1"><ShieldAlert size={12} /> Refer</Button>
                     </div>
@@ -740,25 +818,65 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
               <tbody className="divide-y divide-slate-100">
                 {filteredStudents.map((student) => {
                   const selected = selectedIds.has(student.id);
+                  const tierTone = getTierTone(student.tier);
+                  const attendanceTone = getAttendanceTone(student.attendance);
+                  const gpaTone = getGpaTone(student.gpa);
+                  const readingTone = getReadingTone(student.readingLevel);
+                  const canOpenDetails = !isBulkMode && !isAttendanceMode;
+                  const isRowInteractive = !isAttendanceMode;
+                  const handleRowActivate = () => {
+                    if (isBulkMode) {
+                      selectStudent(student.id);
+                      return;
+                    }
+                    onStudentClick(student.name);
+                  };
                   return (
-                    <tr key={student.id} className={selected ? "bg-brand-50/50" : "hover:bg-slate-50"}>
-                      {isBulkMode ? <td className="px-3 py-3"><input type="checkbox" checked={selected} onChange={() => selectStudent(student.id)} /></td> : null}
-                      <td className="px-4 py-3"><button type="button" className="font-semibold text-slate-800 hover:text-brand-700" onClick={() => onStudentClick(student.name)}>{student.name}</button><p className="text-xs text-slate-500">{student.id}</p></td>
+                    <tr
+                      key={student.id}
+                      className={`${selected ? "bg-brand-50/50" : ""} ${isRowInteractive ? "student-row-clickable" : ""}`}
+                      role={isRowInteractive ? "button" : undefined}
+                      tabIndex={isRowInteractive ? 0 : undefined}
+                      onClick={isRowInteractive ? handleRowActivate : undefined}
+                      onKeyDown={isRowInteractive ? (event) => activateWithKeyboard(event, handleRowActivate) : undefined}
+                    >
+                      {isBulkMode ? (
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={() => selectStudent(student.id)}
+                            aria-label={`Select ${student.name}`}
+                          />
+                        </td>
+                      ) : null}
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-800">{student.name}</p>
+                        <p className="text-xs text-slate-500">{student.id}</p>
+                        {canOpenDetails ? (
+                          <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700">
+                            Open profile
+                            <ChevronRight size={12} />
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-3 py-3 text-slate-600">{student.teacherName}</td>
-                      <td className="px-3 py-3">{student.tier}</td>
-                      <td className="px-3 py-3 text-center">{student.gpa}</td>
-                      <td className="px-3 py-3">{student.attendance}%</td>
-                      <td className="px-3 py-3 text-center">{student.readingLevel}</td>
-                      <td className="px-3 py-3">{statusLabel(student.status)}</td>
+                      <td className="px-3 py-3"><span className={`signal-pill ${signalToneClass(tierTone)}`}>{student.tier}</span></td>
+                      <td className="px-3 py-3 text-center"><span className={`signal-inline ${signalToneClass(gpaTone)}`}>{student.gpa}</span></td>
+                      <td className="px-3 py-3"><span className={`signal-inline ${signalToneClass(attendanceTone)}`}>{student.attendance}%</span></td>
+                      <td className="px-3 py-3 text-center"><span className={`signal-inline ${signalToneClass(readingTone)}`}>{student.readingLevel}</span></td>
+                      <td className="px-3 py-3"><span className="signal-pill signal-neutral">{statusLabel(student.status)}</span></td>
                       <td className="px-3 py-3 text-right">
                         {isAttendanceMode ? (
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
                             <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Present")} aria-label={`Mark ${student.name} present`}><CheckCircle2 size={14} /></Button>
                             <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Late")} aria-label={`Mark ${student.name} late`}><Clock size={14} /></Button>
                             <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Absent")} aria-label={`Mark ${student.name} absent`}><XCircle size={14} /></Button>
                           </div>
                         ) : (
-                          <div className="flex justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>
+                            {canOpenDetails ? <span className="student-open-cue hidden sm:inline-flex">Open <ChevronRight size={13} /></span> : null}
                             {isMasterScope ? <Button size="icon-sm" variant="ghost" onClick={() => startEditStudent(student)}><Pencil size={14} /></Button> : null}
                             <Button size="icon-sm" variant="ghost" onClick={() => openReferral(student.id)}><ShieldAlert size={14} /></Button>
                           </div>
