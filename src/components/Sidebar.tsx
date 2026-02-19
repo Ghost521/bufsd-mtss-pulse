@@ -38,6 +38,7 @@ interface SidebarProps {
   activeNotifications?: NotificationListItem[];
   archivedNotifications?: NotificationListItem[];
   notificationLoading?: boolean;
+  notificationError?: string | null;
   onNotificationOpen?: (id: string) => void;
   onNotificationDismiss?: (id: string) => void;
   onNotificationArchive?: (id: string) => void;
@@ -153,6 +154,7 @@ type SidebarContentProps = {
   activeNotifications: NotificationListItem[];
   archivedNotifications: NotificationListItem[];
   notificationLoading: boolean;
+  notificationError: string | null;
   onNotificationOpen: (id: string) => void;
   onNotificationDismiss: (id: string) => void;
   onNotificationArchive: (id: string) => void;
@@ -186,6 +188,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   activeNotifications,
   archivedNotifications,
   notificationLoading,
+  notificationError,
   onNotificationOpen,
   onNotificationDismiss,
   onNotificationArchive,
@@ -271,59 +274,48 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           </div>
 
           {isMobile ? (
-            <div className="flex items-center gap-2">
-              <NotificationBellPopover
-                activeNotifications={activeNotifications}
-                archivedNotifications={archivedNotifications}
-                unseenCount={notificationUnseenCount}
-                loading={notificationLoading}
-                onNotificationOpen={onNotificationOpen}
-                onNotificationDismiss={onNotificationDismiss}
-                onNotificationArchive={onNotificationArchive}
-                onNotificationDelete={onNotificationDelete}
-                onNotificationRestore={onNotificationRestore}
-                onNotificationMarkSeen={onNotificationMarkSeen}
-              />
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-                aria-label="Close workspace menu"
-              >
-                <X size={iconSize("lg")} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+              aria-label="Close workspace menu"
+            >
+              <X size={iconSize("lg")} />
+            </button>
           ) : (
-            <div className="flex items-center gap-2">
-              <NotificationBellPopover
-                activeNotifications={activeNotifications}
-                archivedNotifications={archivedNotifications}
-                unseenCount={notificationUnseenCount}
-                loading={notificationLoading}
-                isCompact={isDesktopCollapsed}
-                onNotificationOpen={onNotificationOpen}
-                onNotificationDismiss={onNotificationDismiss}
-                onNotificationArchive={onNotificationArchive}
-                onNotificationDelete={onNotificationDelete}
-                onNotificationRestore={onNotificationRestore}
-                onNotificationMarkSeen={onNotificationMarkSeen}
-              />
-              <button
-                type="button"
-                onClick={onDesktopCollapseToggle}
-                className="hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
-                aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {isDesktopCollapsed ? <ChevronRight size={iconSize("md")} /> : <ChevronLeft size={iconSize("md")} />}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onDesktopCollapseToggle}
+              className="hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+              aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isDesktopCollapsed ? <ChevronRight size={iconSize("md")} /> : <ChevronLeft size={iconSize("md")} />}
+            </button>
           )}
+        </div>
+
+        <div className={`mt-3 flex ${isDesktopCollapsed && !isMobile ? "justify-center" : "justify-start"}`}>
+          <NotificationBellPopover
+            activeNotifications={activeNotifications}
+            archivedNotifications={archivedNotifications}
+            unseenCount={notificationUnseenCount}
+            loading={notificationLoading}
+            errorMessage={notificationError}
+            isCompact={isDesktopCollapsed && !isMobile}
+            presentation={isMobile ? "sheet" : "popover"}
+            onNotificationOpen={onNotificationOpen}
+            onNotificationDismiss={onNotificationDismiss}
+            onNotificationArchive={onNotificationArchive}
+            onNotificationDelete={onNotificationDelete}
+            onNotificationRestore={onNotificationRestore}
+            onNotificationMarkSeen={onNotificationMarkSeen}
+          />
         </div>
 
         {isDesktopCollapsed && !isMobile ? null : (
           <>
-            <div className="mt-4">
+            <div className="mt-3 border-t border-slate-800/80 pt-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
             </div>
             <div className="mt-3">
@@ -373,9 +365,9 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       const isActive = activePage === item.id;
                       const isHighlighted = highlightedItemId === item.id && normalizedQuery.length > 0;
                       const itemClasses = isDesktopCollapsed && !isMobile
-                        ? `group flex w-full items-center justify-center rounded-lg px-2 py-2.5 transition-all duration-150 ${
+                        ? `group relative flex w-full items-center justify-center rounded-lg px-2 py-2.5 transition-all duration-150 ${
                             isActive
-                              ? "bg-brand-600 text-white shadow-lg shadow-brand-900/40"
+                              ? "bg-brand-600 text-white shadow-lg shadow-brand-900/40 ring-2 ring-brand-300/90 ring-offset-2 ring-offset-slate-900"
                               : "text-slate-400 hover:bg-slate-800 hover:text-white"
                           } ${isHighlighted ? "ring-2 ring-brand-400" : ""}`
                         : `group flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm font-medium transition-all duration-150 ${
@@ -395,7 +387,19 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                           title={isDesktopCollapsed && !isMobile ? item.label : undefined}
                         >
                           <ItemIcon size={iconSize("lg")} />
-                          {isDesktopCollapsed && !isMobile ? <span className="sr-only">{item.label}</span> : <span>{item.label}</span>}
+                          {isDesktopCollapsed && !isMobile ? (
+                            <>
+                              <span className="sr-only">{item.label}</span>
+                              <span
+                                aria-hidden="true"
+                                className="pointer-events-none absolute left-[calc(100%+0.55rem)] top-1/2 z-20 hidden -translate-y-1/2 whitespace-nowrap rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-100 shadow-lg group-hover:block group-focus-visible:block"
+                              >
+                                {item.label}
+                              </span>
+                            </>
+                          ) : (
+                            <span>{item.label}</span>
+                          )}
                         </Link>
                       );
                     })
@@ -541,6 +545,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeNotifications = [],
   archivedNotifications = [],
   notificationLoading = false,
+  notificationError = null,
   onNotificationOpen,
   onNotificationDismiss,
   onNotificationArchive,
@@ -684,6 +689,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               activeNotifications={activeNotifications}
               archivedNotifications={archivedNotifications}
               notificationLoading={notificationLoading}
+              notificationError={notificationError}
               onNotificationOpen={handleNotificationOpen}
               onNotificationDismiss={handleNotificationDismiss}
               onNotificationArchive={handleNotificationArchive}
@@ -725,6 +731,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           activeNotifications={activeNotifications}
           archivedNotifications={archivedNotifications}
           notificationLoading={notificationLoading}
+          notificationError={notificationError}
           onNotificationOpen={handleNotificationOpen}
           onNotificationDismiss={handleNotificationDismiss}
           onNotificationArchive={handleNotificationArchive}

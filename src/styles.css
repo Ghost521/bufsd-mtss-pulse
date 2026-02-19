@@ -361,8 +361,11 @@ h6,
   outline-offset: -2px;
 }
 
-.btn {
+:where(.btn) {
   display: inline-flex;
+}
+
+.btn {
   min-height: 2.5rem;
   align-items: center;
   justify-content: center;

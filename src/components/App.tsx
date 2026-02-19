@@ -18,7 +18,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { SidebarToggleButton } from './SidebarToggleButton';
+import { SidebarInlineToggleProvider, SidebarToggleButton } from './SidebarToggleButton';
 import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
@@ -27,7 +27,6 @@ import type {
   Conversation,
   DashboardData,
   MessagesLaunchContext,
-  NotificationRow,
   RAGDocument,
 } from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
@@ -209,6 +208,7 @@ const App: React.FC = () => {
     monitoring: true,
   });
   const [isTallViewport, setIsTallViewport] = useState(true);
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean | null>(null);
 
   // Freshness State
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -525,6 +525,12 @@ const App: React.FC = () => {
       notifications.userNotifications.find((notification) => notification.id === selectedNotificationId) ?? null,
     [notifications.userNotifications, selectedNotificationId],
   );
+  const notificationErrorMessage = useMemo(() => {
+    if (!notifications.query.isError) return null;
+    const maybeError = notifications.query.error;
+    if (maybeError instanceof Error && maybeError.message.trim().length > 0) return maybeError.message;
+    return 'Notifications are temporarily unavailable.';
+  }, [notifications.query.error, notifications.query.isError]);
 
   useEffect(() => {
     if (!selectedNotificationId) return;
@@ -658,13 +664,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const evaluateViewportHeight = () => {
+    const evaluateViewport = () => {
       setIsTallViewport(window.innerHeight >= 820);
+      setIsMobileViewport(window.innerWidth < 1024);
     };
-    evaluateViewportHeight();
-    window.addEventListener("resize", evaluateViewportHeight);
+    evaluateViewport();
+    window.addEventListener("resize", evaluateViewport);
     return () => {
-      window.removeEventListener("resize", evaluateViewportHeight);
+      window.removeEventListener("resize", evaluateViewport);
     };
   }, []);
 
@@ -1478,7 +1485,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="app-shell flex min-h-screen w-full min-w-0 overflow-x-hidden font-sans text-slate-900">
+    <SidebarInlineToggleProvider value={false}>
+      <div className="app-shell flex min-h-screen w-full min-w-0 overflow-x-hidden font-sans text-slate-900">
       
       {/* Global Chatbot */}
       <Suspense fallback={null}>
@@ -1560,6 +1568,7 @@ const App: React.FC = () => {
         activeNotifications={notifications.activeNotifications}
         archivedNotifications={notifications.archivedNotifications}
         notificationLoading={notifications.query.isLoading}
+        notificationError={notificationErrorMessage}
         onNotificationOpen={(id) => {
           setSelectedNotificationId(id);
           notifications.markRead(id);
@@ -1571,12 +1580,13 @@ const App: React.FC = () => {
         onNotificationMarkSeen={(ids) => notifications.markSeen(ids)}
       />
 
-      {!sidebarState.isMobileOpen ? (
+      {!sidebarState.isMobileOpen && isMobileViewport === true ? (
         <SidebarToggleButton
           onClick={openMobileMenu}
-          className="fixed bottom-4 left-4 z-40 rounded-full border border-slate-200 bg-white/95 shadow-lg backdrop-blur lg:hidden"
+          className="fixed bottom-4 left-4 z-40 rounded-full border border-slate-200 bg-white/95 shadow-lg backdrop-blur"
           ariaLabel="Open workspace menu"
           iconSize={20}
+          forceRender
         />
       ) : null}
       
@@ -1591,7 +1601,8 @@ const App: React.FC = () => {
           {renderActivePage()}
         </Suspense>
       </main>
-    </div>
+      </div>
+    </SidebarInlineToggleProvider>
   );
 };
 
