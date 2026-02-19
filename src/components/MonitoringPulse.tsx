@@ -7,10 +7,10 @@ interface MonitoringPulseProps {
   students: StudentMonitoring[];
   onStudentClick: (studentName: string) => void;
   onViewAll: () => void;
-  freshnessLabel?: string;
+  subtitle?: string;
 }
 
-export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onStudentClick, onViewAll, freshnessLabel }) => {
+export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onStudentClick, onViewAll, subtitle }) => {
   const getTrendIcon = (trend: Trend) => {
     switch (trend) {
       case Trend.UP:
@@ -41,21 +41,46 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
     }
   };
 
+  const getTrendSignal = (trend: Trend) => {
+    switch (trend) {
+      case Trend.UP:
+        return "Improving trajectory";
+      case Trend.DOWN:
+        return "Needs immediate follow-up";
+      case Trend.STAGNANT:
+        return "Plateau risk";
+      case Trend.MET:
+        return "Goal currently met";
+      default:
+        return "Monitoring signal";
+    }
+  };
+
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-5">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-800">
             <Activity size={16} className="text-indigo-600" />
-            Student Monitoring Queue
+            Monitoring Queue
           </h3>
-          <p className="mt-1 text-xs font-medium text-slate-500">{freshnessLabel ?? "Data status unavailable"}</p>
+          <p className="mt-1 text-xs font-medium text-slate-500">{subtitle ?? "Students currently flagged for progress review."}</p>
         </div>
       </div>
 
       <div className="flex-1 divide-y divide-slate-50">
         {students.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">No students currently flagged for progress check.</div>
+          <div className="p-8 text-center">
+            <p className="text-sm text-slate-500">No students are currently flagged for monitoring.</p>
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+            >
+              Review full queue
+              <ArrowRight size={13} />
+            </button>
+          </div>
         ) : (
           students.map((student) => {
             const trendStyle = getTrendStyles(student.trend);
@@ -85,6 +110,7 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
                     <Zap size={12} className="text-slate-400 group-hover:text-indigo-400" />
                     {student.intervention}
                   </p>
+                  <p className="mt-1 text-[11px] text-slate-400">{getTrendSignal(student.trend)}</p>
                 </div>
               </button>
             );
@@ -95,18 +121,10 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
       <div className="border-t border-slate-100 bg-slate-50/50 p-3">
         <button
           type="button"
-          onClick={() => {
-            if (!onViewAll) {
-              if (import.meta.env.DEV) {
-                console.warn("[MonitoringPulse] Missing onViewAll handler.");
-              }
-              return;
-            }
-            onViewAll();
-          }}
+          onClick={onViewAll}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-transparent py-2.5 text-xs font-bold text-slate-600 shadow-sm transition-all hover:border-slate-200 hover:bg-white hover:text-indigo-600 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
         >
-          View Full Monitoring Queue
+          Open Monitoring Queue
           <ArrowRight size={14} />
         </button>
       </div>

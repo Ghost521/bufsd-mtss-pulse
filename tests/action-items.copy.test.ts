@@ -70,11 +70,11 @@ describe("Action items copy", () => {
     const handle = await renderList();
     const text = handle.container.textContent ?? "";
 
-    expect(text).toContain("Priority Support Actions");
-    expect(text).toContain("1 case ready for review.");
+    expect(text).toContain("Priority Support Queue");
+    expect(text).toContain("1 case ready for triage.");
     expect(text).toContain("View all cases in reports (1)");
 
-    expect(text).not.toContain("Priority Student Support Actions");
+    expect(text).not.toContain("Priority Support Actions");
     expect(text).not.toContain("student cases ready for team review");
     expect(text).not.toContain("flagged student cases");
 

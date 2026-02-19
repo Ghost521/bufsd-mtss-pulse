@@ -172,6 +172,8 @@ export interface MetricData {
   value: string | number;
   trend?: string;
   trendDirection?: 'up' | 'down';
+  metricWindow?: string;
+  metricBaseline?: string;
   status?: 'success' | 'warning' | 'danger' | 'neutral';
   icon: string;
 }

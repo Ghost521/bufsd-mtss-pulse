@@ -73,6 +73,12 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
     }
   };
 
+  const getPriority = (category: string): "High" | "Medium" | "Standard" => {
+    if (category === "Behavior") return "High";
+    if (category === "Attendance") return "Medium";
+    return "Standard";
+  };
+
   const handleDismiss = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setLocalItems((prev) => {
@@ -178,10 +184,10 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
       <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
         <div>
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            Priority Support Actions
+            Priority Support Queue
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-             {caseCountLabel}
+             {caseCountLabel.replace("review", "triage")}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
@@ -195,7 +201,15 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
            <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
               <CheckCircle2 size={48} className="text-emerald-200 mb-4" />
               <p className="font-medium text-slate-600">All caught up!</p>
-              <p className="text-sm">No cases currently flagged for follow-up.</p>
+              <p className="text-sm">No student support cases are currently flagged.</p>
+              <button
+                type="button"
+                onClick={onViewAll}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+              >
+                Review reports
+                <ArrowRight size={13} />
+              </button>
            </div>
         ) : (
           localItems.map((item) => (
@@ -223,14 +237,17 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                   <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${getBadgeColor(item.category)}`}>
                     {item.category}
                   </span>
+                  <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600">
+                    {getPriority(item.category)} Priority
+                  </span>
                 </div>
                 <button 
                     onClick={(e) => handleDismiss(item.id, e)}
                     type="button"
-                    aria-label={`Dismiss case for ${item.studentName}`}
+                    aria-label={`Snooze case for ${item.studentName}`}
                     className="text-xs font-medium text-slate-400 hover:text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
                 >
-                  <X size={14} /> Dismiss
+                  <X size={14} /> Snooze
                 </button>
               </div>
               

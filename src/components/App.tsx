@@ -170,12 +170,13 @@ const App: React.FC = () => {
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
   const [mobileSections, setMobileSections] = useState<Record<DashboardSectionKey, boolean>>({
     quickTasks: true,
-    metrics: false,
-    aiBriefing: true,
+    metrics: true,
+    aiBriefing: false,
     chart: false,
     tierDistribution: false,
     monitoring: true,
   });
+  const [isTallViewport, setIsTallViewport] = useState(true);
 
   // Freshness State
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -484,6 +485,12 @@ const App: React.FC = () => {
     return `Updated ${ageMinutes} minutes ago`;
   }, [computedFreshness.lastUpdatedAt, timeTick]);
 
+  const freshnessStatusLabel = useMemo(() => {
+    if (computedFreshness.status === 'fresh') return 'Fresh';
+    if (computedFreshness.status === 'stale') return 'Stale';
+    return 'Unknown';
+  }, [computedFreshness.status]);
+
   const currentDateLabel = useMemo(
     () =>
       new Date(timeTick).toLocaleDateString(undefined, {
@@ -504,6 +511,11 @@ const App: React.FC = () => {
     [timeTick]
   );
 
+  const roleScopeLabel = useMemo(() => {
+    if (currentRole === UserRole.DISTRICT) return "District-wide";
+    return data.schoolName || "School workspace";
+  }, [currentRole, data.schoolName]);
+
   const toggleMobileSection = (section: DashboardSectionKey) => {
     setMobileSections((previous) => ({
       ...previous,
@@ -511,7 +523,12 @@ const App: React.FC = () => {
     }));
   };
 
-  const renderMobileSectionHeader = (section: DashboardSectionKey, label: string, subtitle: string) => (
+  const renderMobileSectionHeader = (
+    section: DashboardSectionKey,
+    label: string,
+    subtitle: string,
+    hint?: string
+  ) => (
     <Button
       variant="secondary"
       onClick={() => toggleMobileSection(section)}
@@ -523,7 +540,14 @@ const App: React.FC = () => {
         <span className="block text-sm font-semibold text-slate-800">{label}</span>
         <span className="block text-xs text-slate-500">{subtitle}</span>
       </span>
-      <ChevronDown size={16} className={`text-slate-500 transition-transform ${mobileSections[section] ? 'rotate-180' : ''}`} />
+      <span className="flex items-center gap-2">
+        {hint ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+            {hint}
+          </span>
+        ) : null}
+        <ChevronDown size={16} className={`text-slate-500 transition-transform ${mobileSections[section] ? 'rotate-180' : ''}`} />
+      </span>
     </Button>
   );
 
@@ -562,6 +586,18 @@ const App: React.FC = () => {
       mediaQuery.removeEventListener("change", handleViewportChange);
     };
   }, [closeMobileMenu]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const evaluateViewportHeight = () => {
+      setIsTallViewport(window.innerHeight >= 820);
+    };
+    evaluateViewportHeight();
+    window.addEventListener("resize", evaluateViewportHeight);
+    return () => {
+      window.removeEventListener("resize", evaluateViewportHeight);
+    };
+  }, []);
 
   const handleRefresh = () => {
     if (isRefreshing) return;
@@ -790,11 +826,11 @@ const App: React.FC = () => {
     return actions;
   })();
 
-  const topTasks: Array<{ id: string; label: string; onClick: () => void }> = ({
+  const contextTasksBase: Array<{ id: string; label: string; onClick: () => void }> = ({
       [UserRole.PRINCIPAL]: [
-        { id: 'task-referral', label: 'Create Support Referral', onClick: () => setIsReferralModalOpen(true) },
         { id: 'task-interventions', label: 'Review Active Supports', onClick: () => navigateToPage('interventions') },
-        { id: 'task-calendar', label: 'Open MTSS Calendar', onClick: () => navigateToPage('calendar') },
+        { id: 'task-reports', label: 'Review School Reports', onClick: () => navigateToPage('reports') },
+        { id: 'task-monitoring', label: 'Open Monitoring Queue', onClick: () => navigateToPage('rosters') },
       ],
       [UserRole.TEACHER]: [
         { id: 'task-roster', label: 'Open Student Roster', onClick: () => navigateToPage('class_roster') },
@@ -802,20 +838,33 @@ const App: React.FC = () => {
         { id: 'task-gradebook', label: 'Update Gradebook', onClick: () => navigateToPage('gradebook') },
       ],
       [UserRole.DISTRICT]: [
-        { id: 'task-map', label: 'View Schools Map', onClick: () => navigateToPage('map') },
-        { id: 'task-reports', label: 'Review System Reports', onClick: () => navigateToPage('reports') },
+        { id: 'task-fidelity', label: 'Review Fidelity Trends', onClick: () => navigateToPage('reports') },
+        { id: 'task-school-rosters', label: 'Open School Rosters', onClick: () => navigateToPage('rosters') },
         { id: 'task-messages', label: 'Send District Message', onClick: () => navigateToPage('messages') },
       ],
       [UserRole.PARENT]: [
         { id: 'task-report', label: 'Review Progress Report', onClick: () => navigateToPage('reports') },
-        { id: 'task-message', label: 'Message Teacher', onClick: () => handleNavigateToMessages('Mr. Davis') },
         { id: 'task-calendar', label: 'Check Calendar', onClick: () => navigateToPage('calendar') },
+        { id: 'task-documents', label: 'Open Family Resources', onClick: () => navigateToPage('documents') },
       ],
     }[currentRole]);
 
+  const headerActionLabels = useMemo(
+    () => new Set([primaryAction?.label, ...moreActions.map((action) => action.label)].filter(Boolean)),
+    [moreActions, primaryAction?.label]
+  );
+
+  const topTasks = useMemo(
+    () => contextTasksBase.filter((task) => !headerActionLabels.has(task.label)),
+    [contextTasksBase, headerActionLabels]
+  );
+
   const structuredBriefing = useMemo(() => {
     const risksFromData = data.actionItems.slice(0, 3).map((item) => `${item.studentName}: ${item.insight}`);
-    const actionsFromTasks = topTasks.slice(0, 3).map((task) => task.label);
+    const actionsFromTasks =
+      (topTasks.length > 0
+        ? topTasks.slice(0, 3).map((task) => task.label)
+        : moreActions.slice(0, 3).map((action) => action.label));
 
     if (!briefing) {
       return {
@@ -842,7 +891,7 @@ const App: React.FC = () => {
       keyRisks: explicitRisks.length > 0 ? explicitRisks : risksFromData,
       recommendedActions: explicitRecommendations.length > 0 ? explicitRecommendations : actionsFromTasks,
     };
-  }, [briefing, data.actionItems, topTasks]);
+  }, [briefing, data.actionItems, moreActions, topTasks]);
 
   // --- Render Helpers ---
 
@@ -858,21 +907,30 @@ const App: React.FC = () => {
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Workspace</p>
               <h2 className="truncate text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">{roleHeadline[currentRole]}</h2>
-              <p className="mt-1 text-sm font-medium text-slate-600">
-                {data.userName} | {currentRole === UserRole.DISTRICT ? 'District-wide' : data.schoolName} | {currentDateLabel}
-              </p>
-              <span
-                className="mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
-                style={{
-                  borderColor: "var(--tenant-color-secondary)",
-                  color: "var(--tenant-color-secondary)",
-                  backgroundColor: "color-mix(in srgb, var(--tenant-color-surface) 88%, #ffffff 12%)",
-                }}
-              >
-                Mascot: {branding.mascotName}
-              </span>
+              <p className="mt-1 text-sm font-medium text-slate-600">Signed in as {data.userName}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+                  Role: {currentRole}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+                  Scope: {roleScopeLabel}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+                  Date: {currentDateLabel}
+                </span>
+                <span
+                  className="rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]"
+                  style={{
+                    borderColor: "var(--tenant-color-secondary)",
+                    color: "var(--tenant-color-secondary)",
+                    backgroundColor: "color-mix(in srgb, var(--tenant-color-surface) 88%, #ffffff 12%)",
+                  }}
+                >
+                  Mascot: {branding.mascotName}
+                </span>
+              </div>
               <p
-                className={`mt-1 text-xs font-semibold ${
+                className={`mt-2 text-xs font-semibold ${
                   computedFreshness.status === 'stale'
                     ? 'text-amber-700'
                     : computedFreshness.status === 'fresh'
@@ -880,7 +938,7 @@ const App: React.FC = () => {
                       : 'text-slate-500'
                 }`}
               >
-                {freshnessLabel} | Live tenant feed
+                Data status: {freshnessStatusLabel} ({freshnessLabel})
               </p>
             </div>
           </div>
@@ -1070,28 +1128,32 @@ const App: React.FC = () => {
       ) : null}
 
       <div className="mb-6 space-y-2">
-        {renderMobileSectionHeader('quickTasks', 'Top Tasks', 'Quick actions for this role')}
+        {renderMobileSectionHeader('quickTasks', 'Context Actions', 'High-value jumps for this role', `${topTasks.length} actions`)}
         <div className={`${mobileSections.quickTasks ? 'block' : 'hidden'} lg:block`}>
           <div className="app-card rounded-xl p-4">
-            <div className="flex flex-wrap gap-2">
-              {topTasks.map((task) => (
-                <Button
-                  key={task.id}
-                  onClick={task.onClick}
-                  variant="secondary"
-                  size="sm"
-                  className="app-chip-action rounded-full text-xs transition-colors"
-                >
-                  {task.label}
-                </Button>
-              ))}
-            </div>
+            {topTasks.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {topTasks.map((task) => (
+                  <Button
+                    key={task.id}
+                    onClick={task.onClick}
+                    variant="secondary"
+                    size="sm"
+                    className="app-chip-action rounded-full text-xs transition-colors"
+                  >
+                    {task.label}
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No additional context actions for this view.</p>
+            )}
           </div>
         </div>
       </div>
 
       <div className="mb-6 space-y-2">
-        {renderMobileSectionHeader('metrics', 'Performance Metrics', 'Intervention delivery and student outcome indicators')}
+        {renderMobileSectionHeader('metrics', 'Performance Metrics', 'Intervention and student outcome indicators', `${data.metrics.length} KPIs`)}
         <div className={`${mobileSections.metrics ? 'block' : 'hidden'} lg:block`}>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {data.metrics.map((metric) => (
@@ -1106,7 +1168,7 @@ const App: React.FC = () => {
         {/* Left Column (Main) */}
         <div className={`col-span-12 ${currentRole === UserRole.PARENT ? 'lg:col-span-7' : 'lg:col-span-8'} space-y-6 md:space-y-8 min-w-0`}>
           {/* Action Items */}
-          <div className="h-[400px] md:h-[420px]">
+          <div className="min-h-[360px] max-h-[70vh]">
             <ActionItemsList
               items={data.actionItems}
               onStudentClick={handleStudentClick}
@@ -1119,8 +1181,9 @@ const App: React.FC = () => {
             <div className="space-y-2">
               {renderMobileSectionHeader(
                 'aiBriefing',
-                currentRole === UserRole.PARENT ? 'Assistant Summary' : 'Summary',
-                'Top risks and recommended next steps'
+                currentRole === UserRole.PARENT ? 'Assistant Summary' : 'AI Summary',
+                'Top risks and recommended next steps',
+                briefing ? 'Ready' : 'Optional'
               )}
               <div className={`${mobileSections.aiBriefing ? 'block' : 'hidden'} lg:block`}>{renderAIBriefing()}</div>
             </div>
@@ -1128,13 +1191,13 @@ const App: React.FC = () => {
 
           {/* Dynamic Chart Section */}
           <div className="space-y-2">
-            {renderMobileSectionHeader('chart', data.chartTitle, 'Outcome trend view')}
+            {renderMobileSectionHeader('chart', 'Intervention Outcomes', 'Trend view by support tier', `${data.chartData.length} bars`)}
             <div className={`${mobileSections.chart ? 'block' : 'hidden'} lg:block`}>
               <div className="app-card rounded-xl p-6">
                 <div className="mb-6 flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-800">{data.chartTitle}</h3>
-                    <p className="text-sm text-slate-500">Trend</p>
+                    <h3 className="font-bold text-slate-800">Intervention Outcomes</h3>
+                    <p className="text-sm text-slate-500">{data.chartTitle}</p>
                   </div>
                 </div>
 
@@ -1150,7 +1213,15 @@ const App: React.FC = () => {
                         interval={0}
                       />
                       <YAxis hide />
-                      <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Tooltip
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        formatter={(value: number) => {
+                          const total = Math.max(1, data.chartData.reduce((sum, entry) => sum + entry.value, 0));
+                          const pct = Math.round((Number(value) / total) * 100);
+                          return [`${value} students (${pct}%)`, "Count"];
+                        }}
+                      />
                       <Bar dataKey="value" radius={[6, 6, 6, 6]}>
                         {data.chartData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -1161,6 +1232,7 @@ const App: React.FC = () => {
                     <div className="h-full w-full animate-pulse rounded-lg bg-slate-100" />
                   )}
                 </div>
+                <p className="mt-3 text-xs text-slate-500">Bars represent number of students by tier category.</p>
               </div>
             </div>
           </div>
@@ -1170,15 +1242,15 @@ const App: React.FC = () => {
         <div className={`col-span-12 ${currentRole === UserRole.PARENT ? 'lg:col-span-5' : 'lg:col-span-4'} space-y-6 md:space-y-8`}>
           {currentRole !== UserRole.PARENT && data.tierDistribution ? (
             <div className="space-y-2">
-              {renderMobileSectionHeader('tierDistribution', 'Tiered Support Distribution', 'Students receiving Tier 1, Tier 2, and Tier 3 supports')}
+              {renderMobileSectionHeader('tierDistribution', 'Tier Distribution', 'Students in Tier 1, Tier 2, and Tier 3 supports', `${data.tierDistribution.length} tiers`)}
               <div className={`${mobileSections.tierDistribution ? 'block' : 'hidden'} lg:block`}>
                 <TierDistribution data={data.tierDistribution} />
               </div>
             </div>
           ) : null}
 
-          <div className="space-y-2 md:sticky md:top-8">
-            {renderMobileSectionHeader('monitoring', 'Student Monitoring Queue', freshnessLabel)}
+          <div className={`space-y-2 ${isTallViewport ? 'md:sticky md:top-8' : ''}`}>
+            {renderMobileSectionHeader('monitoring', 'Monitoring Queue', 'Students flagged for progress follow-up', `${data.monitoringPulse.length} students`)}
             <div className={`${mobileSections.monitoring ? 'block' : 'hidden'} lg:block`}>
               <MonitoringPulse
                 students={data.monitoringPulse}
@@ -1192,7 +1264,7 @@ const App: React.FC = () => {
                         : 'reports'
                   )
                 }
-                freshnessLabel={freshnessLabel}
+                subtitle="Students currently flagged for progress follow-up."
               />
             </div>
           </div>

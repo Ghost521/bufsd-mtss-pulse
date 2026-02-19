@@ -31,7 +31,8 @@ export const TierDistribution: React.FC<TierDistributionProps> = ({ data }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-      <h3 className="font-bold text-slate-800 mb-6">Tiered Support Distribution</h3>
+      <h3 className="font-bold text-slate-800 mb-1">Tier Distribution</h3>
+      <p className="mb-6 text-xs text-slate-500">How students are currently distributed across support tiers.</p>
       
       <div className="space-y-6">
         {data.map((item) => (
