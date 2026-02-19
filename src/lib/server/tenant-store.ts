@@ -203,7 +203,12 @@ const persistDomain = async <T>(domain: TenantAuthDomain, rows: T[]): Promise<vo
 const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
 const isRoleKey = (value: string): value is RoleKey =>
-  value === "org_admin" || value === "district_admin" || value === "principal" || value === "teacher" || value === "parent";
+  value === "org_admin" ||
+  value === "district_admin" ||
+  value === "principal" ||
+  value === "school_admin" ||
+  value === "teacher" ||
+  value === "parent";
 
 const isScopeType = (value: string): value is ScopeType => value === "org" || value === "district" || value === "school";
 

@@ -7,6 +7,7 @@ import {
   listStudents,
   updateMasterStudent,
   type StudentScope,
+  type StudentListFilters,
 } from "../../lib/server/student-store";
 import {
   appendActivityCookie,
@@ -27,6 +28,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const toBoolean = (value: string | null): boolean => value === "1" || value === "true";
+const toFilterValue = (value: string | null): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
 const csvEscape = (value: string | number | boolean | null | undefined): string => {
   const stringValue = value == null ? "" : String(value);
@@ -82,6 +88,13 @@ export const Route = createFileRoute("/api/students")({
         const scope = toScope(url.searchParams.get("scope"));
         const includeArchived = toBoolean(url.searchParams.get("includeArchived"));
         const format = (url.searchParams.get("format") ?? "json").toLowerCase();
+        const filters: StudentListFilters = {
+          schoolId: toFilterValue(url.searchParams.get("schoolId")),
+          principalUserId: toFilterValue(url.searchParams.get("principalUserId")),
+          grade: toFilterValue(url.searchParams.get("grade")),
+          teacherUserId: toFilterValue(url.searchParams.get("teacherUserId")),
+          teacherName: toFilterValue(url.searchParams.get("teacherName")),
+        };
         const selectedIds = new Set(
           (url.searchParams.get("ids") ?? "")
             .split(",")
@@ -95,6 +108,7 @@ export const Route = createFileRoute("/api/students")({
           requesterUserId: session.user.id,
           requesterRoles: session.effectiveRoles,
           includeArchived,
+          filters,
         });
 
         const exportRows = selectedIds.size === 0 ? rows : rows.filter((row) => selectedIds.has(row.id));

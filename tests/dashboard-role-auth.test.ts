@@ -33,4 +33,10 @@ describe("deriveWorkspaceRole", () => {
     const requestedPrincipalRole = deriveWorkspaceRole(multiRoleSession, UserRole.PRINCIPAL);
     expect(requestedPrincipalRole).toBe(UserRole.PRINCIPAL);
   });
+
+  it("maps school admin effective role to principal workspace role", () => {
+    const schoolAdminSession = createSession(["school_admin"]);
+    const derivedRole = deriveWorkspaceRole(schoolAdminSession);
+    expect(derivedRole).toBe(UserRole.PRINCIPAL);
+  });
 });

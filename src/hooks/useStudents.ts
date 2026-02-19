@@ -8,6 +8,14 @@ export type StudentsResponse = {
   scope: "master" | "class";
 };
 
+export type StudentFilters = {
+  schoolId?: string;
+  principalUserId?: string;
+  grade?: string;
+  teacherUserId?: string;
+  teacherName?: string;
+};
+
 export type CreateStudentPayload = {
   name: string;
   grade: string;
@@ -50,10 +58,15 @@ const parseError = async (response: Response): Promise<Error> => {
 
 const fetchStudents = async (
   scope: "master" | "class",
-  options?: { includeArchived?: boolean }
+  options?: { includeArchived?: boolean; filters?: StudentFilters }
 ): Promise<StudentsResponse> => {
   const params = new URLSearchParams({ scope });
   if (options?.includeArchived) params.set("includeArchived", "1");
+  if (options?.filters?.schoolId) params.set("schoolId", options.filters.schoolId);
+  if (options?.filters?.principalUserId) params.set("principalUserId", options.filters.principalUserId);
+  if (options?.filters?.grade) params.set("grade", options.filters.grade);
+  if (options?.filters?.teacherUserId) params.set("teacherUserId", options.filters.teacherUserId);
+  if (options?.filters?.teacherName) params.set("teacherName", options.filters.teacherName);
   const response = await fetch(`/api/students?${params.toString()}`);
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as StudentsResponse;
@@ -105,13 +118,16 @@ const deleteStudent = async (payload: DeleteStudentPayload): Promise<StudentRost
   return data.row;
 };
 
-export const useStudents = (scope: "master" | "class", options?: { enabled?: boolean; includeArchived?: boolean }) => {
+export const useStudents = (
+  scope: "master" | "class",
+  options?: { enabled?: boolean; includeArchived?: boolean; filters?: StudentFilters }
+) => {
   const queryClient = useQueryClient();
-  const studentsKey = queryKeys.students.byScope(scope);
+  const studentsKey = queryKeys.students.byScope(scope, options?.filters, options?.includeArchived ?? false);
 
   const studentsQuery = useQuery({
     queryKey: studentsKey,
-    queryFn: () => fetchStudents(scope, { includeArchived: options?.includeArchived }),
+    queryFn: () => fetchStudents(scope, { includeArchived: options?.includeArchived, filters: options?.filters }),
     enabled: options?.enabled ?? true,
   });
 
@@ -169,7 +185,7 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: studentsKey });
+      queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 
@@ -207,7 +223,7 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: studentsKey });
+      queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 
@@ -239,7 +255,7 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: studentsKey });
+      queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 
@@ -269,7 +285,7 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: studentsKey });
+      queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
 

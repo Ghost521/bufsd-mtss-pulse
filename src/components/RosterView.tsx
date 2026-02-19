@@ -282,8 +282,8 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                     className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
                 />
                 <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Directory & Rosters</h2>
-                    <p className="text-slate-500 mt-1">Manage personnel and monitor student body progress.</p>
+                    <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Roster workspace</h2>
+                    <p className="text-slate-500 mt-1">Manage staff and student rosters.</p>
                 </div>
             </div>
 
@@ -307,7 +307,7 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                         : 'text-slate-500 hover:text-slate-700'
                     }`}
                 >
-                    <GraduationCap size={16} /> Student Body
+                    <GraduationCap size={16} /> Students
                 </button>
             </div>
         </div>
@@ -677,7 +677,8 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
           <StudentRosterView 
             onMenuClick={onMenuClick}
             onStudentClick={onStudentClick || ((name) => console.log(name))}
-            viewType="master"
+            currentUserRole={currentUserRole}
+            viewType={currentUserRole === UserRole.TEACHER ? "classroom" : "master"}
             embedded={true} 
             onNavigate={onNavigate}
           />

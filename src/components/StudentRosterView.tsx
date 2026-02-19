@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowDown,
   ArrowUp,
+  Building2,
   ArrowUpDown,
   Check,
   CheckCircle2,
@@ -11,6 +12,7 @@ import {
   Clock,
   Download,
   Filter,
+  GraduationCap,
   LayoutGrid,
   List as ListIcon,
   Pencil,
@@ -18,18 +20,22 @@ import {
   ShieldAlert,
   Upload,
   UserPlus,
+  Users,
   XCircle,
 } from "lucide-react";
-import { Tier, type StudentRosterItem } from "../types";
-import { useStudents } from "../hooks/useStudents";
+import { Tier, UserRole, type StudentRosterItem } from "../types";
+import { useStudentHierarchy } from "../hooks/useStudentHierarchy";
+import { useStudents, type StudentFilters } from "../hooks/useStudents";
+import { useTenantCollection } from "../hooks/useTenantCollection";
 import {
   getAttendanceTone,
   getGpaTone,
-  getReadingTone,
   getTierTone,
   riskToneLabel,
   type RiskTone,
 } from "../lib/student-risk";
+import { evaluateReadingRisk, mergeReadingBenchmarks } from "../lib/reading-benchmarks";
+import type { SettingsRecord } from "../lib/schemas/settings";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { ReferralModal } from "./ReferralModal";
 import { DraggableModal } from "./DraggableModal";
@@ -39,6 +45,7 @@ import { Button } from "./ui/Button";
 type StudentRosterViewProps = {
   onMenuClick: () => void;
   onStudentClick: (name: string) => void;
+  currentUserRole: UserRole;
   viewType?: "classroom" | "master";
   embedded?: boolean;
   onNavigate?: (page: WorkspacePageId) => void;
@@ -49,6 +56,7 @@ type WorkflowMode = "none" | "bulk" | "attendance";
 type AttendanceStatus = "Present" | "Late" | "Absent";
 type SortBy = "name" | "tier" | "attendance" | "gpa" | "alerts" | "reading";
 type StudentLifecycleStatus = "active" | "monitoring" | "completed" | "unknown";
+type HierarchyLevel = "district" | "school" | "principal" | "grade" | "teacher";
 
 type LocalStudent = StudentRosterItem & {
   teacherName: string;
@@ -65,6 +73,17 @@ type DraftStudent = {
   readingLevel: string;
   teacherName: string;
   status: StudentLifecycleStatus;
+};
+
+type HierarchySelection = {
+  level: HierarchyLevel;
+  schoolId?: string;
+  schoolName?: string;
+  principalUserId?: string;
+  principalName?: string;
+  grade?: string;
+  teacherUserId?: string;
+  teacherName?: string;
 };
 
 const DEFAULT_DRAFT: DraftStudent = {
@@ -102,7 +121,7 @@ const statusLabel = (status: StudentLifecycleStatus): string => {
   if (status === "active") return "Active";
   if (status === "monitoring") return "Monitoring";
   if (status === "completed") return "Completed";
-  return "Unknown";
+  return "Needs review";
 };
 
 const tierWeight = (tier: Tier): number => {
@@ -146,10 +165,40 @@ const csvName = (scope: "master" | "class") => {
   return `${scope}-roster-${stamp}.csv`;
 };
 
-export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClick, onStudentClick, viewType = "classroom", embedded = false, onNavigate }) => {
+const isDistrictUser = (role: UserRole): boolean => role === UserRole.DISTRICT;
+
+export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
+  onMenuClick,
+  onStudentClick,
+  currentUserRole,
+  viewType = "classroom",
+  embedded = false,
+  onNavigate,
+}) => {
   const scope = viewType === "master" ? "master" : "class";
   const isMasterScope = scope === "master";
-  const studentsApi = useStudents(scope);
+  const showHierarchyPanel = isMasterScope && currentUserRole !== UserRole.TEACHER && currentUserRole !== UserRole.PARENT;
+  const hierarchyQuery = useStudentHierarchy(showHierarchyPanel);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [hierarchySelection, setHierarchySelection] = useState<HierarchySelection | null>(null);
+  const [hasHydratedHierarchySelection, setHasHydratedHierarchySelection] = useState(false);
+
+  const studentFilters = useMemo<StudentFilters | undefined>(() => {
+    if (!showHierarchyPanel || !hierarchySelection) return undefined;
+    return {
+      schoolId: hierarchySelection.schoolId,
+      principalUserId:
+        hierarchySelection.level === "principal" || hierarchySelection.level === "grade" || hierarchySelection.level === "teacher"
+          ? hierarchySelection.principalUserId
+          : undefined,
+      grade: hierarchySelection.level === "grade" || hierarchySelection.level === "teacher" ? hierarchySelection.grade : undefined,
+      teacherUserId: hierarchySelection.level === "teacher" ? hierarchySelection.teacherUserId : undefined,
+      teacherName: hierarchySelection.level === "teacher" ? hierarchySelection.teacherName : undefined,
+    };
+  }, [hierarchySelection, showHierarchyPanel]);
+
+  const studentsApi = useStudents(scope, { filters: studentFilters });
+  const settingsCollection = useTenantCollection<SettingsRecord>("settings");
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("none");
@@ -174,6 +223,69 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
   const [editDraft, setEditDraft] = useState<DraftStudent | null>(null);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [newStudentDraft, setNewStudentDraft] = useState<DraftStudent>(DEFAULT_DRAFT);
+  const hierarchySchools = hierarchyQuery.data?.schools ?? [];
+  const isDistrictHierarchy = isDistrictUser(currentUserRole);
+  const hierarchyError = hierarchyQuery.error instanceof Error ? hierarchyQuery.error.message : null;
+
+  useEffect(() => {
+    if (showHierarchyPanel) return;
+    setHierarchySelection(null);
+    setExpandedNodes(new Set());
+    setHasHydratedHierarchySelection(false);
+  }, [showHierarchyPanel]);
+
+  useEffect(() => {
+    setHasHydratedHierarchySelection(false);
+    if (!showHierarchyPanel) return;
+    setHierarchySelection(null);
+    setExpandedNodes(new Set());
+  }, [currentUserRole, showHierarchyPanel, viewType]);
+
+  useEffect(() => {
+    if (!showHierarchyPanel) return;
+    if (!hierarchyQuery.isSuccess) return;
+    if (hierarchySchools.length === 0) return;
+    if (hasHydratedHierarchySelection) return;
+
+    const firstSchool = hierarchySchools[0];
+    if (!firstSchool) return;
+
+    if (isDistrictHierarchy) {
+      const firstPrincipal = firstSchool.principals[0];
+      const firstGrade = firstPrincipal?.grades[0];
+      const firstTeacher = firstGrade?.teachers[0];
+      setExpandedNodes(
+        new Set(
+          [
+            `school:${firstSchool.schoolId}`,
+            firstPrincipal ? `principal:${firstSchool.schoolId}:${firstPrincipal.principalUserId}` : null,
+            firstGrade ? `grade:${firstSchool.schoolId}:${firstGrade.grade}` : null,
+          ].filter((value): value is string => Boolean(value))
+        )
+      );
+      setHierarchySelection({
+        level: firstTeacher ? "teacher" : firstGrade ? "grade" : firstPrincipal ? "principal" : "school",
+        schoolId: firstSchool.schoolId,
+        schoolName: firstSchool.schoolName,
+        principalUserId: firstPrincipal?.principalUserId,
+        principalName: firstPrincipal?.principalName,
+        grade: firstGrade?.grade,
+        teacherUserId: firstTeacher?.teacherUserId ?? undefined,
+        teacherName: firstTeacher?.teacherName,
+      });
+    } else {
+      const firstGrade = firstSchool.grades[0];
+      setExpandedNodes(new Set(firstGrade ? [`grade:${firstSchool.schoolId}:${firstGrade.grade}`] : []));
+      setHierarchySelection({
+        level: firstGrade ? "grade" : "school",
+        schoolId: firstSchool.schoolId,
+        schoolName: firstSchool.schoolName,
+        grade: firstGrade?.grade,
+      });
+    }
+
+    setHasHydratedHierarchySelection(true);
+  }, [hasHydratedHierarchySelection, hierarchyQuery.isSuccess, hierarchySchools, isDistrictHierarchy, showHierarchyPanel]);
 
   const loadError = studentsApi.studentsQuery.error instanceof Error ? studentsApi.studentsQuery.error.message : null;
   const mutationError = studentsApi.mutationError instanceof Error ? studentsApi.mutationError.message : null;
@@ -182,6 +294,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
     const rows = studentsApi.studentsQuery.data?.rows ?? [];
     return rows.map(normalizeStudent);
   }, [studentsApi.studentsQuery.data?.rows]);
+
+  const readingBenchmarks = useMemo(
+    () => mergeReadingBenchmarks(settingsCollection.query.data?.rows?.[0]?.system?.readingBenchmarks),
+    [settingsCollection.query.data?.rows],
+  );
 
   const filteredStudents = useMemo(() => {
     let rows = [...students];
@@ -235,6 +352,297 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
 
     return { present, late, absent, total: filteredStudents.length };
   }, [attendanceMap, filteredStudents]);
+
+  const hierarchyContextLabel = useMemo(() => {
+    if (!showHierarchyPanel || !hierarchySelection) {
+      return viewType === "master" ? "Schoolwide student roster" : "Class roster";
+    }
+
+    const segments: string[] = [];
+    if (hierarchySelection.schoolName) segments.push(hierarchySelection.schoolName);
+    if (hierarchySelection.principalName && hierarchySelection.level !== "school") segments.push(hierarchySelection.principalName);
+    if (hierarchySelection.grade && (hierarchySelection.level === "grade" || hierarchySelection.level === "teacher")) {
+      segments.push(`Grade ${hierarchySelection.grade}`);
+    }
+    if (hierarchySelection.teacherName && hierarchySelection.level === "teacher") segments.push(hierarchySelection.teacherName);
+    if (segments.length === 0) return viewType === "master" ? "Schoolwide student roster" : "Class roster";
+    return `${segments.join(" -> ")} • ${students.length} students`;
+  }, [hierarchySelection, showHierarchyPanel, students.length, viewType]);
+
+  const toggleHierarchyNode = (nodeId: string) => {
+    setExpandedNodes((current) => {
+      const next = new Set(current);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  };
+
+  const renderHierarchyPanel = () => {
+    if (!showHierarchyPanel) return null;
+
+    return (
+      <aside className="app-card rounded-xl border border-slate-200 p-3 md:p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Roster hierarchy</p>
+        {hierarchyQuery.isLoading ? <p className="mt-2 text-sm text-slate-500">Loading hierarchy...</p> : null}
+        {hierarchyError ? <p className="mt-2 text-sm text-rose-600">{hierarchyError}</p> : null}
+        {!hierarchyQuery.isLoading && !hierarchyError && hierarchySchools.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">No hierarchy data for this context.</p>
+        ) : null}
+
+        {!hierarchyQuery.isLoading && !hierarchyError && hierarchySchools.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {hierarchySchools.map((school) => {
+              const schoolNodeId = `school:${school.schoolId}`;
+              const schoolOpen = expandedNodes.has(schoolNodeId);
+              const schoolSelected = hierarchySelection?.level === "school" && hierarchySelection.schoolId === school.schoolId;
+
+              if (!isDistrictHierarchy) {
+                return (
+                  <section key={school.schoolId} className="rounded-lg border border-slate-200/80 bg-white p-2">
+                    <p className="mb-2 text-xs font-semibold text-slate-600">{school.schoolName}</p>
+                    <div className="space-y-1">
+                      {school.grades.map((grade) => {
+                        const gradeNodeId = `grade:${school.schoolId}:${grade.grade}`;
+                        const gradeOpen = expandedNodes.has(gradeNodeId);
+                        const gradeSelected =
+                          hierarchySelection?.level === "grade" &&
+                          hierarchySelection.schoolId === school.schoolId &&
+                          hierarchySelection.grade === grade.grade;
+                        return (
+                          <div key={gradeNodeId} className="rounded-md border border-slate-100">
+                            <div className="flex items-center justify-between gap-1 p-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setHierarchySelection({
+                                    level: "grade",
+                                    schoolId: school.schoolId,
+                                    schoolName: school.schoolName,
+                                    grade: grade.grade,
+                                  });
+                                }}
+                                className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-xs font-medium ${
+                                  gradeSelected ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-50"
+                                }`}
+                              >
+                                <GraduationCap size={13} />
+                                <span className="truncate">Grade {grade.grade}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleHierarchyNode(gradeNodeId)}
+                                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                aria-label={`Toggle grade ${grade.grade}`}
+                              >
+                                {gradeOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                              </button>
+                            </div>
+                            {gradeOpen ? (
+                              <div className="space-y-1 border-t border-slate-100 px-1 pb-1 pt-1">
+                                {grade.teachers.map((teacher) => {
+                                  const teacherKey = `${gradeNodeId}:${teacher.teacherUserId ?? teacher.teacherName}`;
+                                  const teacherSelected =
+                                    hierarchySelection?.level === "teacher" &&
+                                    hierarchySelection.schoolId === school.schoolId &&
+                                    hierarchySelection.grade === grade.grade &&
+                                    hierarchySelection.teacherName === teacher.teacherName;
+                                  return (
+                                    <button
+                                      key={teacherKey}
+                                      type="button"
+                                      onClick={() =>
+                                        setHierarchySelection({
+                                          level: "teacher",
+                                          schoolId: school.schoolId,
+                                          schoolName: school.schoolName,
+                                          grade: grade.grade,
+                                          teacherUserId: teacher.teacherUserId ?? undefined,
+                                          teacherName: teacher.teacherName,
+                                        })
+                                      }
+                                      className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-xs ${
+                                        teacherSelected ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      <span className="truncate">{teacher.teacherName}</span>
+                                      <span className="ml-2 shrink-0 text-[10px] text-slate-500">{teacher.studentCount}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              }
+
+              return (
+                <section key={school.schoolId} className="rounded-lg border border-slate-200/80 bg-white p-2">
+                  <div className="flex items-center justify-between gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setHierarchySelection({
+                          level: "school",
+                          schoolId: school.schoolId,
+                          schoolName: school.schoolName,
+                        })
+                      }
+                      className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-xs font-semibold ${
+                        schoolSelected ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Building2 size={13} />
+                      <span className="truncate">{school.schoolName}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleHierarchyNode(schoolNodeId)}
+                      className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      aria-label={`Toggle ${school.schoolName}`}
+                    >
+                      {schoolOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    </button>
+                  </div>
+
+                  {schoolOpen ? (
+                    <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+                      {school.principals.map((principal) => {
+                        const principalNodeId = `principal:${school.schoolId}:${principal.principalUserId}`;
+                        const principalOpen = expandedNodes.has(principalNodeId);
+                        const principalSelected =
+                          hierarchySelection?.level === "principal" &&
+                          hierarchySelection.schoolId === school.schoolId &&
+                          hierarchySelection.principalUserId === principal.principalUserId;
+                        return (
+                          <div key={principalNodeId} className="rounded-md border border-slate-100">
+                            <div className="flex items-center justify-between gap-1 p-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setHierarchySelection({
+                                    level: "principal",
+                                    schoolId: school.schoolId,
+                                    schoolName: school.schoolName,
+                                    principalUserId: principal.principalUserId,
+                                    principalName: principal.principalName,
+                                  })
+                                }
+                                className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-xs ${
+                                  principalSelected ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-50"
+                                }`}
+                              >
+                                <Users size={13} />
+                                <span className="truncate">{principal.principalName}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleHierarchyNode(principalNodeId)}
+                                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                aria-label={`Toggle ${principal.principalName}`}
+                              >
+                                {principalOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                              </button>
+                            </div>
+                            {principalOpen ? (
+                              <div className="space-y-1 border-t border-slate-100 px-1 pb-1 pt-1">
+                                {principal.grades.map((grade) => {
+                                  const gradeNodeId = `grade:${school.schoolId}:${grade.grade}`;
+                                  const gradeOpen = expandedNodes.has(gradeNodeId);
+                                  const gradeSelected =
+                                    hierarchySelection?.level === "grade" &&
+                                    hierarchySelection.schoolId === school.schoolId &&
+                                    hierarchySelection.principalUserId === principal.principalUserId &&
+                                    hierarchySelection.grade === grade.grade;
+                                  return (
+                                    <div key={`${principalNodeId}:${gradeNodeId}`} className="rounded-md border border-slate-100">
+                                      <div className="flex items-center justify-between gap-1 p-1">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setHierarchySelection({
+                                              level: "grade",
+                                              schoolId: school.schoolId,
+                                              schoolName: school.schoolName,
+                                              principalUserId: principal.principalUserId,
+                                              principalName: principal.principalName,
+                                              grade: grade.grade,
+                                            })
+                                          }
+                                          className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-xs ${
+                                            gradeSelected ? "bg-brand-50 text-brand-700" : "text-slate-700 hover:bg-slate-50"
+                                          }`}
+                                        >
+                                          <GraduationCap size={13} />
+                                          <span className="truncate">Grade {grade.grade}</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleHierarchyNode(gradeNodeId)}
+                                          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                          aria-label={`Toggle grade ${grade.grade}`}
+                                        >
+                                          {gradeOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                                        </button>
+                                      </div>
+                                      {gradeOpen ? (
+                                        <div className="space-y-1 border-t border-slate-100 px-1 pb-1 pt-1">
+                                          {grade.teachers.map((teacher) => {
+                                            const teacherSelected =
+                                              hierarchySelection?.level === "teacher" &&
+                                              hierarchySelection.schoolId === school.schoolId &&
+                                              hierarchySelection.principalUserId === principal.principalUserId &&
+                                              hierarchySelection.grade === grade.grade &&
+                                              hierarchySelection.teacherName === teacher.teacherName;
+                                            return (
+                                              <button
+                                                key={`${principalNodeId}:${gradeNodeId}:${teacher.teacherUserId ?? teacher.teacherName}`}
+                                                type="button"
+                                                onClick={() =>
+                                                  setHierarchySelection({
+                                                    level: "teacher",
+                                                    schoolId: school.schoolId,
+                                                    schoolName: school.schoolName,
+                                                    principalUserId: principal.principalUserId,
+                                                    principalName: principal.principalName,
+                                                    grade: grade.grade,
+                                                    teacherUserId: teacher.teacherUserId ?? undefined,
+                                                    teacherName: teacher.teacherName,
+                                                  })
+                                                }
+                                                className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-xs ${
+                                                  teacherSelected ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-50"
+                                                }`}
+                                              >
+                                                <span className="truncate">{teacher.teacherName}</span>
+                                                <span className="ml-2 shrink-0 text-[10px] text-slate-500">{teacher.studentCount}</span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
+        ) : null}
+      </aside>
+    );
+  };
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -470,14 +878,14 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                 <option value={Tier.TIER_3}>{Tier.TIER_3}</option>
               </select>
             </label>
-            <label className="text-xs font-semibold text-slate-500">Status
-              <select value={editDraft.status} onChange={(e) => setEditDraft({ ...editDraft, status: e.target.value as StudentLifecycleStatus })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-                <option value="active">Active</option>
-                <option value="monitoring">Monitoring</option>
-                <option value="completed">Completed</option>
-                <option value="unknown">Unknown</option>
-              </select>
-            </label>
+          <label className="text-xs font-semibold text-slate-500">Status
+            <select value={editDraft.status} onChange={(e) => setEditDraft({ ...editDraft, status: e.target.value as StudentLifecycleStatus })} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <option value="active">Active</option>
+              <option value="monitoring">Monitoring</option>
+              <option value="completed">Completed</option>
+              <option value="unknown">Needs review</option>
+            </select>
+          </label>
           </div>
         ) : null}
       </DraggableModal>
@@ -514,7 +922,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
               <option value="active">Active</option>
               <option value="monitoring">Monitoring</option>
               <option value="completed">Completed</option>
-              <option value="unknown">Unknown</option>
+              <option value="unknown">Needs review</option>
             </select>
           </label>
         </div>
@@ -526,12 +934,12 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             <SidebarToggleButton onClick={onMenuClick} className="app-icon-button mt-1 -ml-1 lg:hidden" ariaLabel="Open workspace menu" />
             <div>
               <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Student Roster</h2>
-              <p className="text-sm text-slate-500">{viewType === "master" ? "School-wide monitored roster" : "Classroom roster"}</p>
+              <p className="text-sm text-slate-500">{hierarchyContextLabel}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => onNavigate?.("import")} className="gap-2"><Upload size={16} /> Import roster</Button>
-            <Button variant="primary" onClick={() => openReferral()} className="gap-2"><ShieldAlert size={16} /> New referral</Button>
+            <Button variant="secondary" onClick={() => onNavigate?.("import")} className="gap-2"><Upload size={16} /> Import</Button>
+            <Button variant="primary" onClick={() => openReferral()} className="gap-2"><ShieldAlert size={16} /> Create referral</Button>
           </div>
         </header>
       ) : null}
@@ -551,12 +959,16 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
         </section>
       ) : null}
 
+      <div className={showHierarchyPanel ? "grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]" : ""}>
+        {showHierarchyPanel ? renderHierarchyPanel() : null}
+        <div className={showHierarchyPanel ? "space-y-5" : ""}>
+
       {!embedded && !isAttendanceMode && !isBulkMode ? (
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Students</p><p className="text-2xl font-bold text-slate-900">{classStats.total}</p></div>
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Tier 2 and 3</p><p className="text-2xl font-bold text-rose-600">{classStats.atRisk}</p></div>
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Attendance avg</p><p className="text-2xl font-bold text-emerald-600">{classStats.avgAttendance}%</p></div>
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Average GPA</p><p className="text-2xl font-bold text-blue-600">{classStats.avgGpa}</p></div>
+          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Total students</p><p className="text-2xl font-bold text-slate-900">{classStats.total}</p></div>
+          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Tier 2-3</p><p className="text-2xl font-bold text-rose-600">{classStats.atRisk}</p></div>
+          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Avg attendance</p><p className="text-2xl font-bold text-emerald-600">{classStats.avgAttendance}%</p></div>
+          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Avg GPA</p><p className="text-2xl font-bold text-blue-600">{classStats.avgGpa}</p></div>
         </section>
       ) : null}
 
@@ -566,7 +978,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             {isBulkMode ? <Button variant="secondary" size="sm" onClick={toggleSelectAll}><Check size={14} /></Button> : null}
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search student, ID, or teacher" className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name, ID, or teacher" className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm" />
             </div>
             <Button variant={showFilters ? "primary" : "secondary"} size="sm" onClick={() => setShowFilters((v) => !v)} className="gap-1">
               <Filter size={14} /> Filters <ChevronDown size={14} className={showFilters ? "rotate-180" : ""} />
@@ -576,12 +988,12 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             {viewMode === "grid" ? (
               <>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} className="rounded-md border border-slate-200 px-2 py-2 text-sm">
-                  <option value="name">Sort: Name</option>
-                  <option value="tier">Sort: Tier</option>
-                  <option value="attendance">Sort: Attendance</option>
-                  <option value="gpa">Sort: GPA</option>
-                  <option value="alerts">Sort: Alerts</option>
-                  <option value="reading">Sort: Reading</option>
+                  <option value="name">Name</option>
+                  <option value="tier">Tier</option>
+                  <option value="attendance">Attendance</option>
+                  <option value="gpa">GPA</option>
+                  <option value="alerts">Alerts</option>
+                  <option value="reading">Reading</option>
                 </select>
                 <Button variant="secondary" size="sm" onClick={() => setSortDesc((v) => !v)}>{sortDesc ? <ArrowDown size={14} /> : <ArrowUp size={14} />}</Button>
               </>
@@ -590,10 +1002,10 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
               <Button variant="ghost" size="icon-sm" onClick={() => setViewMode("grid")} className={viewMode === "grid" ? "bg-white" : ""}><LayoutGrid size={15} /></Button>
               <Button variant="ghost" size="icon-sm" onClick={() => setViewMode("list")} className={viewMode === "list" ? "bg-white" : ""}><ListIcon size={15} /></Button>
             </div>
-            <Button variant={isBulkMode ? "primary" : "secondary"} size="sm" onClick={toggleBulkMode}>{isBulkMode ? "Exit bulk" : "Bulk select"}</Button>
-            <Button variant={isAttendanceMode ? "primary" : "secondary"} size="sm" onClick={toggleAttendanceMode}>Attendance</Button>
+            <Button variant={isBulkMode ? "primary" : "secondary"} size="sm" onClick={toggleBulkMode}>{isBulkMode ? "Done" : "Select"}</Button>
+            <Button variant={isAttendanceMode ? "primary" : "secondary"} size="sm" onClick={toggleAttendanceMode}>Take attendance</Button>
             <Button variant="secondary" size="sm" onClick={() => void runExport()} loading={isExporting} className="gap-1"><Download size={14} /> Export</Button>
-            {isMasterScope ? <Button variant="secondary" size="sm" onClick={() => setIsAddStudentOpen(true)} className="gap-1"><UserPlus size={14} /> New</Button> : null}
+            {isMasterScope ? <Button variant="secondary" size="sm" onClick={() => setIsAddStudentOpen(true)} className="gap-1"><UserPlus size={14} /> Add student</Button> : null}
           </div>
         </div>
 
@@ -609,11 +1021,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             </label>
             <label className="text-xs font-semibold text-slate-500">Status
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "All" | StudentLifecycleStatus)} className="mt-1 w-full rounded-md border border-slate-200 px-2 py-2 text-sm">
-                <option value="All">All statuses</option>
+                <option value="All">All status</option>
                 <option value="active">Active</option>
                 <option value="monitoring">Monitoring</option>
                 <option value="completed">Completed</option>
-                <option value="unknown">Unknown</option>
+                <option value="unknown">Needs review</option>
               </select>
             </label>
             <label className="text-xs font-semibold text-slate-500">Teacher
@@ -624,14 +1036,14 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             </label>
             <div className="flex items-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setShowFilters(false)}>Apply</Button>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>Reset</Button>
             </div>
           </div>
         ) : null}
 
         {hasActiveFilters ? (
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-600">
-            <span>{filteredStudents.length} results</span>
+            <span>{filteredStudents.length} students</span>
             <Button variant="ghost" size="sm" onClick={clearFilters}>Clear all</Button>
           </div>
         ) : null}
@@ -643,8 +1055,8 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             <p className="text-sm font-semibold">{selectedCount} selected</p>
             <div className="ml-auto flex items-center gap-2">
               {isMasterScope ? <Button variant="danger" size="sm" disabled={selectedCount === 0} onClick={() => setShowArchiveConfirm(true)}>Archive</Button> : null}
-              <Button variant="secondary" size="sm" disabled={selectedCount === 0} onClick={() => void runExport()}>Export selected</Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+              <Button variant="secondary" size="sm" disabled={selectedCount === 0} onClick={() => void runExport()}>Export</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear selection</Button>
             </div>
           </div>
         </section>
@@ -658,11 +1070,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-rose-700">Absent {attendanceSummary.absent}</span>
             <span className="ml-1 text-slate-600">{attendanceSummary.total} visible students</span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={() => markAllAttendance("Present")}>Mark all present</Button>
-              <Button variant="secondary" size="sm" onClick={() => markAllAttendance("Late")}>Mark all late</Button>
-              <Button variant="secondary" size="sm" onClick={() => markAllAttendance("Absent")}>Mark all absent</Button>
+              <Button variant="secondary" size="sm" onClick={() => markAllAttendance("Present")}>All present</Button>
+              <Button variant="secondary" size="sm" onClick={() => markAllAttendance("Late")}>All late</Button>
+              <Button variant="secondary" size="sm" onClick={() => markAllAttendance("Absent")}>All absent</Button>
               <Button variant="ghost" size="sm" onClick={toggleAttendanceMode}>Cancel</Button>
-              <Button variant="primary" size="sm" onClick={submitAttendance} loading={isSubmittingAttendance}>Submit</Button>
+              <Button variant="primary" size="sm" onClick={submitAttendance} loading={isSubmittingAttendance}>Save attendance</Button>
             </div>
           </div>
         </section>
@@ -683,7 +1095,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
       {!studentsApi.studentsQuery.isLoading && filteredStudents.length === 0 ? (
         <section className="app-card flex flex-col items-center rounded-xl border-dashed p-10 text-center">
           <Search size={36} className="text-slate-400" />
-          <p className="mt-3 font-semibold text-slate-700">No students match current filters.</p>
+          <p className="mt-3 font-semibold text-slate-700">No students found for these filters.</p>
           {hasActiveFilters ? <Button variant="secondary" size="sm" onClick={clearFilters} className="mt-3">Clear filters</Button> : null}
         </section>
       ) : null}
@@ -696,7 +1108,13 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
             const tierTone = getTierTone(student.tier);
             const attendanceTone = getAttendanceTone(student.attendance);
             const gpaTone = getGpaTone(student.gpa);
-            const readingTone = getReadingTone(student.readingLevel);
+            const readingRisk = evaluateReadingRisk({
+              grade: student.grade,
+              readingLevel: student.readingLevel,
+              role: currentUserRole,
+              benchmarks: readingBenchmarks,
+            });
+            const readingTone = readingRisk.tone;
             const canOpenDetails = !isBulkMode && !isAttendanceMode;
             const isCardInteractive = !isAttendanceMode;
             const handleCardActivate = () => {
@@ -747,7 +1165,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                     ) : null}
                     {canOpenDetails ? (
                       <span className="student-open-cue">
-                        Open
+                        View details
                         <ChevronRight size={14} />
                       </span>
                     ) : null}
@@ -774,7 +1192,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                   <div className={`signal-tile ${signalToneClass(readingTone)}`}>
                     <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Reading</p>
                     <p className="mt-1 text-base font-semibold leading-tight">{student.readingLevel}</p>
-                    <p className="text-[11px] opacity-90">{riskToneLabel(readingTone)}</p>
+                    <p className="text-[11px] opacity-90">{readingRisk.label}</p>
                   </div>
                 </div>
 
@@ -788,7 +1206,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                   ) : (
                     <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
                       {isMasterScope ? <Button size="sm" variant="secondary" onClick={() => startEditStudent(student)} className="flex-1 gap-1"><Pencil size={12} /> Edit</Button> : null}
-                      <Button size="sm" variant="secondary" onClick={() => openReferral(student.id)} className="flex-1 gap-1"><ShieldAlert size={12} /> Refer</Button>
+                      <Button size="sm" variant="secondary" onClick={() => openReferral(student.id)} className="flex-1 gap-1"><ShieldAlert size={12} /> Create referral</Button>
                     </div>
                   )}
                 </div>
@@ -821,7 +1239,13 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                   const tierTone = getTierTone(student.tier);
                   const attendanceTone = getAttendanceTone(student.attendance);
                   const gpaTone = getGpaTone(student.gpa);
-                  const readingTone = getReadingTone(student.readingLevel);
+                  const readingRisk = evaluateReadingRisk({
+                    grade: student.grade,
+                    readingLevel: student.readingLevel,
+                    role: currentUserRole,
+                    benchmarks: readingBenchmarks,
+                  });
+                  const readingTone = readingRisk.tone;
                   const canOpenDetails = !isBulkMode && !isAttendanceMode;
                   const isRowInteractive = !isAttendanceMode;
                   const handleRowActivate = () => {
@@ -856,7 +1280,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                         <p className="text-xs text-slate-500">{student.id}</p>
                         {canOpenDetails ? (
                           <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700">
-                            Open profile
+                            View details
                             <ChevronRight size={12} />
                           </span>
                         ) : null}
@@ -865,7 +1289,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                       <td className="px-3 py-3"><span className={`signal-pill ${signalToneClass(tierTone)}`}>{student.tier}</span></td>
                       <td className="px-3 py-3 text-center"><span className={`signal-inline ${signalToneClass(gpaTone)}`}>{student.gpa}</span></td>
                       <td className="px-3 py-3"><span className={`signal-inline ${signalToneClass(attendanceTone)}`}>{student.attendance}%</span></td>
-                      <td className="px-3 py-3 text-center"><span className={`signal-inline ${signalToneClass(readingTone)}`}>{student.readingLevel}</span></td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`signal-inline ${signalToneClass(readingTone)}`} title={readingRisk.label}>
+                          {student.readingLevel}
+                        </span>
+                      </td>
                       <td className="px-3 py-3"><span className="signal-pill signal-neutral">{statusLabel(student.status)}</span></td>
                       <td className="px-3 py-3 text-right">
                         {isAttendanceMode ? (
@@ -876,7 +1304,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
                           </div>
                         ) : (
                           <div className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-                            {canOpenDetails ? <span className="student-open-cue hidden sm:inline-flex">Open <ChevronRight size={13} /></span> : null}
+                            {canOpenDetails ? <span className="student-open-cue hidden sm:inline-flex">View details <ChevronRight size={13} /></span> : null}
                             {isMasterScope ? <Button size="icon-sm" variant="ghost" onClick={() => startEditStudent(student)}><Pencil size={14} /></Button> : null}
                             <Button size="icon-sm" variant="ghost" onClick={() => openReferral(student.id)}><ShieldAlert size={14} /></Button>
                           </div>
@@ -890,6 +1318,8 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({ onMenuClic
           </div>
         </section>
       ) : null}
+        </div>
+      </div>
     </div>
   );
 };

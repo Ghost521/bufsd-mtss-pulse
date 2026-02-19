@@ -8,7 +8,7 @@ import {
   type UpdateStudentInput,
 } from "../schemas/students";
 import { readTenantCollection, toTenantKey, writeTenantCollection } from "./persistence";
-import { getDistricts, getSchools, findUserById } from "./tenant-store";
+import { getDistricts, getMemberships, getSchools, findUserById } from "./tenant-store";
 import type { TenantContext } from "./tenant-types";
 
 export type StudentScope = "master" | "class";
@@ -20,6 +20,15 @@ type StudentListOptions = {
   requesterUserId: string;
   requesterRoles: string[];
   includeArchived?: boolean;
+  filters?: StudentListFilters;
+};
+
+export type StudentListFilters = {
+  schoolId?: string;
+  principalUserId?: string;
+  grade?: string;
+  teacherUserId?: string;
+  teacherName?: string;
 };
 
 const STUDENTS_MASTER_DOMAIN = "students_master";
@@ -198,18 +207,80 @@ const contextContainsStudent = (context: TenantContext, student: TenantStudentRe
   return true;
 };
 
+const hasAnyRole = (roles: string[], expected: string[]): boolean => expected.some((role) => roles.includes(role));
+
 const filterByRole = (
   rows: TenantStudentRecord[],
   requesterUserId: string,
   requesterRoles: string[]
 ): TenantStudentRecord[] => {
-  if (requesterRoles.includes("parent")) {
-    return rows.filter((student) => student.guardianUserIds.includes(requesterUserId));
+  if (hasAnyRole(requesterRoles, ["org_admin", "district_admin", "principal", "school_admin"])) return rows;
+  if (requesterRoles.includes("teacher")) return rows.filter((student) => student.teacherUserId === requesterUserId);
+  if (requesterRoles.includes("parent")) return rows.filter((student) => student.guardianUserIds.includes(requesterUserId));
+  return [];
+};
+
+const normalizeFilterValue = (value?: string): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const parsePrincipalPlaceholderSchool = (principalUserId: string): string | null => {
+  if (!principalUserId.startsWith("none:")) return null;
+  const schoolId = principalUserId.slice("none:".length).trim();
+  return schoolId.length > 0 ? schoolId : null;
+};
+
+const getPrincipalSchoolIds = (principalUserId: string): Set<string> => {
+  const memberships = getMemberships().filter(
+    (membership) =>
+      membership.userId === principalUserId &&
+      membership.status === "active" &&
+      membership.scopeType === "school" &&
+      (membership.role === "principal" || membership.role === "school_admin")
+  );
+  return new Set(memberships.map((membership) => membership.scopeId));
+};
+
+const filterByRequestedNodes = (
+  rows: TenantStudentRecord[],
+  filters?: StudentListFilters
+): TenantStudentRecord[] => {
+  if (!filters) return rows;
+
+  const schoolId = normalizeFilterValue(filters.schoolId);
+  const principalUserId = normalizeFilterValue(filters.principalUserId);
+  const grade = normalizeFilterValue(filters.grade);
+  const teacherUserId = normalizeFilterValue(filters.teacherUserId);
+  const teacherName = normalizeFilterValue(filters.teacherName);
+
+  let next = rows;
+  if (schoolId) {
+    next = next.filter((student) => student.schoolId === schoolId);
   }
-  if (requesterRoles.includes("teacher")) {
-    return rows.filter((student) => student.teacherUserId === requesterUserId || student.schoolId === "sch-ne");
+
+  if (principalUserId) {
+    const placeholderSchoolId = parsePrincipalPlaceholderSchool(principalUserId);
+    if (placeholderSchoolId) {
+      next = next.filter((student) => student.schoolId === placeholderSchoolId);
+    } else {
+      const schoolIds = getPrincipalSchoolIds(principalUserId);
+      if (schoolIds.size === 0) return [];
+      next = next.filter((student) => schoolIds.has(student.schoolId));
+    }
   }
-  return rows;
+
+  if (grade) {
+    const normalizedGrade = grade.toLowerCase();
+    next = next.filter((student) => student.grade.trim().toLowerCase() === normalizedGrade);
+  }
+  if (teacherUserId) next = next.filter((student) => student.teacherUserId === teacherUserId);
+  if (teacherName) {
+    const normalizedTeacher = teacherName.toLowerCase();
+    next = next.filter((student) => resolveTeacherName(student).toLowerCase() === normalizedTeacher);
+  }
+  return next;
 };
 
 const resolveTargetSchoolForCreate = (context: TenantContext, explicitSchoolId?: string): string | null => {
@@ -239,7 +310,8 @@ export const listStudents = async (options: StudentListOptions): Promise<TenantS
   const baseStore = options.scope === "master" ? await readMasterRoster(options.context) : await readClassRoster(options.context);
   const scoped = baseStore.filter((student) => contextContainsStudent(options.context, student));
   const roleScoped = filterByRole(scoped, options.requesterUserId, options.requesterRoles);
-  const activeOnly = options.includeArchived ? roleScoped : roleScoped.filter((student) => !student.isArchived);
+  const requestedScope = filterByRequestedNodes(roleScoped, options.filters);
+  const activeOnly = options.includeArchived ? requestedScope : requestedScope.filter((student) => !student.isArchived);
   return cloneStudents(activeOnly.map(toCanonicalStudent));
 };
 

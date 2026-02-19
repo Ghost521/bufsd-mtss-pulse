@@ -97,6 +97,7 @@ const roleGrants: Record<RoleKey, PermissionGrant[]> = {
   org_admin: elevatedRoleGrants,
   district_admin: elevatedRoleGrants,
   principal: elevatedRoleGrants,
+  school_admin: elevatedRoleGrants,
   teacher: teacherRoleGrants,
   parent: parentRoleGrants,
 };

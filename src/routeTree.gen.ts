@@ -14,6 +14,7 @@ import { Route as QueryHealthRouteImport } from './routes/query-health'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppPageRouteImport } from './routes/app.$page'
+import { Route as ApiStudentsHierarchyRouteImport } from './routes/api/students-hierarchy'
 import { Route as ApiStudentsRouteImport } from './routes/api/students'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiDashboardRouteImport } from './routes/api/dashboard'
@@ -49,6 +50,11 @@ const AppPageRoute = AppPageRouteImport.update({
   id: '/$page',
   path: '/$page',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiStudentsHierarchyRoute = ApiStudentsHierarchyRouteImport.update({
+  id: '/api/students-hierarchy',
+  path: '/api/students-hierarchy',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStudentsRoute = ApiStudentsRouteImport.update({
   id: '/api/students',
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
+  '/api/students-hierarchy': typeof ApiStudentsHierarchyRoute
   '/app/$page': typeof AppPageRoute
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
+  '/api/students-hierarchy': typeof ApiStudentsHierarchyRoute
   '/app/$page': typeof AppPageRoute
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
   '/api/students': typeof ApiStudentsRoute
+  '/api/students-hierarchy': typeof ApiStudentsHierarchyRoute
   '/app/$page': typeof AppPageRoute
   '/api/ai/$endpoint': typeof ApiAiEndpointRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/api/dashboard'
     | '/api/health'
     | '/api/students'
+    | '/api/students-hierarchy'
     | '/app/$page'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/api/dashboard'
     | '/api/health'
     | '/api/students'
+    | '/api/students-hierarchy'
     | '/app/$page'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/api/dashboard'
     | '/api/health'
     | '/api/students'
+    | '/api/students-hierarchy'
     | '/app/$page'
     | '/api/ai/$endpoint'
     | '/api/auth/callback'
@@ -216,6 +228,7 @@ export interface RootRouteChildren {
   ApiDashboardRoute: typeof ApiDashboardRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiStudentsRoute: typeof ApiStudentsRoute
+  ApiStudentsHierarchyRoute: typeof ApiStudentsHierarchyRoute
   ApiAiEndpointRoute: typeof ApiAiEndpointRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/$page'
       preLoaderRoute: typeof AppPageRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/students-hierarchy': {
+      id: '/api/students-hierarchy'
+      path: '/api/students-hierarchy'
+      fullPath: '/api/students-hierarchy'
+      preLoaderRoute: typeof ApiStudentsHierarchyRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/students': {
       id: '/api/students'
@@ -353,6 +373,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDashboardRoute: ApiDashboardRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiStudentsRoute: ApiStudentsRoute,
+  ApiStudentsHierarchyRoute: ApiStudentsHierarchyRoute,
   ApiAiEndpointRoute: ApiAiEndpointRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,

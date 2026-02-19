@@ -24,7 +24,7 @@ const roleFromRequest = (raw: string | null | undefined, fallback: UserRole): Us
 
 const roleKeyToUserRole = (role: string): UserRole | null => {
   if (role === "teacher") return UserRole.TEACHER;
-  if (role === "principal") return UserRole.PRINCIPAL;
+  if (role === "principal" || role === "school_admin") return UserRole.PRINCIPAL;
   if (role === "district_admin" || role === "org_admin") return UserRole.DISTRICT;
   if (role === "parent") return UserRole.PARENT;
   return null;
@@ -33,7 +33,7 @@ const roleKeyToUserRole = (role: string): UserRole | null => {
 export const deriveWorkspaceRole = (session: SessionContext, raw?: string | null): UserRole => {
   const fallback = isDistrictRole(session)
     ? UserRole.DISTRICT
-    : session.effectiveRoles.includes("principal")
+    : session.effectiveRoles.includes("principal") || session.effectiveRoles.includes("school_admin")
       ? UserRole.PRINCIPAL
       : session.effectiveRoles.includes("parent")
         ? UserRole.PARENT

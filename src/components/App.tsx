@@ -116,7 +116,7 @@ const ALLOW_ROLE_SWITCHING =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
 
 const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | null => {
-  if (role === 'principal') return UserRole.PRINCIPAL;
+  if (role === 'principal' || role === 'school_admin') return UserRole.PRINCIPAL;
   if (role === 'teacher') return UserRole.TEACHER;
   if (role === 'district_admin' || role === 'org_admin') return UserRole.DISTRICT;
   if (role === 'parent') return UserRole.PARENT;
@@ -1238,6 +1238,7 @@ const App: React.FC = () => {
              key={currentRole} // Force re-mount when role changes to update viewType
              onMenuClick={openMobileMenu} 
              onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
+             currentUserRole={currentRole}
              viewType={currentRole === UserRole.PRINCIPAL || currentRole === UserRole.DISTRICT ? 'master' : 'classroom'}
              onNavigate={navigateToPage}
           />

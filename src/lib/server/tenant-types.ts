@@ -6,7 +6,7 @@ export type TenantContext = {
   schoolId?: string;
 };
 
-export type RoleKey = "org_admin" | "district_admin" | "principal" | "teacher" | "parent";
+export type RoleKey = "org_admin" | "district_admin" | "principal" | "school_admin" | "teacher" | "parent";
 
 export type AppPermissionAction = "read" | "create" | "update" | "delete";
 export type AppResource =

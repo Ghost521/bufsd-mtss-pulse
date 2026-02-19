@@ -102,4 +102,14 @@ describe("rbac permission checks", () => {
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("EXPLICIT_DENY");
   });
+
+  it("grants school admin the same elevated student access as principal", () => {
+    const session = createSession("school_admin");
+    const result = checkPermission(session, {
+      resource: "students",
+      action: "update",
+      fields: ["name", "grade"],
+    });
+    expect(result.allowed).toBe(true);
+  });
 });
