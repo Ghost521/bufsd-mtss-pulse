@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { queryGeneric as query, mutationGeneric as mutation } from "convex/server";
 import { v } from "convex/values";
 
 export const getTenantCollection = query({
@@ -9,7 +9,13 @@ export const getTenantCollection = query({
   handler: async (ctx, args) => {
     const record = await ctx.db
       .query("tenantCollections")
-      .withIndex("by_tenant_domain", (q) => q.eq("tenantKey", args.tenantKey).eq("domain", args.domain))
+      .withIndex("by_tenant_domain")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("domain"), args.domain),
+        )
+      )
       .unique();
 
     return record?.rows ?? null;
@@ -25,7 +31,13 @@ export const setTenantCollection = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("tenantCollections")
-      .withIndex("by_tenant_domain", (q) => q.eq("tenantKey", args.tenantKey).eq("domain", args.domain))
+      .withIndex("by_tenant_domain")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("domain"), args.domain),
+        )
+      )
       .unique();
 
     const next = {
@@ -65,7 +77,8 @@ export const countAuditEntries = query({
   handler: async (ctx, args) => {
     const rows = await ctx.db
       .query("tenantAuditEntries")
-      .withIndex("by_tenant", (q) => q.eq("tenantKey", args.tenantKey))
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
       .collect();
 
     return rows.length;

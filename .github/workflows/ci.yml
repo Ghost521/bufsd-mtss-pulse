@@ -21,6 +21,16 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Convex Codegen
+        if: ${{ secrets.CONVEX_DEPLOY_KEY != '' }}
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: npm run convex:codegen
+
+      - name: Convex Codegen (Skipped)
+        if: ${{ secrets.CONVEX_DEPLOY_KEY == '' }}
+        run: echo "Skipping Convex codegen because CONVEX_DEPLOY_KEY is not configured."
+
       - name: Typecheck
         run: npm run typecheck
 
