@@ -1,4 +1,4 @@
-import type { Conversation } from "../types";
+import type { Conversation, MessageThreadContext, MessagesLaunchContext } from "../types";
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 8;
@@ -85,6 +85,48 @@ export const filterConversationsByQuery = (
   });
 };
 
+export type ConversationContextFilter = "all" | "intervention" | "referral";
+
+export const conversationMatchesContextFilter = (
+  conversation: Conversation,
+  filter: ConversationContextFilter,
+): boolean => {
+  if (filter === "all") return true;
+  return conversation.threadContext?.type === filter;
+};
+
+export const summarizeThreadContext = (context: MessageThreadContext | undefined): string | null => {
+  if (!context) return null;
+  if (context.type === "intervention") {
+    const plan = context.interventionPlanName ? ` - ${context.interventionPlanName}` : "";
+    return `Intervention${plan}`;
+  }
+  const parts = ["Referral"];
+  if (context.referralId) parts.push(context.referralId);
+  if (context.referralUrgency) parts.push(context.referralUrgency);
+  return parts.join(" - ");
+};
+
+export const toLaunchContextSignature = (launchContext: MessagesLaunchContext | null | undefined): string => {
+  if (!launchContext) return "";
+  return JSON.stringify({
+    recipientName: launchContext.recipientName ?? "",
+    recipientRole: launchContext.recipientRole ?? "",
+    draft: launchContext.draft ?? "",
+    context: launchContext.context
+      ? {
+          type: launchContext.context.type,
+          studentName: launchContext.context.studentName,
+          interventionId: launchContext.context.interventionId ?? "",
+          interventionPlanName: launchContext.context.interventionPlanName ?? "",
+          referralId: launchContext.context.referralId ?? "",
+          referralType: launchContext.context.referralType ?? "",
+          referralUrgency: launchContext.context.referralUrgency ?? "",
+        }
+      : null,
+  });
+};
+
 export const validateAttachment = (
   file: File,
   existingCount: number,
@@ -105,4 +147,3 @@ export const validateAttachment = (
 
   return { ok: true };
 };
-

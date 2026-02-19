@@ -23,7 +23,7 @@ import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
 import { MonitoringPulse } from './MonitoringPulse';
-import type { DashboardData, RAGDocument} from '../types';
+import type { DashboardData, MessagesLaunchContext, RAGDocument } from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { generateDashboardBriefing } from '../services/geminiService';
@@ -163,7 +163,7 @@ const App: React.FC = () => {
   
   // UI State
   const [activePage, setActivePage] = useState<WorkspacePageId>(DEFAULT_WORKSPACE_PAGE);
-  const [messageRecipient, setMessageRecipient] = useState<string | undefined>(undefined);
+  const [messageLaunchContext, setMessageLaunchContext] = useState<MessagesLaunchContext | null>(null);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [flashMessage, setFlashMessage] = useState<FlashMessage | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -328,7 +328,7 @@ const App: React.FC = () => {
     setProfileStudent(null);
     closeMobileMenu();
     setIsMoreMenuOpen(false);
-    setMessageRecipient(undefined);
+    setMessageLaunchContext(null);
     setIsReferralModalOpen(false);
   }, [closeMobileMenu, currentRole]);
 
@@ -530,6 +530,9 @@ const App: React.FC = () => {
     if (nextPage !== 'interventions') {
       setReferralQueueFocusId(null);
     }
+    if (nextPage === 'messages') {
+      setMessageLaunchContext(null);
+    }
     setActivePage(nextPage);
     closeMobileMenu();
     void navigate({ to: buildWorkspacePath(nextPage) });
@@ -640,10 +643,18 @@ const App: React.FC = () => {
   };
 
   // Messaging Handlers
-  const handleNavigateToMessages = (recipient?: string) => {
+  const handleNavigateToMessages = (launch?: string | MessagesLaunchContext) => {
     setIsModalOpen(false);
     navigateToPage('messages');
-    setMessageRecipient(recipient);
+    if (!launch) {
+      setMessageLaunchContext(null);
+      return;
+    }
+    if (typeof launch === 'string') {
+      setMessageLaunchContext({ recipientName: launch });
+      return;
+    }
+    setMessageLaunchContext(launch);
   };
 
   // RAG Document Handlers
@@ -1263,7 +1274,7 @@ const App: React.FC = () => {
             currentUserRole={currentRole}
             currentUserName={data.userName}
             onMenuClick={openMobileMenu}
-            targetRecipient={messageRecipient}
+            launchContext={messageLaunchContext}
           />
         );
       case 'calendar':
@@ -1300,6 +1311,7 @@ const App: React.FC = () => {
           <InterventionManager
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
             onMenuClick={openMobileMenu}
+            onComposeMessage={handleNavigateToMessages}
             highlightedReferralId={referralQueueFocusId}
             onReferralHighlightConsumed={() => setReferralQueueFocusId(null)}
           />

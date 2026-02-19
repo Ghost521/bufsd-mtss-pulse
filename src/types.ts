@@ -119,6 +119,25 @@ export interface Attachment {
   mimeType?: string;
 }
 
+export type MessageContextType = 'intervention' | 'referral';
+
+export interface MessageThreadContext {
+  type: MessageContextType;
+  studentName: string;
+  interventionId?: string;
+  interventionPlanName?: string;
+  referralId?: string;
+  referralType?: string;
+  referralUrgency?: string;
+}
+
+export interface MessagesLaunchContext {
+  recipientName?: string;
+  recipientRole?: UserRole;
+  context?: MessageThreadContext;
+  draft?: string;
+}
+
 export interface Message {
   id: string;
   senderId: string;
@@ -128,6 +147,7 @@ export interface Message {
   isRead: boolean;
   isMe: boolean; // Helper for UI rendering
   attachments?: Attachment[];
+  threadContext?: MessageThreadContext;
 }
 
 export interface Conversation {
@@ -142,6 +162,7 @@ export interface Conversation {
   messages: Message[];
   isGroup?: boolean;
   participants?: string[]; // List of names participating
+  threadContext?: MessageThreadContext;
 }
 
 // --- Existing Types ---

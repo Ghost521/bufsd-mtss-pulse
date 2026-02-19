@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { UserRole, type Conversation } from "../src/types";
 import {
   MAX_ATTACHMENTS_PER_MESSAGE,
+  conversationMatchesContextFilter,
   filterConversationsByQuery,
   formatMessageTimeLabel,
   sortConversationsByLastActivity,
+  summarizeThreadContext,
+  toLaunchContextSignature,
   validateAttachment,
 } from "../src/lib/messages-utils";
 
@@ -69,6 +72,76 @@ describe("messages utils", () => {
     expect(formatMessageTimeLabel("Just now")).toBe("Just now");
   });
 
+  it("matches conversations by context filter", () => {
+    const interventionConvo = makeConversation({
+      id: "intervention",
+      threadContext: {
+        type: "intervention",
+        studentName: "Jordan Lee",
+        interventionId: "plan-1",
+        interventionPlanName: "Fluency Support",
+      },
+    });
+    const referralConvo = makeConversation({
+      id: "referral",
+      threadContext: {
+        type: "referral",
+        studentName: "Avery Park",
+        referralId: "REF-12",
+        referralType: "Behavior",
+        referralUrgency: "High",
+      },
+    });
+
+    expect(conversationMatchesContextFilter(interventionConvo, "all")).toBe(true);
+    expect(conversationMatchesContextFilter(interventionConvo, "intervention")).toBe(true);
+    expect(conversationMatchesContextFilter(interventionConvo, "referral")).toBe(false);
+    expect(conversationMatchesContextFilter(referralConvo, "referral")).toBe(true);
+  });
+
+  it("summarizes thread context for chips", () => {
+    expect(
+      summarizeThreadContext({
+        type: "intervention",
+        studentName: "Jordan Lee",
+        interventionPlanName: "Fluency Support",
+      }),
+    ).toBe("Intervention - Fluency Support");
+
+    expect(
+      summarizeThreadContext({
+        type: "referral",
+        studentName: "Avery Park",
+        referralId: "REF-19",
+        referralUrgency: "Critical",
+      }),
+    ).toBe("Referral - REF-19 - Critical");
+  });
+
+  it("generates stable launch context signatures", () => {
+    const signatureA = toLaunchContextSignature({
+      recipientName: "Mr. Davis",
+      draft: "Please review this intervention.",
+      context: {
+        type: "intervention",
+        studentName: "Jordan Lee",
+        interventionId: "plan-1",
+      },
+    });
+    const signatureB = toLaunchContextSignature({
+      recipientName: "Mr. Davis",
+      draft: "Please review this intervention.",
+      context: {
+        type: "intervention",
+        studentName: "Jordan Lee",
+        interventionId: "plan-2",
+      },
+    });
+
+    expect(signatureA).not.toBe("");
+    expect(signatureA).not.toBe(signatureB);
+  });
+
   it("rejects unsupported or oversized attachments", () => {
     const unsupported = new File(["abc"], "notes.csv", { type: "text/csv" });
     const oversized = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "big.pdf", { type: "application/pdf" });
@@ -89,4 +162,3 @@ describe("messages utils", () => {
     expect(validateAttachment(valid, 0)).toEqual({ ok: true });
   });
 });
-

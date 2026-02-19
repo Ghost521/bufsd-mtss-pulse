@@ -31,6 +31,16 @@ const calendarRecurrenceSchema = z.object({
   endDate: z.string().datetime("Recurrence end date must be an ISO datetime."),
 });
 
+const messageThreadContextSchema = z.object({
+  type: z.enum(["intervention", "referral"]),
+  studentName: nonEmptyTrimmedString("Thread student name", 200),
+  interventionId: z.string().trim().min(1).max(160).optional(),
+  interventionPlanName: z.string().trim().min(1).max(280).optional(),
+  referralId: z.string().trim().min(1).max(160).optional(),
+  referralType: z.string().trim().min(1).max(120).optional(),
+  referralUrgency: z.enum(["Low", "Medium", "High", "Critical"]).optional(),
+});
+
 export const calendarEventRowSchema = z.object({
   id: nonEmptyTrimmedString("Event id", 160),
   title: nonEmptyTrimmedString("Event title", 280),
@@ -57,6 +67,7 @@ const messageSchema = z.object({
   isRead: z.boolean(),
   isMe: z.boolean(),
   attachments: z.array(attachmentSchema).optional(),
+  threadContext: messageThreadContextSchema.optional(),
 });
 
 export const conversationRowSchema = z.object({
@@ -71,6 +82,7 @@ export const conversationRowSchema = z.object({
   messages: z.array(messageSchema),
   isGroup: z.boolean().optional(),
   participants: z.array(nonEmptyTrimmedString("Participant", 200)).optional(),
+  threadContext: messageThreadContextSchema.optional(),
 });
 
 export const documentRowSchema = z.object({

@@ -23,7 +23,7 @@ import {
   Loader2,
   Send
 } from 'lucide-react';
-import { Tier } from '../types';
+import { Tier, UserRole, type MessagesLaunchContext } from '../types';
 import { DraggableModal } from './DraggableModal';
 import type { AIInterventionPlan } from '../services/geminiService';
 import { generateStructuredIntervention } from '../services/geminiService';
@@ -31,6 +31,7 @@ import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
 
 const TEACHERS = ["Mr. Davis", "Mrs. Johnson", "Mr. Thompson", "Ms. Lee", "Mrs. Garcia"];
+const PRINCIPAL_CONTACT = "Rosa Cortese";
 
 interface InterventionRecord {
   id: string;
@@ -67,6 +68,7 @@ type SortBy = 'Last Name' | 'First Name' | 'Progress' | 'Attendance' | 'Duration
 interface InterventionManagerProps {
   onStudentClick: (name: string) => void;
   onMenuClick: () => void;
+  onComposeMessage: (launch: MessagesLaunchContext) => void;
   highlightedReferralId?: string | null;
   onReferralHighlightConsumed?: () => void;
 }
@@ -74,6 +76,7 @@ interface InterventionManagerProps {
 export const InterventionManager: React.FC<InterventionManagerProps> = ({
   onStudentClick,
   onMenuClick,
+  onComposeMessage,
   highlightedReferralId,
   onReferralHighlightConsumed,
 }) => {
@@ -101,6 +104,12 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
   const [isNewPlanOpen, setIsNewPlanOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [selectedPlanForShare, setSelectedPlanForShare] = useState<InterventionRecord | null>(null);
+  const [shareTargets, setShareTargets] = useState({
+    family: true,
+    principal: false,
+    support: true,
+  });
+  const [shareNote, setShareNote] = useState("");
   
   // New Plan Data & AI State
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -317,15 +326,83 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     }, 2000);
   };
 
+  const resolveShareRecipient = (plan: InterventionRecord, target: "family" | "support" | "principal") => {
+    if (target === "family") {
+      return {
+        recipientName: `Family of ${plan.firstName || plan.studentName}`,
+        recipientRole: UserRole.PARENT,
+        label: "Family",
+      };
+    }
+    if (target === "support") {
+      return {
+        recipientName: plan.teacher || TEACHERS[0],
+        recipientRole: UserRole.TEACHER,
+        label: "Support staff",
+      };
+    }
+    return {
+      recipientName: PRINCIPAL_CONTACT,
+      recipientRole: UserRole.PRINCIPAL,
+      label: "Principal",
+    };
+  };
+
   const handleSharePlan = (plan: InterventionRecord) => {
       setSelectedPlanForShare(plan);
+      setShareTargets({ family: true, principal: false, support: true });
+      setShareNote("");
       setIsShareModalOpen(true);
   };
 
   const handleConfirmShare = () => {
+      if (!selectedPlanForShare) return;
+      const selectedTargets = (["family", "support", "principal"] as const).filter(
+        (target) => shareTargets[target],
+      );
+      if (selectedTargets.length === 0) return;
+
+      const [primaryTarget, ...additionalTargets] = selectedTargets;
+      const primaryRecipient = resolveShareRecipient(selectedPlanForShare, primaryTarget);
+      const additionalLabels = additionalTargets.map((target) => resolveShareRecipient(selectedPlanForShare, target).label);
+      const note = shareNote.trim();
+      const defaultDraft = `Sharing ${selectedPlanForShare.planName} for ${selectedPlanForShare.studentName}.`;
+      const collaboratorLine = additionalLabels.length > 0
+        ? ` Please include ${additionalLabels.join(", ")} in follow-up.`
+        : "";
+
+      onComposeMessage({
+        recipientName: primaryRecipient.recipientName,
+        recipientRole: primaryRecipient.recipientRole,
+        draft: `${note || defaultDraft}${collaboratorLine}`,
+        context: {
+          type: "intervention",
+          studentName: selectedPlanForShare.studentName,
+          interventionId: selectedPlanForShare.id,
+          interventionPlanName: selectedPlanForShare.planName,
+        },
+      });
       setIsShareModalOpen(false);
       setSelectedPlanForShare(null);
-      alert("Lesson plan shared successfully with selected recipients.");
+      setShareNote("");
+  };
+
+  const handleReferralMessage = (referral: ReferralRecord) => {
+    const isEscalated = /high|critical/i.test(referral.urgency);
+    onComposeMessage({
+      recipientName: isEscalated ? PRINCIPAL_CONTACT : TEACHERS[0],
+      recipientRole: isEscalated ? UserRole.PRINCIPAL : UserRole.TEACHER,
+      draft: `Follow up on ${referral.studentName}'s ${referral.type.toLowerCase()} referral (${referral.urgency.toLowerCase()} urgency).`,
+      context: {
+        type: "referral",
+        studentName: referral.studentName,
+        referralId: referral.id,
+        referralType: referral.type,
+        referralUrgency: /low|medium|high|critical/i.test(referral.urgency)
+          ? (referral.urgency[0].toUpperCase() + referral.urgency.slice(1).toLowerCase()) as "Low" | "Medium" | "High" | "Critical"
+          : undefined,
+      },
+    });
   };
 
   const clearFilters = () => {
@@ -400,14 +477,31 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       {/* Share Modal */}
       <DraggableModal
         isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
+        onClose={() => {
+          setIsShareModalOpen(false);
+          setSelectedPlanForShare(null);
+          setShareNote("");
+        }}
         title="Share Lesson Plan"
         initialWidth={500}
         initialHeight={400}
         footer={
             <div className="flex justify-end gap-3 w-full">
-                <button onClick={() => setIsShareModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg">Cancel</button>
-                <button onClick={handleConfirmShare} className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsShareModalOpen(false);
+                    setSelectedPlanForShare(null);
+                    setShareNote("");
+                  }}
+                  className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmShare}
+                  disabled={!shareTargets.family && !shareTargets.principal && !shareTargets.support}
+                  className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
                     <Send size={16} /> Send
                 </button>
             </div>
@@ -422,21 +516,42 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Recipients</label>
                   <div className="space-y-2">
                       <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded" defaultChecked />
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 text-indigo-600 rounded"
+                            checked={shareTargets.family}
+                            onChange={(event) =>
+                              setShareTargets((previous) => ({ ...previous, family: event.target.checked }))
+                            }
+                          />
                           <div className="flex-1">
                               <span className="text-sm font-bold text-slate-700 block">Parents / Guardians</span>
                               <span className="text-xs text-slate-400">Via Parent Portal & Email</span>
                           </div>
                       </label>
                       <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded" />
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 text-indigo-600 rounded"
+                            checked={shareTargets.principal}
+                            onChange={(event) =>
+                              setShareTargets((previous) => ({ ...previous, principal: event.target.checked }))
+                            }
+                          />
                           <div className="flex-1">
                               <span className="text-sm font-bold text-slate-700 block">Principal</span>
                               <span className="text-xs text-slate-400">For approval/review</span>
                           </div>
                       </label>
                       <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
-                          <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded" defaultChecked />
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 text-indigo-600 rounded"
+                            checked={shareTargets.support}
+                            onChange={(event) =>
+                              setShareTargets((previous) => ({ ...previous, support: event.target.checked }))
+                            }
+                          />
                           <div className="flex-1">
                               <span className="text-sm font-bold text-slate-700 block">Support Staff</span>
                               <span className="text-xs text-slate-400">Intervention specialists</span>
@@ -446,7 +561,12 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
               </div>
               <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Message (Optional)</label>
-                  <textarea className="w-full p-2.5 border border-slate-200 rounded-lg text-sm h-20 resize-none" placeholder="Add a note..." />
+                  <textarea
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-sm h-20 resize-none"
+                    placeholder="Add a note..."
+                    value={shareNote}
+                    onChange={(event) => setShareNote(event.target.value)}
+                  />
               </div>
           </div>
       </DraggableModal>
@@ -689,6 +809,13 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                                         >
                                             Open Student
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleReferralMessage(referral)}
+                                            className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                        >
+                                            Message Team
                                         </button>
                                     </div>
                                 </div>
@@ -972,7 +1099,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                             </div>
                                             
                                             {/* Share Button (Cards) */}
-                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="absolute top-2 right-2">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
                                                     className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm"
@@ -1019,7 +1146,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                             <div className="w-1/12 text-right flex justify-end gap-2">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
-                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors"
                                                     title="Share Lesson Plan"
                                                 >
                                                     <Share2 size={16} />

@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Conversation, Message, Attachment } from '../types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Attachment, Conversation, Message, MessagesLaunchContext } from '../types';
 import { UserRole } from '../types';
 import { 
   Search, 
@@ -30,10 +30,14 @@ import {
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import {
+  conversationMatchesContextFilter,
+  type ConversationContextFilter,
   filterConversationsByQuery,
   formatMessageTimeLabel,
   MAX_ATTACHMENTS_PER_MESSAGE,
+  summarizeThreadContext,
   sortConversationsByLastActivity,
+  toLaunchContextSignature,
   validateAttachment,
 } from '../lib/messages-utils';
 
@@ -41,7 +45,7 @@ interface MessagesViewProps {
   currentUserRole: UserRole;
   currentUserName: string;
   onMenuClick: () => void;
-  targetRecipient?: string;
+  launchContext?: MessagesLaunchContext | null;
 }
 
 // Mock contacts for selection - Updated to match master list
@@ -83,12 +87,13 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   currentUserRole, 
   currentUserName, 
   onMenuClick,
-  targetRecipient 
+  launchContext
 }) => {
   const messagesCollection = useTenantCollection<Conversation>('messages');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [contextFilter, setContextFilter] = useState<ConversationContextFilter>('all');
   const [newMessage, setNewMessage] = useState('');
   
   // Attachment State
@@ -141,6 +146,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   const modalTriggerRef = useRef<HTMLElement | null>(null);
   const hasHydratedRef = useRef(false);
   const lastPersistedRef = useRef("");
+  const lastHandledLaunchRef = useRef("");
   const isStaffUser = STAFF_ROLES.has(currentUserRole);
 
   // Load conversations specific to the current user
@@ -160,36 +166,67 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     }
   }, [currentUserName, messagesCollection.query.data]);
 
-  // Initialize with target if provided
+  const resolveLaunchRecipientRole = (recipientName: string, fallback?: UserRole): UserRole => {
+    if (fallback) return fallback;
+    return MOCK_CONTACTS.find((contact) => contact.name === recipientName)?.role ?? UserRole.PARENT;
+  };
+
+  // Initialize from structured launch context (interventions/referrals/dashboard handoff)
   useEffect(() => {
-    if (targetRecipient && currentUserName) {
-      const existing = conversations.find(c => 
-        !c.isGroup && c.participants?.includes(targetRecipient)
-      );
-      
-      if (existing) {
-        openConversation(existing.id);
-      } else {
-        // Create temp conversation locally if not exists
-        const newId = `new-${Date.now()}`;
-        const newConvo: Conversation = {
-          id: newId,
-          participantId: `temp-${Date.now()}`,
-          participantName: targetRecipient, // Will be resolved dynamically later
-          participantRole: UserRole.PARENT, // Default, logic handles real role
-          participantAvatarSeed: targetRecipient.replace(/\s/g, ''),
-          lastMessage: '',
-          lastMessageTime: 'New',
-          unreadCount: 0,
-          messages: [],
-          isGroup: false,
-          participants: [currentUserName, targetRecipient]
-        };
-        setConversations(prev => [newConvo, ...prev]);
-        openConversation(newId);
+    if (!hasHydratedRef.current || !launchContext || !currentUserName) return;
+    const signature = toLaunchContextSignature(launchContext);
+    if (!signature || signature === lastHandledLaunchRef.current) return;
+    lastHandledLaunchRef.current = signature;
+
+    const recipient = launchContext.recipientName?.trim();
+    if (!recipient) {
+      if (launchContext.draft?.trim()) {
+        setNewMessage(launchContext.draft.trim());
       }
+      return;
     }
-  }, [targetRecipient, currentUserName, conversations]);
+
+    const existing = conversations.find(
+      (conversation) => !conversation.isGroup && conversation.participants?.includes(recipient),
+    );
+
+    if (existing) {
+      if (launchContext.context) {
+        setConversations((previous) =>
+          previous.map((conversation) =>
+            conversation.id === existing.id
+              ? { ...conversation, threadContext: launchContext.context }
+              : conversation,
+          ),
+        );
+      }
+      openConversation(existing.id);
+    } else {
+      const newId = `new-${Date.now()}`;
+      const participantRole = resolveLaunchRecipientRole(recipient, launchContext.recipientRole);
+      const newConversation: Conversation = {
+        id: newId,
+        participantId: `temp-${Date.now()}`,
+        participantName: recipient,
+        participantRole,
+        participantAvatarSeed: recipient.replace(/\s/g, ''),
+        lastMessage: '',
+        lastMessageTime: 'New',
+        unreadCount: 0,
+        messages: [],
+        isGroup: false,
+        participants: [currentUserName, recipient],
+        threadContext: launchContext.context,
+      };
+      setConversations((previous) => sortConversationsByLastActivity([newConversation, ...previous]));
+      openConversation(newId);
+    }
+
+    if (launchContext.draft?.trim()) {
+      setNewMessage(launchContext.draft.trim());
+      setComposerError(null);
+    }
+  }, [conversations, currentUserName, launchContext]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -316,7 +353,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   }, [showNewMessageModal, showGroupInfoModal, showDeleteConversationModal]);
 
   // --- Helper to get display name/avatar for a conversation relative to current user ---
-  const getConversationMeta = (convo: Conversation) => {
+  const getConversationMeta = useCallback((convo: Conversation) => {
       if (convo.isGroup) {
           return {
               name: convo.participantName || 'Group Chat', // Use defined name or fallback
@@ -332,7 +369,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           avatarSeed: otherParticipant.replace(/\s/g, ''),
           role: convo.participantRole // This might be inaccurate if roles differ, but sufficient for demo
       };
-  };
+  }, [currentUserName]);
 
   const activeConversation = conversations.find(c => c.id === selectedConversationId);
   const activeMeta = activeConversation ? getConversationMeta(activeConversation) : null;
@@ -342,9 +379,22 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     [conversations],
   );
 
+  const contextFilteredConversations = useMemo(
+    () =>
+      sortedConversations.filter((conversation) =>
+        conversationMatchesContextFilter(conversation, contextFilter),
+      ),
+    [contextFilter, sortedConversations],
+  );
+
   const filteredConversations = useMemo(
-    () => filterConversationsByQuery(sortedConversations, (conversation) => getConversationMeta(conversation).name, searchQuery),
-    [sortedConversations, searchQuery, currentUserName],
+    () =>
+      filterConversationsByQuery(
+        contextFilteredConversations,
+        (conversation) => getConversationMeta(conversation).name,
+        searchQuery,
+      ),
+    [contextFilteredConversations, getConversationMeta, searchQuery],
   );
   const hasActiveSearch = searchQuery.trim().length > 0;
 
@@ -408,7 +458,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       timestamp: new Date().toISOString(),
       isRead: true,
       isMe: true,
-      attachments: [...pendingAttachments]
+      attachments: [...pendingAttachments],
+      threadContext: activeConversation?.threadContext,
     };
 
     setConversations(prev =>
@@ -1102,6 +1153,26 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-transparent rounded-xl text-sm focus:bg-white focus:border-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
               />
             </div>
+            <div className="mt-3 flex items-center gap-2">
+              {([
+                { id: 'all', label: 'All' },
+                { id: 'intervention', label: 'Interventions' },
+                { id: 'referral', label: 'Referrals' },
+              ] as const).map((filterOption) => (
+                <button
+                  key={filterOption.id}
+                  type="button"
+                  onClick={() => setContextFilter(filterOption.id)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                    contextFilter === filterOption.id
+                      ? 'bg-indigo-100 text-indigo-700'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  {filterOption.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* List */}
@@ -1109,10 +1180,20 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             {filteredConversations.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
                     <p className="text-sm font-medium">
-                      {hasActiveSearch ? 'No matches for this search.' : 'No messages yet.'}
+                      {hasActiveSearch
+                        ? 'No matches for this search.'
+                        : contextFilter === 'intervention'
+                          ? 'No intervention threads yet.'
+                          : contextFilter === 'referral'
+                            ? 'No referral threads yet.'
+                            : 'No messages yet.'}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {hasActiveSearch ? 'Try a different keyword.' : 'Start a new conversation to begin collaborating.'}
+                      {hasActiveSearch
+                        ? 'Try a different keyword.'
+                        : contextFilter === 'all'
+                          ? 'Start a new conversation to begin collaborating.'
+                          : 'Try switching to All, or launch a message from a referral or intervention.'}
                     </p>
                 </div>
             ) : (
@@ -1167,6 +1248,11 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                                     <p className={`text-xs truncate leading-relaxed ${convo.unreadCount > 0 ? 'font-semibold text-slate-800' : 'text-slate-500 group-hover:text-slate-600'}`}>
                                         {convo.lastMessage || <span className="italic opacity-70">Start a conversation</span>}
                                     </p>
+                                    {convo.threadContext ? (
+                                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
+                                        {summarizeThreadContext(convo.threadContext)}
+                                      </p>
+                                    ) : null}
                                 </div>
                             </div>
                         </button>
@@ -1217,9 +1303,16 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                         {activeMeta.name}
                         {activeConversation.isGroup && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-medium">{activeConversation.participants?.length}</span>}
                     </h3>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getRoleBadgeStyle(activeMeta.role)}`}>
-                      {activeMeta.role}
-                    </span>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getRoleBadgeStyle(activeMeta.role)}`}>
+                        {activeMeta.role}
+                      </span>
+                      {activeConversation.threadContext ? (
+                        <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                          {summarizeThreadContext(activeConversation.threadContext)}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1256,6 +1349,16 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-white">
+                {activeConversation.threadContext ? (
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs text-indigo-800">
+                    <p className="font-semibold">
+                      Linked context: {summarizeThreadContext(activeConversation.threadContext)}
+                    </p>
+                    <p className="mt-1 text-indigo-700">
+                      Student: {activeConversation.threadContext.studentName}
+                    </p>
+                  </div>
+                ) : null}
                 {activeConversation.messages.map((msg) => {
                   // Calculate isMe dynamically based on currentUserName
                   const isMe = msg.senderName === currentUserName;
