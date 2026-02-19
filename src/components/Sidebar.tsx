@@ -243,8 +243,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-      <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 p-4">
-        <div className="flex items-center justify-between gap-2">
+      <div className={`sticky top-0 z-10 border-b border-slate-800 bg-slate-900 ${isDesktopCollapsed && !isMobile ? "p-3" : "p-4"}`}>
+        <div className={isDesktopCollapsed && !isMobile ? "flex flex-col items-center gap-2" : "flex items-center justify-between gap-2"}>
           <div className={`flex items-center gap-3 ${isDesktopCollapsed && !isMobile ? "justify-center" : ""}`}>
             <div className="rounded-lg bg-brand-600 p-1.5">
               {showBrandLogo ? (
@@ -416,7 +416,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             <button
               type="button"
               onClick={onDesktopCollapseToggle}
-              className="flex w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-2.5 text-slate-100 transition-colors hover:border-slate-500 hover:text-white"
+              className="mx-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-0 text-slate-100 transition-colors hover:border-slate-500 hover:text-white"
               aria-label="Show profile and settings"
               title="Show profile and settings"
             >
