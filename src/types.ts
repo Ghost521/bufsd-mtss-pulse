@@ -134,6 +134,8 @@ export interface MessageThreadContext {
 export interface MessagesLaunchContext {
   recipientName?: string;
   recipientRole?: UserRole;
+  recipientNames?: string[];
+  recipientRolesByName?: Record<string, UserRole>;
   context?: MessageThreadContext;
   draft?: string;
 }
@@ -277,6 +279,8 @@ export interface StaffRosterItem {
   id: string;
   name: string;
   role: 'Teacher' | 'Consultant' | 'Specialist';
+  isInterventionist?: boolean;
+  interventionFocus?: Array<'Math' | 'Reading'>;
   grade?: string;
   studentCount: number;
   attendanceRate: number; // Class average

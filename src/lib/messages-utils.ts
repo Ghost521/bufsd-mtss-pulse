@@ -109,9 +109,20 @@ export const summarizeThreadContext = (context: MessageThreadContext | undefined
 
 export const toLaunchContextSignature = (launchContext: MessagesLaunchContext | null | undefined): string => {
   if (!launchContext) return "";
+  const recipientNames = (launchContext.recipientNames ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+    .sort((left, right) => left.localeCompare(right));
+  const recipientRolesByName = launchContext.recipientRolesByName
+    ? Object.fromEntries(
+        Object.entries(launchContext.recipientRolesByName).sort(([left], [right]) => left.localeCompare(right)),
+      )
+    : null;
   return JSON.stringify({
     recipientName: launchContext.recipientName ?? "",
     recipientRole: launchContext.recipientRole ?? "",
+    recipientNames,
+    recipientRolesByName,
     draft: launchContext.draft ?? "",
     context: launchContext.context
       ? {

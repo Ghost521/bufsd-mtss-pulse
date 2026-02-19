@@ -23,12 +23,13 @@ import {
   Loader2,
   Send
 } from 'lucide-react';
-import { Tier, UserRole, type MessagesLaunchContext } from '../types';
+import { Tier, UserRole, type MessagesLaunchContext, type StaffRosterItem } from '../types';
 import { DraggableModal } from './DraggableModal';
 import type { AIInterventionPlan } from '../services/geminiService';
 import { generateStructuredIntervention } from '../services/geminiService';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
+import { getInterventionistRecipients, resolveInterventionFocus } from '../lib/interventionists';
 
 const TEACHERS = ["Mr. Davis", "Mrs. Johnson", "Mr. Thompson", "Ms. Lee", "Mrs. Garcia"];
 const PRINCIPAL_CONTACT = "Rosa Cortese";
@@ -41,6 +42,7 @@ interface InterventionRecord {
   grade: string;
   teacher: string;
   tier: Tier;
+  focusArea?: string;
   planName: string;
   startDate: string;
   durationWeeks: number;
@@ -82,6 +84,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 }) => {
   const interventionsCollection = useTenantCollection<InterventionRecord>('interventions');
   const referralsCollection = useTenantCollection<ReferralRecord>('referrals');
+  const staffCollection = useTenantCollection<StaffRosterItem>('staff');
   const [records, setRecords] = useState<InterventionRecord[]>([]);
   
   // View Controls
@@ -154,6 +157,10 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     () => referralsCollection.query.data?.rows ?? [],
     [referralsCollection.query.data?.rows],
   );
+  const staffRows = useMemo(
+    () => staffCollection.query.data?.rows ?? [],
+    [staffCollection.query.data?.rows],
+  );
 
   const recentReferrals = useMemo(() => {
     const toTime = (value?: string) => {
@@ -165,6 +172,21 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       .sort((left, right) => toTime(right.createdAt) - toTime(left.createdAt))
       .slice(0, 6);
   }, [referrals]);
+
+  const selectedInterventionFocuses = useMemo(() => {
+    if (!selectedPlanForShare) return [];
+    return resolveInterventionFocus({
+      focusArea: selectedPlanForShare.focusArea,
+      planName: selectedPlanForShare.planName,
+      note: shareNote,
+    });
+  }, [selectedPlanForShare, shareNote]);
+
+  const autoInterventionists = useMemo(() => {
+    if (!selectedPlanForShare) return [];
+    const names = getInterventionistRecipients(staffRows, selectedInterventionFocuses);
+    return names.filter((name) => name.toLowerCase() !== selectedPlanForShare.teacher.toLowerCase());
+  }, [selectedInterventionFocuses, selectedPlanForShare, staffRows]);
 
   useEffect(() => {
     if (!highlightedReferralId || !onReferralHighlightConsumed) return;
@@ -299,6 +321,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       grade: '4th', // Default
       teacher: newPlanData.teacher,
       tier: newPlanData.tier,
+      focusArea: newPlanData.focusArea,
       planName: newPlanData.planName,
       startDate: new Date().toISOString().split('T')[0],
       durationWeeks: 6,
@@ -324,6 +347,12 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
         setScanResult("Found 3 students with declining attendance and reading scores. Recommended actions added to queue.");
         setTimeout(() => setScanResult(null), 4000);
     }, 2000);
+  };
+
+  type ShareRecipient = {
+    recipientName: string;
+    recipientRole: UserRole;
+    label: string;
   };
 
   const resolveShareRecipient = (plan: InterventionRecord, target: "family" | "support" | "principal") => {
@@ -360,20 +389,38 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       const selectedTargets = (["family", "support", "principal"] as const).filter(
         (target) => shareTargets[target],
       );
-      if (selectedTargets.length === 0) return;
+      const manualRecipients = selectedTargets.map((target) => resolveShareRecipient(selectedPlanForShare, target));
+      const autoRecipients: ShareRecipient[] = autoInterventionists.map((name) => ({
+        recipientName: name,
+        recipientRole: UserRole.TEACHER,
+        label: "Interventionist",
+      }));
+      const recipients = [...manualRecipients, ...autoRecipients].reduce<ShareRecipient[]>((accumulator, recipient) => {
+        const key = recipient.recipientName.trim().toLowerCase();
+        if (!key || accumulator.some((entry) => entry.recipientName.trim().toLowerCase() === key)) {
+          return accumulator;
+        }
+        accumulator.push(recipient);
+        return accumulator;
+      }, []);
+      if (recipients.length === 0) return;
 
-      const [primaryTarget, ...additionalTargets] = selectedTargets;
-      const primaryRecipient = resolveShareRecipient(selectedPlanForShare, primaryTarget);
-      const additionalLabels = additionalTargets.map((target) => resolveShareRecipient(selectedPlanForShare, target).label);
+      const [primaryRecipient, ...additionalRecipients] = recipients;
       const note = shareNote.trim();
       const defaultDraft = `Sharing ${selectedPlanForShare.planName} for ${selectedPlanForShare.studentName}.`;
-      const collaboratorLine = additionalLabels.length > 0
-        ? ` Please include ${additionalLabels.join(", ")} in follow-up.`
+      const collaboratorLine = additionalRecipients.length > 0
+        ? ` Please include ${additionalRecipients.map((recipient) => recipient.recipientName).join(", ")} in follow-up.`
         : "";
+      const recipientRolesByName = recipients.reduce<Record<string, UserRole>>((accumulator, recipient) => {
+        accumulator[recipient.recipientName] = recipient.recipientRole;
+        return accumulator;
+      }, {});
 
       onComposeMessage({
         recipientName: primaryRecipient.recipientName,
         recipientRole: primaryRecipient.recipientRole,
+        recipientNames: recipients.map((recipient) => recipient.recipientName),
+        recipientRolesByName,
         draft: `${note || defaultDraft}${collaboratorLine}`,
         context: {
           type: "intervention",
@@ -470,6 +517,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     statusFilter !== 'All',
     teacherFilter !== 'All'
   ].filter(Boolean).length;
+  const hasShareRecipients = shareTargets.family || shareTargets.principal || shareTargets.support || autoInterventionists.length > 0;
 
   return (
     <div className="app-responsive-pane flex h-full min-w-0 flex-col bg-slate-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -499,7 +547,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 </button>
                 <button
                   onClick={handleConfirmShare}
-                  disabled={!shareTargets.family && !shareTargets.principal && !shareTargets.support}
+                  disabled={!hasShareRecipients}
                   className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     <Send size={16} /> Send
@@ -557,6 +605,17 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                               <span className="text-xs text-slate-400">Intervention specialists</span>
                           </div>
                       </label>
+                  </div>
+                  <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs text-indigo-800">
+                    {autoInterventionists.length > 0 ? (
+                      <p>
+                        Auto-included {selectedInterventionFocuses.join(" + ")} interventionists: {autoInterventionists.join(", ")}.
+                      </p>
+                    ) : (
+                      <p>
+                        No tagged interventionists match this plan yet. Principals can tag teachers in Staff Directory.
+                      </p>
+                    )}
                   </div>
               </div>
               <div>

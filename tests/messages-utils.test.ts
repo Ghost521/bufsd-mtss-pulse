@@ -142,6 +142,35 @@ describe("messages utils", () => {
     expect(signatureA).not.toBe(signatureB);
   });
 
+  it("includes multi-recipient launch details in signatures", () => {
+    const signatureA = toLaunchContextSignature({
+      recipientNames: ["Rosa Cortese", "Mr. Davis"],
+      recipientRolesByName: {
+        "Mr. Davis": UserRole.TEACHER,
+        "Rosa Cortese": UserRole.PRINCIPAL,
+      },
+      context: {
+        type: "intervention",
+        studentName: "Jordan Lee",
+        interventionId: "plan-1",
+      },
+    });
+
+    const signatureB = toLaunchContextSignature({
+      recipientNames: ["Mr. Davis"],
+      recipientRolesByName: {
+        "Mr. Davis": UserRole.TEACHER,
+      },
+      context: {
+        type: "intervention",
+        studentName: "Jordan Lee",
+        interventionId: "plan-1",
+      },
+    });
+
+    expect(signatureA).not.toBe(signatureB);
+  });
+
   it("rejects unsupported or oversized attachments", () => {
     const unsupported = new File(["abc"], "notes.csv", { type: "text/csv" });
     const oversized = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "big.pdf", { type: "application/pdf" });

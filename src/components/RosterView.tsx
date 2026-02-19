@@ -6,6 +6,10 @@ import { UserRole } from '../types';
 import { StudentRosterView } from './StudentRosterView';
 import type { WorkspacePageId } from '../lib/workspaceRoutes';
 import { useTenantCollection } from '../hooks/useTenantCollection';
+import {
+  normalizeInterventionFocus,
+  type InterventionistFocus,
+} from '../lib/interventionists';
 import { 
   Users, 
   TrendingUp, 
@@ -29,7 +33,9 @@ import {
   Trash2,
   Archive,
   Download,
-  X
+  X,
+  BookOpen,
+  Calculator
 } from 'lucide-react';
 import { SidebarToggleButton } from './SidebarToggleButton';
 
@@ -48,6 +54,7 @@ interface ExtendedStaffRosterItem extends StaffRosterItem {
 
 type StaffSortKey = 'Name' | 'Fidelity' | 'Attendance' | 'Interventions' | 'Caseload';
 const STAFF_SORT_OPTIONS: StaffSortKey[] = ['Fidelity', 'Attendance', 'Interventions', 'Caseload', 'Name'];
+const INTERVENTION_FOCUSES: InterventionistFocus[] = ['Reading', 'Math'];
 
 // Helper to generate deterministic breakdown based on total score and seed
 const getFidelityBreakdown = (totalScore: number, seed: string) => {
@@ -103,6 +110,7 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
 
   const canImportStaff = currentUserRole === UserRole.PRINCIPAL || currentUserRole === UserRole.DISTRICT;
+  const canManageInterventionists = currentUserRole === UserRole.PRINCIPAL || currentUserRole === UserRole.DISTRICT;
 
   useEffect(() => {
     const rows = staffCollection.query.data?.rows;
@@ -178,6 +186,36 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
     } else {
       alert(`${action} for ${staffName}`);
     }
+  };
+
+  const persistInterventionFocus = (staffId: string, nextFocus: InterventionistFocus[]) => {
+    setStaffList((previous) =>
+      previous.map((staff) =>
+        staff.id === staffId
+          ? {
+              ...staff,
+              interventionFocus: nextFocus,
+              isInterventionist: nextFocus.length > 0,
+            }
+          : staff,
+      ),
+    );
+    staffCollection.updateMutation.mutate({
+      id: staffId,
+      patch: {
+        interventionFocus: nextFocus,
+        isInterventionist: nextFocus.length > 0,
+      },
+    });
+  };
+
+  const handleToggleInterventionFocus = (staff: ExtendedStaffRosterItem, focus: InterventionistFocus) => {
+    if (!canManageInterventionists || staff.role !== 'Teacher') return;
+    const currentFocus = normalizeInterventionFocus(staff.interventionFocus);
+    const nextFocus = currentFocus.includes(focus)
+      ? currentFocus.filter((value) => value !== focus)
+      : [...currentFocus, focus];
+    persistInterventionFocus(staff.id, nextFocus);
   };
 
   // Avatar Upload Handlers
@@ -476,6 +514,8 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                     const breakdown = getFidelityBreakdown(staff.mtssFidelityScore, staff.name);
                     const isHovered = hoveredFidelityId === staff.id;
                     const isSelected = selectedIds.has(staff.id);
+                    const interventionFocus = normalizeInterventionFocus(staff.interventionFocus);
+                    const isInterventionist = interventionFocus.length > 0 || Boolean(staff.isInterventionist);
                     
                     return (
                     <div 
@@ -532,6 +572,11 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                                         {staff.role}
                                     </span>
                                     {staff.grade && <span className="text-xs text-slate-500 font-medium border border-slate-100 px-1.5 py-0.5 rounded bg-slate-50">{staff.grade}</span>}
+                                    {isInterventionist ? (
+                                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700">
+                                        Interventionist{interventionFocus.length > 0 ? `: ${interventionFocus.join(' + ')}` : ''}
+                                      </span>
+                                    ) : null}
                                 </div>
                             </div>
                             </div>
@@ -577,6 +622,39 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                             <span className="text-xs font-semibold text-slate-600">Performance:</span>
                             <span className="text-xs font-bold text-slate-800">{staff.performanceMetric}</span>
                         </div>
+                        {canManageInterventionists && staff.role === 'Teacher' && !isSelectionMode ? (
+                          <div
+                            className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="mb-2 flex items-center justify-between">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Interventionist Tags</p>
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                {interventionFocus.length > 0 ? interventionFocus.join(' + ') : 'None'}
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              {INTERVENTION_FOCUSES.map((focus) => {
+                                const selected = interventionFocus.includes(focus);
+                                return (
+                                  <button
+                                    key={focus}
+                                    type="button"
+                                    onClick={() => handleToggleInterventionFocus(staff, focus)}
+                                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors ${
+                                      selected
+                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-700'
+                                    }`}
+                                  >
+                                    {focus === 'Reading' ? <BookOpen size={12} /> : <Calculator size={12} />}
+                                    {focus}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
                         </div>
 
                         {/* Enhanced Fidelity Progress Section */}

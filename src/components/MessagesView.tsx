@@ -166,7 +166,16 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     }
   }, [currentUserName, messagesCollection.query.data]);
 
-  const resolveLaunchRecipientRole = (recipientName: string, fallback?: UserRole): UserRole => {
+  const resolveLaunchRecipientRole = (
+    recipientName: string,
+    fallback?: UserRole,
+    roleMap?: Record<string, UserRole>,
+  ): UserRole => {
+    const recipientKey = recipientName.trim().toLowerCase();
+    if (roleMap) {
+      const mapped = Object.entries(roleMap).find(([name]) => name.trim().toLowerCase() === recipientKey)?.[1];
+      if (mapped) return mapped;
+    }
     if (fallback) return fallback;
     return MOCK_CONTACTS.find((contact) => contact.name === recipientName)?.role ?? UserRole.PARENT;
   };
@@ -178,48 +187,110 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     if (!signature || signature === lastHandledLaunchRef.current) return;
     lastHandledLaunchRef.current = signature;
 
-    const recipient = launchContext.recipientName?.trim();
-    if (!recipient) {
+    const recipientNames = Array.from(
+      new Set(
+        [
+          ...(launchContext.recipientNames ?? []),
+          launchContext.recipientName ?? "",
+        ]
+          .map((name) => name.trim())
+          .filter((name) => name.length > 0 && name.toLowerCase() !== currentUserName.trim().toLowerCase()),
+      ),
+    );
+
+    if (recipientNames.length === 0) {
       if (launchContext.draft?.trim()) {
         setNewMessage(launchContext.draft.trim());
       }
       return;
     }
 
-    const existing = conversations.find(
-      (conversation) => !conversation.isGroup && conversation.participants?.includes(recipient),
-    );
+    if (recipientNames.length === 1) {
+      const [recipient] = recipientNames;
+      const existing = conversations.find(
+        (conversation) => !conversation.isGroup && conversation.participants?.includes(recipient),
+      );
 
-    if (existing) {
-      if (launchContext.context) {
-        setConversations((previous) =>
-          previous.map((conversation) =>
-            conversation.id === existing.id
-              ? { ...conversation, threadContext: launchContext.context }
-              : conversation,
-          ),
+      if (existing) {
+        if (launchContext.context) {
+          setConversations((previous) =>
+            previous.map((conversation) =>
+              conversation.id === existing.id
+                ? { ...conversation, threadContext: launchContext.context }
+                : conversation,
+            ),
+          );
+        }
+        openConversation(existing.id);
+      } else {
+        const newId = `new-${Date.now()}`;
+        const participantRole = resolveLaunchRecipientRole(
+          recipient,
+          launchContext.recipientRole,
+          launchContext.recipientRolesByName,
         );
+        const newConversation: Conversation = {
+          id: newId,
+          participantId: `temp-${Date.now()}`,
+          participantName: recipient,
+          participantRole,
+          participantAvatarSeed: recipient.replace(/\s/g, ''),
+          lastMessage: '',
+          lastMessageTime: 'New',
+          unreadCount: 0,
+          messages: [],
+          isGroup: false,
+          participants: [currentUserName, recipient],
+          threadContext: launchContext.context,
+        };
+        setConversations((previous) => sortConversationsByLastActivity([newConversation, ...previous]));
+        openConversation(newId);
       }
-      openConversation(existing.id);
     } else {
-      const newId = `new-${Date.now()}`;
-      const participantRole = resolveLaunchRecipientRole(recipient, launchContext.recipientRole);
-      const newConversation: Conversation = {
-        id: newId,
-        participantId: `temp-${Date.now()}`,
-        participantName: recipient,
-        participantRole,
-        participantAvatarSeed: recipient.replace(/\s/g, ''),
-        lastMessage: '',
-        lastMessageTime: 'New',
-        unreadCount: 0,
-        messages: [],
-        isGroup: false,
-        participants: [currentUserName, recipient],
-        threadContext: launchContext.context,
-      };
-      setConversations((previous) => sortConversationsByLastActivity([newConversation, ...previous]));
-      openConversation(newId);
+      const normalizedLaunchMembers = new Set(
+        [currentUserName, ...recipientNames].map((name) => name.trim().toLowerCase()),
+      );
+      const existingGroup = conversations.find((conversation) => {
+        if (!conversation.isGroup || !conversation.participants) return false;
+        const memberSet = new Set(conversation.participants.map((name) => name.trim().toLowerCase()));
+        if (memberSet.size !== normalizedLaunchMembers.size) return false;
+        return Array.from(normalizedLaunchMembers).every((member) => memberSet.has(member));
+      });
+
+      if (existingGroup) {
+        if (launchContext.context) {
+          setConversations((previous) =>
+            previous.map((conversation) =>
+              conversation.id === existingGroup.id
+                ? { ...conversation, threadContext: launchContext.context }
+                : conversation,
+            ),
+          );
+        }
+        openConversation(existingGroup.id);
+      } else {
+        const newId = `new-${Date.now()}`;
+        const groupParticipants = [currentUserName, ...recipientNames];
+        const groupLabel = launchContext.context?.studentName
+          ? `${launchContext.context.studentName} Intervention Team`
+          : "Intervention Team";
+        const newConversation: Conversation = {
+          id: newId,
+          participantId: `group-${Date.now()}`,
+          participantName: groupLabel,
+          participantRole: "Group",
+          participantAvatarSeed: groupLabel.replace(/\s/g, ''),
+          lastMessage: '',
+          lastMessageTime: 'New',
+          unreadCount: 0,
+          messages: [],
+          isGroup: true,
+          participants: groupParticipants,
+          threadContext: launchContext.context,
+        };
+        setConversations((previous) => sortConversationsByLastActivity([newConversation, ...previous]));
+        openConversation(newId);
+      }
     }
 
     if (launchContext.draft?.trim()) {
