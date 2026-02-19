@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BarChart2, FolderOpen, MessageSquare, School } from "lucide-react";
+import { BarChart2, Bell, FolderOpen, MessageSquare, School } from "lucide-react";
 
 import { ROLE_ALLOWED_PAGES, type WorkspacePageId } from "../src/lib/workspaceRoutes";
 import { ICON_SIZE_PX, getRouteIcon, iconSize, ROUTE_ICON_BY_PAGE } from "../src/lib/ui/icons";
@@ -17,6 +17,7 @@ describe("icon system", () => {
     expect(getRouteIcon("map")).toBe(School);
     expect(getRouteIcon("reports")).toBe(BarChart2);
     expect(getRouteIcon("documents")).toBe(FolderOpen);
+    expect(getRouteIcon("notifications")).toBe(Bell);
   });
 
   it("uses stable icon size tokens", () => {
@@ -28,4 +29,3 @@ describe("icon system", () => {
     expect(ICON_SIZE_PX).toEqual({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 });
   });
 });
-

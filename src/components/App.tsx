@@ -56,6 +56,7 @@ const GradebookView = lazy(() => import('./GradebookView').then((m) => ({ defaul
 const LessonPlanLibrary = lazy(() => import('./LessonPlanLibrary').then((m) => ({ default: m.LessonPlanLibrary })));
 const DocumentManager = lazy(() => import('./DocumentManager').then((m) => ({ default: m.DocumentManager })));
 const MessagesView = lazy(() => import('./MessagesView').then((m) => ({ default: m.MessagesView })));
+const NotificationsView = lazy(() => import('./NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const CalendarView = lazy(() => import('./CalendarView').then((m) => ({ default: m.CalendarView })));
 const SchoolsMapView = lazy(() => import('./SchoolsMapView').then((m) => ({ default: m.SchoolsMapView })));
 const DataImporter = lazy(() => import('./DataImporter').then((m) => ({ default: m.DataImporter })));
@@ -1430,6 +1431,27 @@ const App: React.FC = () => {
             currentUserName={data.userName}
             onMenuClick={openMobileMenu}
             launchContext={messageLaunchContext}
+          />
+        );
+      case 'notifications':
+        return (
+          <NotificationsView
+            activeNotifications={notifications.activeNotifications}
+            archivedNotifications={notifications.archivedNotifications}
+            trashNotifications={notifications.trashNotifications}
+            unreadCount={notifications.unreadCount}
+            loading={notifications.query.isLoading}
+            errorMessage={notificationErrorMessage}
+            onOpenNotification={(id) => {
+              setSelectedNotificationId(id);
+              notifications.markRead(id);
+            }}
+            onDismissNotification={(id) => notifications.dismiss(id)}
+            onArchiveNotification={(id) => notifications.archive(id)}
+            onDeleteNotification={(id) => notifications.deleteNotification(id)}
+            onRestoreNotification={(id) => notifications.restore(id)}
+            onMarkAllRead={() => notifications.markAllRead()}
+            onArchiveRead={() => notifications.archiveRead()}
           />
         );
       case 'calendar':

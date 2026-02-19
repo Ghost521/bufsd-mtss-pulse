@@ -4,6 +4,7 @@ import {
   BookCopy,
   BookOpen,
   Bot,
+  Bell,
   Calendar,
   FileText,
   FolderOpen,
@@ -42,6 +43,7 @@ export const ROUTE_ICON_BY_PAGE: Record<WorkspacePageId, LucideIcon> = {
   calendar: Calendar,
   reports: BarChart2,
   messages: MessageSquare,
+  notifications: Bell,
   documents: FolderOpen,
   import: HardDriveUpload,
   map: School,
@@ -56,4 +58,3 @@ export const ACTION_ICON_BY_ID = {
   refreshData: RefreshCw,
   aiSummary: Bot,
 } as const;
-

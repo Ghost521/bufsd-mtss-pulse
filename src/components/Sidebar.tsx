@@ -113,7 +113,15 @@ const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
   return [
     { id: "work", label: "Instruction", defaultExpanded: true, items: workItemsByRole[role] },
     { id: "planning", label: "Planning & Calendar", defaultExpanded: true, items: planningItemsByRole[role] },
-    { id: "communication", label: "Communication", defaultExpanded: true, items: [{ id: "messages", label: "Messages" }] },
+    {
+      id: "communication",
+      label: "Communication",
+      defaultExpanded: true,
+      items: [
+        { id: "messages", label: "Messages" },
+        { id: "notifications", label: "Notifications" },
+      ],
+    },
     {
       id: "administration",
       label: "Operations",

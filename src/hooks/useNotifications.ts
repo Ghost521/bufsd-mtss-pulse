@@ -68,6 +68,10 @@ export const useNotifications = (input: {
     () => userRows.filter((row) => !row.deletedAt && Boolean(row.archivedAt)),
     [userRows],
   );
+  const trashNotifications = useMemo(
+    () => userRows.filter((row) => Boolean(row.deletedAt)),
+    [userRows],
+  );
 
   const unseenCount = useMemo(
     () => activeNotifications.filter((row) => !row.seenAt).length,
@@ -164,6 +168,7 @@ export const useNotifications = (input: {
         };
         delete nextRow.archivedAt;
         delete nextRow.dismissedAt;
+        delete nextRow.deletedAt;
         return nextRow;
       });
       notificationsCollection.replaceMutation.mutate(nextRows);
@@ -224,6 +229,7 @@ export const useNotifications = (input: {
     query: notificationsCollection.query,
     activeNotifications,
     archivedNotifications,
+    trashNotifications,
     userNotifications: userRows,
     unseenCount,
     unreadCount,

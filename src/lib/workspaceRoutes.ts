@@ -10,6 +10,7 @@ export type WorkspacePageId =
   | "calendar"
   | "reports"
   | "messages"
+  | "notifications"
   | "documents"
   | "import"
   | "map"
@@ -28,6 +29,7 @@ const PAGE_ID_TO_SLUG: Record<WorkspacePageId, string> = {
   calendar: "calendar",
   reports: "reports",
   messages: "messages",
+  notifications: "notifications",
   documents: "documents",
   import: "import",
   map: "map",
@@ -49,6 +51,7 @@ export const ROLE_ALLOWED_PAGES: Record<UserRole, WorkspacePageId[]> = {
     "calendar",
     "reports",
     "messages",
+    "notifications",
     "documents",
     "import",
     "settings",
@@ -62,6 +65,7 @@ export const ROLE_ALLOWED_PAGES: Record<UserRole, WorkspacePageId[]> = {
     "interventions",
     "calendar",
     "messages",
+    "notifications",
     "documents",
     "import",
     "settings",
@@ -73,12 +77,13 @@ export const ROLE_ALLOWED_PAGES: Record<UserRole, WorkspacePageId[]> = {
     "reports",
     "calendar",
     "messages",
+    "notifications",
     "documents",
     "import",
     "settings",
     "profile",
   ],
-  [UserRole.PARENT]: ["dashboard", "reports", "calendar", "messages", "documents", "settings", "profile"],
+  [UserRole.PARENT]: ["dashboard", "reports", "calendar", "messages", "notifications", "documents", "settings", "profile"],
 };
 
 export function pageToSlug(page: WorkspacePageId): string {

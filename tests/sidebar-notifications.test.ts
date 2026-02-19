@@ -114,6 +114,16 @@ afterEach(() => {
 });
 
 describe("sidebar notifications", () => {
+  it("shows Notifications in communication navigation", async () => {
+    const handle = await renderSidebar();
+    const navLink = Array.from(handle.container.querySelectorAll("a")).find(
+      (anchor) => anchor.textContent?.trim() === "Notifications",
+    );
+    expect(navLink).toBeInstanceOf(HTMLAnchorElement);
+    expect(navLink?.getAttribute("href")).toBe("/app/notifications");
+    await cleanupRender(handle);
+  });
+
   it("renders the notification bell with unread count", async () => {
     const handle = await renderSidebar();
     const bell = handle.container.querySelector('button[aria-label="Notifications (1 unread)"]');
@@ -182,6 +192,27 @@ describe("sidebar notifications", () => {
 
     expect(onNotificationMarkAllRead).toHaveBeenCalledTimes(1);
     expect(onNotificationArchiveRead).toHaveBeenCalledTimes(1);
+
+    await cleanupRender(handle);
+  });
+
+  it("routes manage notifications CTA to the notifications inbox", async () => {
+    const handle = await renderSidebar({
+      activeNotifications: [sampleNotification, readNotification],
+      notificationUnseenCount: 1,
+    });
+    const bell = handle.container.querySelector('button[aria-label="Notifications (1 unread)"]') as HTMLButtonElement | null;
+    expect(bell).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      bell?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const manageLink = Array.from(document.body.querySelectorAll("a")).find((anchor) =>
+      anchor.textContent?.includes("Manage notifications"),
+    );
+    expect(manageLink).toBeInstanceOf(HTMLAnchorElement);
+    expect(manageLink?.getAttribute("href")).toBe("/app/notifications");
 
     await cleanupRender(handle);
   });
