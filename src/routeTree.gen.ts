@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppPageRouteImport } from './routes/app.$page'
 import { Route as ApiStudentsHierarchyRouteImport } from './routes/api/students-hierarchy'
 import { Route as ApiStudentsRouteImport } from './routes/api/students'
+import { Route as ApiSchoolsRouteImport } from './routes/api/schools'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiDashboardRouteImport } from './routes/api/dashboard'
 import { Route as ApiExperimentsLandingEventsRouteImport } from './routes/api/experiments/landing-events'
@@ -59,6 +60,11 @@ const ApiStudentsHierarchyRoute = ApiStudentsHierarchyRouteImport.update({
 const ApiStudentsRoute = ApiStudentsRouteImport.update({
   id: '/api/students',
   path: '/api/students',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSchoolsRoute = ApiSchoolsRouteImport.update({
+  id: '/api/schools',
+  path: '/api/schools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/roster-table': typeof RosterTableRoute
   '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/schools': typeof ApiSchoolsRoute
   '/api/students': typeof ApiStudentsRoute
   '/api/students-hierarchy': typeof ApiStudentsHierarchyRoute
   '/app/$page': typeof AppPageRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/roster-table': typeof RosterTableRoute
   '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/schools': typeof ApiSchoolsRoute
   '/api/students': typeof ApiStudentsRoute
   '/api/students-hierarchy': typeof ApiStudentsHierarchyRoute
   '/app/$page': typeof AppPageRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/roster-table': typeof RosterTableRoute
   '/api/dashboard': typeof ApiDashboardRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/schools': typeof ApiSchoolsRoute
   '/api/students': typeof ApiStudentsRoute
   '/api/students-hierarchy': typeof ApiStudentsHierarchyRoute
   '/app/$page': typeof AppPageRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/roster-table'
     | '/api/dashboard'
     | '/api/health'
+    | '/api/schools'
     | '/api/students'
     | '/api/students-hierarchy'
     | '/app/$page'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/roster-table'
     | '/api/dashboard'
     | '/api/health'
+    | '/api/schools'
     | '/api/students'
     | '/api/students-hierarchy'
     | '/app/$page'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/roster-table'
     | '/api/dashboard'
     | '/api/health'
+    | '/api/schools'
     | '/api/students'
     | '/api/students-hierarchy'
     | '/app/$page'
@@ -227,6 +239,7 @@ export interface RootRouteChildren {
   RosterTableRoute: typeof RosterTableRoute
   ApiDashboardRoute: typeof ApiDashboardRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiSchoolsRoute: typeof ApiSchoolsRoute
   ApiStudentsRoute: typeof ApiStudentsRoute
   ApiStudentsHierarchyRoute: typeof ApiStudentsHierarchyRoute
   ApiAiEndpointRoute: typeof ApiAiEndpointRoute
@@ -287,6 +300,13 @@ declare module '@tanstack/react-router' {
       path: '/api/students'
       fullPath: '/api/students'
       preLoaderRoute: typeof ApiStudentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/schools': {
+      id: '/api/schools'
+      path: '/api/schools'
+      fullPath: '/api/schools'
+      preLoaderRoute: typeof ApiSchoolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   RosterTableRoute: RosterTableRoute,
   ApiDashboardRoute: ApiDashboardRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiSchoolsRoute: ApiSchoolsRoute,
   ApiStudentsRoute: ApiStudentsRoute,
   ApiStudentsHierarchyRoute: ApiStudentsHierarchyRoute,
   ApiAiEndpointRoute: ApiAiEndpointRoute,

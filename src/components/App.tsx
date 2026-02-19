@@ -1466,6 +1466,7 @@ const App: React.FC = () => {
         return (
           <SchoolsMapView 
             onMenuClick={openMobileMenu}
+            onNavigate={navigateToPage}
           />
         );
       case 'import':

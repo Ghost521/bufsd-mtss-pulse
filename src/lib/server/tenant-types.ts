@@ -76,6 +76,12 @@ export type SchoolRecord = {
   id: string;
   districtId: string;
   name: string;
+  addressLine1?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 export type InviteRecord = {

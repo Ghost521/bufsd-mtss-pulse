@@ -34,4 +34,7 @@ export const queryKeys = {
   },
   branding: ["branding"] as const,
   health: ["health"] as const,
+  schools: {
+    all: ["schools"] as const,
+  },
 };
