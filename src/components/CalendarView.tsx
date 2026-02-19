@@ -30,7 +30,6 @@ import {
 import type { CalendarEvent, Attachment } from '../types';
 import { EventType, AttendanceStatus, UserRole } from '../types';
 import { STAFF_ROSTER_DATA } from '../constants';
-import { CustomDatePicker } from './CustomDatePicker';
 import { suggestMeetingTimes } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
 import { useTenantCollection } from '../hooks/useTenantCollection';
@@ -59,6 +58,16 @@ import {
   toTimeZoneDayKey,
   type CalendarViewMode,
 } from '../lib/calendar-view';
+import {
+  buildEventComposerValidation,
+  isValidIsoDate,
+  isValidTimeValue,
+  RECURRENCE_PATTERNS,
+  type EventComposerField,
+  type EventComposerFormState,
+  type EventComposerErrors,
+  type RecurrencePattern,
+} from '../lib/calendar-event-composer';
 
 // Initial Mock Groups
 const INITIAL_GROUPS = [
@@ -73,7 +82,6 @@ interface CalendarViewProps {
   onMenuClick: () => void;
 }
 
-type RecurrencePattern = 'None' | 'Daily' | 'Weekly' | 'Monthly';
 const ALL_EVENT_TYPES: EventType[] = Object.values(EventType) as EventType[];
 const MAX_VISIBLE_DAY_EVENTS = 3;
 const CALENDAR_VIEW_STORAGE_KEY = 'calendarViewMode';
@@ -129,18 +137,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
   // New Event Form State
-  const [newEventForm, setNewEventForm] = useState({
+  const [newEventForm, setNewEventForm] = useState<EventComposerFormState>({
     title: '',
     type: EventType.STAFF,
     date: toLocalDateInputValue(new Date()),
     startTime: '09:00',
-     endTime: '10:00',
-     allDay: false,
-     description: '',
-     location: '',
-     recurrencePattern: 'None' as RecurrencePattern,
-     recurrenceEnd: ''
-   });
+    endTime: '10:00',
+    allDay: false,
+    description: '',
+    location: '',
+    recurrencePattern: 'None',
+    recurrenceEnd: ''
+  });
+  const [composerTouchedFields, setComposerTouchedFields] = useState<Partial<Record<EventComposerField, true>>>({});
+  const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
+  const [composerSubmitError, setComposerSubmitError] = useState<string | null>(null);
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [isDetailsSectionOpen, setIsDetailsSectionOpen] = useState(false);
 
   // Invitees & Conflict State
   const [selectedInvitees, setSelectedInvitees] = useState<string[]>([currentUserName]);
@@ -154,6 +167,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [isInviteSectionOpen, setIsInviteSectionOpen] = useState(true);
+  const [isSmartSchedulingOpen, setIsSmartSchedulingOpen] = useState(false);
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const timeGridColumnRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -225,14 +239,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   useEffect(() => {
     if (!isAddModalOpen) return;
-    setIsInviteSectionOpen(!isCompactViewport);
-  }, [isAddModalOpen, isCompactViewport]);
+    setIsInviteSectionOpen(true);
+  }, [isAddModalOpen]);
 
   useEffect(() => {
     if (!newEventForm.allDay) return;
     if (newEventForm.startTime === '00:00' && newEventForm.endTime === '23:59') return;
     setNewEventForm(prev => ({ ...prev, startTime: '00:00', endTime: '23:59' }));
   }, [newEventForm.allDay, newEventForm.endTime, newEventForm.startTime]);
+
+  const composerValidationErrors = useMemo(
+    () => buildEventComposerValidation(newEventForm, selectedInvitees, currentUserName),
+    [currentUserName, newEventForm, selectedInvitees],
+  );
+  const canCreateEvent = useMemo(
+    () => !isSubmittingEvent && Object.keys(composerValidationErrors).length === 0,
+    [composerValidationErrors, isSubmittingEvent],
+  );
+
+  const markComposerFieldTouched = useCallback((field: EventComposerField) => {
+    setComposerTouchedFields((previous) => ({ ...previous, [field]: true }));
+  }, []);
+
+  const getComposerFieldError = useCallback(
+    (field: EventComposerField): string | undefined =>
+      hasAttemptedCreate || composerTouchedFields[field] ? composerValidationErrors[field] : undefined,
+    [composerTouchedFields, composerValidationErrors, hasAttemptedCreate],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -609,9 +642,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // --- Conflict Detection Logic ---
   const detectedConflicts = useMemo(() => {
     if (!isAddModalOpen) return [];
+    if (!isValidIsoDate(newEventForm.date)) return [];
+    const startValue = newEventForm.allDay ? '00:00' : newEventForm.startTime;
+    const endValue = newEventForm.allDay ? '23:59' : newEventForm.endTime;
+    if (!newEventForm.allDay && (!isValidTimeValue(startValue) || !isValidTimeValue(endValue))) return [];
 
-    const newStart = new Date(`${newEventForm.date}T${newEventForm.startTime}`).getTime();
-    const newEnd = new Date(`${newEventForm.date}T${newEventForm.endTime}`).getTime();
+    const newStart = new Date(`${newEventForm.date}T${startValue}`).getTime();
+    const newEnd = new Date(`${newEventForm.date}T${endValue}`).getTime();
 
     if (isNaN(newStart) || isNaN(newEnd)) return [];
 
@@ -638,24 +675,61 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     });
 
     return conflicts;
-  }, [newEventForm.date, newEventForm.startTime, newEventForm.endTime, selectedInvitees, events, isAddModalOpen]);
+  }, [newEventForm.allDay, newEventForm.date, newEventForm.startTime, newEventForm.endTime, selectedInvitees, events, isAddModalOpen]);
 
   // --- Interaction Handlers ---
+  const resetEventComposer = useCallback((targetDate: Date = new Date()) => {
+    setNewEventForm({
+      title: '',
+      type: EventType.STAFF,
+      date: toLocalDateInputValue(targetDate),
+      startTime: '09:00',
+      endTime: '10:00',
+      allDay: false,
+      description: '',
+      location: '',
+      recurrencePattern: 'None',
+      recurrenceEnd: '',
+    });
+    setNewEventAttachments([]);
+    setSelectedInvitees([currentUserName]);
+    setInviteSearch('');
+    setAiSuggestions([]);
+    setComposerTouchedFields({});
+    setHasAttemptedCreate(false);
+    setComposerSubmitError(null);
+    setIsSubmittingEvent(false);
+    setIsDetailsSectionOpen(false);
+    setIsSmartSchedulingOpen(false);
+    setIsInviteSectionOpen(true);
+  }, [currentUserName]);
+
+  const closeEventComposer = useCallback(() => {
+    setIsAddModalOpen(false);
+    resetEventComposer(new Date());
+  }, [resetEventComposer]);
+
   const handleEventClick = (evt: CalendarEvent) => {
     setSelectedEvent(evt);
   };
 
   const openEventComposer = (targetDay: Date, minuteOfDay = dayStartMinutes, allDay = false) => {
+    resetEventComposer(targetDay);
     const snappedMinutes = snapMinutes(minuteOfDay);
     const nextStart = toTimeInputValue(clamp(snappedMinutes, 0, 24 * 60 - CALENDAR_SLOT_MINUTES));
     const nextEnd = toTimeInputValue(clamp(snappedMinutes + 60, CALENDAR_SLOT_MINUTES, 24 * 60));
-    setNewEventForm(prev => ({
-      ...prev,
+    setNewEventForm({
+      title: '',
+      type: EventType.STAFF,
       date: toLocalDateInputValue(targetDay),
       startTime: allDay ? '00:00' : nextStart,
       endTime: allDay ? '23:59' : nextEnd,
       allDay,
-    }));
+      description: '',
+      location: '',
+      recurrencePattern: 'None',
+      recurrenceEnd: '',
+    });
     setIsAddModalOpen(true);
   };
 
@@ -664,6 +738,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           setSelectedInvitees([...selectedInvitees, name]);
       }
       setInviteSearch('');
+      setComposerSubmitError(null);
+      markComposerFieldTouched('attendees');
   };
 
   const handleInviteGroup = (groupId: string) => {
@@ -674,6 +750,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             if (!newInvitees.includes(m)) newInvitees.push(m);
         });
         setSelectedInvitees(newInvitees);
+        setComposerSubmitError(null);
+        markComposerFieldTouched('attendees');
     }
   };
 
@@ -681,12 +759,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const allNames = STAFF_ROSTER_DATA.map(s => s.name);
     const newInvitees = Array.from(new Set([...selectedInvitees, ...allNames]));
     setSelectedInvitees(newInvitees);
+    setComposerSubmitError(null);
+    markComposerFieldTouched('attendees');
   };
 
   const handleRemoveInvitee = (name: string) => {
       if (name !== currentUserName) {
           setSelectedInvitees(selectedInvitees.filter(i => i !== name));
+          markComposerFieldTouched('attendees');
       }
+      setComposerSubmitError(null);
   };
 
   // --- Group Management Handlers ---
@@ -749,6 +831,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
+    setHasAttemptedCreate(true);
+    setComposerSubmitError(null);
+
+    if (Object.keys(composerValidationErrors).length > 0) {
+      return;
+    }
+
+    setIsSubmittingEvent(true);
+
     const baseStart = newEventForm.allDay
       ? new Date(`${newEventForm.date}T00:00:00`)
       : new Date(`${newEventForm.date}T${newEventForm.startTime}`);
@@ -756,6 +847,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       ? new Date(`${newEventForm.date}T23:59:00`)
       : new Date(`${newEventForm.date}T${newEventForm.endTime}`);
     const duration = baseEnd.getTime() - baseStart.getTime();
+
+    if (Number.isNaN(baseStart.getTime()) || Number.isNaN(baseEnd.getTime()) || duration <= 0) {
+      setComposerSubmitError('Please review date and time details before creating this event.');
+      setIsSubmittingEvent(false);
+      return;
+    }
     
     const eventsToCreate: CalendarEvent[] = [];
     const parentId = `evt-${Date.now()}`;
@@ -787,7 +884,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     } else {
         // Recurrence generation
         const currentStart = new Date(baseStart);
-        const endDate = new Date(newEventForm.recurrenceEnd || baseStart); 
+        const endDate = new Date(`${newEventForm.recurrenceEnd}T23:59:00`);
+
+        if (Number.isNaN(endDate.getTime()) || endDate.getTime() < currentStart.getTime()) {
+          setComposerSubmitError('Recurring events require a valid end date on or after the event date.');
+          setIsSubmittingEvent(false);
+          return;
+        }
         
         let count = 0;
         const limit = 50; // Safety break to prevent infinite loops
@@ -827,25 +930,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         }
     }
 
+    if (eventsToCreate.length === 0) {
+      setComposerSubmitError('No events were created. Check your recurrence settings and try again.');
+      setIsSubmittingEvent(false);
+      return;
+    }
+
     setEvents([...events, ...eventsToCreate]);
-    setIsAddModalOpen(false);
-    
-    // Reset Form
-    setNewEventForm({
-        title: '',
-        type: EventType.STAFF,
-        date: toLocalDateInputValue(new Date()),
-        startTime: '09:00',
-        endTime: '10:00',
-        allDay: false,
-        description: '',
-        location: '',
-        recurrencePattern: 'None',
-        recurrenceEnd: ''
-    });
-    setNewEventAttachments([]);
-    setSelectedInvitees([currentUserName]);
-    setAiSuggestions([]);
+    setIsSubmittingEvent(false);
+    closeEventComposer();
   };
 
   const handleRSVP = (status: AttendanceStatus) => {
@@ -1162,36 +1255,58 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* --- Add Event Modal (Now Draggable) --- */}
       <DraggableModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={closeEventComposer}
         title="Schedule Event"
-        initialWidth={900}
-        initialHeight={800}
+        initialWidth={960}
+        initialHeight={840}
         mobileMode="fullscreen"
         allowDrag={!isCompactViewport}
         allowResize={!isCompactViewport}
         footer={
-            <div className="flex justify-end gap-4 w-full">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button onClick={handleCreateEvent} className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-lg shadow-indigo-200 hover:shadow-xl transition-all active:scale-95 transform">Create Event</button>
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500" aria-live="polite">
+                  {composerSubmitError
+                    ? composerSubmitError
+                    : hasAttemptedCreate && !canCreateEvent
+                      ? 'Resolve highlighted fields to enable event creation.'
+                      : 'Create Event is enabled when required fields are complete.'}
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <button type="button" onClick={closeEventComposer} className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors">Cancel</button>
+                  <button type="submit" form="event-composer-form" disabled={!canCreateEvent} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold transition-colors enabled:hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">{isSubmittingEvent ? 'Creating...' : 'Create Event'}</button>
+                </div>
             </div>
         }
       >
-                <form onSubmit={handleCreateEvent} className="flex-1 h-full">
+                <form id="event-composer-form" onSubmit={handleCreateEvent} className="flex-1 h-full">
                     <div className="flex flex-col md:flex-row h-full">
                         
                         {/* LEFT COLUMN: Event Details */}
                         <div className="flex-1 p-6 md:p-8 space-y-6 border-r border-slate-100 bg-white">
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-bold text-slate-900">Basics</h3>
+                                <p className="text-xs text-slate-500">Set the core event details before inviting participants.</p>
+                            </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Event Title</label>
+                                <label htmlFor="event-title" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Event Title</label>
                                 <input 
+                                    id="event-title"
                                     type="text" 
-                                    required
                                     placeholder="e.g. Team Sync, MTSS Review..."
                                     value={newEventForm.title}
-                                    onChange={e => setNewEventForm({...newEventForm, title: e.target.value})}
+                                    onChange={e => {
+                                      setNewEventForm({...newEventForm, title: e.target.value});
+                                      setComposerSubmitError(null);
+                                    }}
+                                    onBlur={() => markComposerFieldTouched('title')}
+                                    aria-invalid={Boolean(getComposerFieldError('title'))}
+                                    aria-describedby={getComposerFieldError('title') ? 'event-title-error' : undefined}
                                     className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-semibold focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
-                                    autoFocus
+                                    data-autofocus="true"
                                 />
+                                {getComposerFieldError('title') ? (
+                                  <p id="event-title-error" className="mt-1 text-xs font-medium text-rose-600">{getComposerFieldError('title')}</p>
+                                ) : null}
                             </div>
 
                             <div className="grid grid-cols-2 gap-5">
@@ -1206,23 +1321,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     </select>
                                 </div>
                                 <div>
-                                    <CustomDatePicker 
-                                        label="Date"
-                                        value={newEventForm.date}
-                                        onChange={(val) => setNewEventForm({...newEventForm, date: val})}
-                                        className="w-full"
+                                    <label htmlFor="event-date" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Date</label>
+                                    <input
+                                      id="event-date"
+                                      type="date"
+                                      value={newEventForm.date}
+                                      onChange={(e) => {
+                                        setNewEventForm({ ...newEventForm, date: e.target.value });
+                                        setComposerSubmitError(null);
+                                      }}
+                                      onBlur={() => markComposerFieldTouched('date')}
+                                      aria-invalid={Boolean(getComposerFieldError('date'))}
+                                      aria-describedby={getComposerFieldError('date') ? 'event-date-error' : undefined}
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
                                     />
+                                    {getComposerFieldError('date') ? (
+                                      <p id="event-date-error" className="mt-1 text-xs font-medium text-rose-600">{getComposerFieldError('date')}</p>
+                                    ) : null}
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div>
                                     <p className="text-sm font-bold text-slate-700">All-day event</p>
-                                    <p className="text-xs text-slate-500">Show this event in the all-day lane.</p>
+                                    <p className="text-xs text-slate-500">All-day events run from 12:00 AM to 11:59 PM.</p>
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setNewEventForm(prev => ({ ...prev, allDay: !prev.allDay }))}
+                                    onClick={() => {
+                                      setNewEventForm(prev => ({ ...prev, allDay: !prev.allDay }));
+                                      setComposerSubmitError(null);
+                                    }}
                                     className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${newEventForm.allDay ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                     aria-label="Toggle all-day event"
                                     aria-pressed={newEventForm.allDay}
@@ -1233,40 +1362,79 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 </button>
                             </div>
                             
-                            <div className={`grid grid-cols-2 gap-5 ${newEventForm.allDay ? 'opacity-50 pointer-events-none' : ''}`}>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Start Time</label>
-                                    <div className="relative">
-                                        <input 
-                                            type="time" 
-                                            required
-                                            value={newEventForm.startTime}
-                                            onChange={e => setNewEventForm({...newEventForm, startTime: e.target.value})}
-                                            className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
-                                        />
-                                        <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">End Time</label>
-                                    <div className="relative">
-                                        <input 
-                                            type="time" 
-                                            required
-                                            value={newEventForm.endTime}
-                                            onChange={e => setNewEventForm({...newEventForm, endTime: e.target.value})}
-                                            className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
-                                        />
-                                        <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                    </div>
-                                </div>
-                            </div>
+                            {!newEventForm.allDay ? (
+                              <div className="grid grid-cols-2 gap-5">
+                                  <div>
+                                      <label htmlFor="event-start-time" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Start Time</label>
+                                      <div className="relative">
+                                          <input 
+                                              id="event-start-time"
+                                              type="time" 
+                                              value={newEventForm.startTime}
+                                              onChange={e => {
+                                                setNewEventForm({...newEventForm, startTime: e.target.value});
+                                                setComposerSubmitError(null);
+                                              }}
+                                              onBlur={() => markComposerFieldTouched('startTime')}
+                                              aria-invalid={Boolean(getComposerFieldError('startTime'))}
+                                              aria-describedby={getComposerFieldError('startTime') ? 'event-start-time-error' : undefined}
+                                              className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                          />
+                                          <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                      </div>
+                                      {getComposerFieldError('startTime') ? (
+                                        <p id="event-start-time-error" className="mt-1 text-xs font-medium text-rose-600">{getComposerFieldError('startTime')}</p>
+                                      ) : null}
+                                  </div>
+                                  <div>
+                                      <label htmlFor="event-end-time" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">End Time</label>
+                                      <div className="relative">
+                                          <input 
+                                              id="event-end-time"
+                                              type="time" 
+                                              value={newEventForm.endTime}
+                                              onChange={e => {
+                                                setNewEventForm({...newEventForm, endTime: e.target.value});
+                                                setComposerSubmitError(null);
+                                              }}
+                                              onBlur={() => markComposerFieldTouched('endTime')}
+                                              aria-invalid={Boolean(getComposerFieldError('endTime'))}
+                                              aria-describedby={getComposerFieldError('endTime') ? 'event-end-time-error' : undefined}
+                                              className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                          />
+                                          <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                      </div>
+                                      {getComposerFieldError('endTime') ? (
+                                        <p id="event-end-time-error" className="mt-1 text-xs font-medium text-rose-600">{getComposerFieldError('endTime')}</p>
+                                      ) : null}
+                                  </div>
+                              </div>
+                            ) : (
+                              <p className="rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-xs text-indigo-700">
+                                This event will appear in the all-day lane for the selected date.
+                              </p>
+                            )}
 
+                            <button
+                                type="button"
+                                onClick={() => setIsDetailsSectionOpen((previous) => !previous)}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 flex items-center justify-between"
+                                aria-expanded={isDetailsSectionOpen}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <AlignLeft size={15} className="text-indigo-600" />
+                                    Optional details
+                                </span>
+                                <ChevronDown size={16} className={`transition-transform ${isDetailsSectionOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isDetailsSectionOpen ? (
+                            <>
                             {/* Recurrence */}
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                 <div className="flex items-center justify-between mb-3">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                        <Repeat size={14} className="text-indigo-500" /> Recurrence Pattern
+                                        <Repeat size={14} className="text-indigo-500" /> Recurrence
                                     </label>
                                     {newEventForm.recurrencePattern !== 'None' && (
                                          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
@@ -1276,33 +1444,48 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 </div>
                                 
                                 <div className="grid grid-cols-4 gap-2 mb-4">
-                                    {['None', 'Daily', 'Weekly', 'Monthly'].map((pattern) => (
+                                    {RECURRENCE_PATTERNS.map((pattern) => (
                                         <button
                                             key={pattern}
                                             type="button"
-                                            onClick={() => setNewEventForm({ ...newEventForm, recurrencePattern: pattern })}
+                                            onClick={() => {
+                                              setNewEventForm({ ...newEventForm, recurrencePattern: pattern });
+                                              setComposerSubmitError(null);
+                                            }}
                                             className={`py-2 text-xs font-bold rounded-lg border transition-all ${
                                                 newEventForm.recurrencePattern === pattern
                                                     ? 'bg-white border-indigo-600 text-indigo-600 shadow-sm ring-1 ring-indigo-600'
                                                     : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                             }`}
                                         >
-                                            {pattern === 'None' ? 'No Repeat' : pattern}
+                                            {pattern === 'None' ? 'Does not repeat' : pattern}
                                         </button>
                                     ))}
                                 </div>
 
                                 {newEventForm.recurrencePattern !== 'None' && (
                                     <div className="animate-in fade-in slide-in-from-top-2 pt-2 border-t border-slate-200">
-                                         <CustomDatePicker 
-                                            label="End Date"
-                                            value={newEventForm.recurrenceEnd}
-                                            onChange={(val) => setNewEventForm({...newEventForm, recurrenceEnd: val})}
-                                            className="w-full"
-                                        />
-                                        <p className="text-[10px] text-slate-400 mt-2 italic">
-                                            Event will repeat {newEventForm.recurrencePattern.toLowerCase()} starting from {new Date(newEventForm.date).toLocaleDateString()}.
+                                      <label htmlFor="event-recurrence-end" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Recurrence End Date</label>
+                                      <input
+                                        id="event-recurrence-end"
+                                        type="date"
+                                        value={newEventForm.recurrenceEnd}
+                                        onChange={(e) => {
+                                          setNewEventForm({ ...newEventForm, recurrenceEnd: e.target.value });
+                                          setComposerSubmitError(null);
+                                        }}
+                                        onBlur={() => markComposerFieldTouched('recurrenceEnd')}
+                                        aria-invalid={Boolean(getComposerFieldError('recurrenceEnd'))}
+                                        aria-describedby={getComposerFieldError('recurrenceEnd') ? 'event-recurrence-end-error' : undefined}
+                                        className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
+                                      />
+                                      {getComposerFieldError('recurrenceEnd') ? (
+                                        <p id="event-recurrence-end-error" className="mt-1 text-xs font-medium text-rose-600">{getComposerFieldError('recurrenceEnd')}</p>
+                                      ) : (
+                                        <p className="text-[10px] text-slate-500 mt-2">
+                                          Event repeats {newEventForm.recurrencePattern.toLowerCase()} beginning {new Date(`${newEventForm.date}T00:00:00`).toLocaleDateString()}.
                                         </p>
+                                      )}
                                     </div>
                                 )}
                             </div>
@@ -1374,6 +1557,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     </div>
                                 )}
                             </div>
+                            </>
+                            ) : null}
                         </div>
 
                         {/* RIGHT COLUMN: People & Conflict Check */}
@@ -1385,17 +1570,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             >
                                 <span className="flex items-center gap-2">
                                     <Users size={16} className="text-indigo-600" />
-                                    Invite attendees and scheduling
+                                    Attendees & Availability
                                 </span>
-                                <ChevronDown size={16} className={`transition-transform ${isInviteSectionOpen ? 'rotate-180' : ''}`} />
+                                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                                  {selectedInvitees.length} selected
+                                  <ChevronDown size={16} className={`transition-transform ${isInviteSectionOpen ? 'rotate-180' : ''}`} />
+                                </span>
                             </button>
                         </div>
                         <div className={`flex-1 p-6 md:p-8 bg-slate-50/50 flex flex-col border-l border-slate-100/50 ${isCompactViewport && !isInviteSectionOpen ? 'hidden' : ''}`}>
                             <div className="mb-5">
                                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-1">
-                                    <Users size={18} className="text-indigo-600" /> Invite Attendees
+                                    <Users size={18} className="text-indigo-600" /> Attendees & Availability
                                 </h4>
-                                <p className="text-xs text-slate-500">Add participants and check schedule conflicts.</p>
+                                <p className="text-xs text-slate-500">Invite staff and confirm this time works before creating the event.</p>
                             </div>
 
                             {/* Quick Add Groups */}
@@ -1431,7 +1619,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             <div className="relative mb-4">
                                 <input 
                                     type="text" 
-                                    placeholder="Search name or role..."
+                                    placeholder="Search staff to invite..."
                                     value={inviteSearch}
                                     onChange={(e) => setInviteSearch(e.target.value)}
                                     className="w-full p-3 pl-10 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all"
@@ -1495,6 +1683,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     })}
                                 </div>
                             </div>
+                            {getComposerFieldError('attendees') ? (
+                              <p id="event-attendees-error" className="-mt-2 mb-4 text-xs font-medium text-rose-600">
+                                {getComposerFieldError('attendees')}
+                              </p>
+                            ) : null}
 
                             {/* Conflict & AI Section */}
                             <div className="mt-auto">
@@ -1523,13 +1716,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 )}
 
                                 <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSmartSchedulingOpen((previous) => !previous)}
+                                        className="flex w-full items-center justify-between"
+                                        aria-expanded={isSmartSchedulingOpen}
+                                    >
+                                        <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
                                             <Sparkles size={14} className="text-indigo-500" /> Smart Scheduling
-                                        </label>
-                                    </div>
+                                        </span>
+                                        <ChevronDown size={15} className={`text-slate-500 transition-transform ${isSmartSchedulingOpen ? 'rotate-180' : ''}`} />
+                                    </button>
                                     
-                                    <div className="flex flex-wrap gap-2 mb-4">
+                                    {isSmartSchedulingOpen ? (
+                                    <>
+                                    <div className="flex flex-wrap gap-2 mb-4 mt-3">
                                         {[15, 30, 45, 60].map(dur => (
                                             <button
                                                 key={dur}
@@ -1593,10 +1794,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                             </div>
                                         </div>
                                     )}
+                                    </>
+                                    ) : null}
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <button type="submit" className="sr-only">Create Event</button>
                 </form>
       </DraggableModal>
 
@@ -1891,7 +2095,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                     {/* Create Event Button */}
                     <button 
-                        onClick={() => setIsAddModalOpen(true)} 
+                        onClick={() => openEventComposer(new Date(), dayStartMinutes, false)} 
                         className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                     >
                         <Plus size={18} /> 
