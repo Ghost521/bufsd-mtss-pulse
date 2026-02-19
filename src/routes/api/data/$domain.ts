@@ -24,6 +24,7 @@ import { sectionUpdateRequestSchema } from "../../../lib/schemas/settings";
 const parseDomain = (value: string): DataDomain | null => {
   if (value === "branding") return "branding";
   if (value === "calendar") return "calendar";
+  if (value === "notifications") return "notifications";
   if (value === "messages") return "messages";
   if (value === "documents") return "documents";
   if (value === "interventions") return "interventions";

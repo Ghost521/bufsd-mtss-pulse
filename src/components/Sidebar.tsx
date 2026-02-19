@@ -8,8 +8,9 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { UserRole } from "../types";
+import { UserRole, type NotificationListItem } from "../types";
 import { TenantContextSwitcher } from "./TenantContextSwitcher";
+import { NotificationBellPopover } from "./notifications/NotificationBellPopover";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { buildWorkspacePath } from "../lib/workspaceRoutes";
 import type { SidebarGroupState } from "../hooks/useSidebarState";
@@ -33,6 +34,16 @@ interface SidebarProps {
   onGroupToggle: (groupId: string, defaultExpanded?: boolean) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
+  notificationUnseenCount?: number;
+  activeNotifications?: NotificationListItem[];
+  archivedNotifications?: NotificationListItem[];
+  notificationLoading?: boolean;
+  onNotificationOpen?: (id: string) => void;
+  onNotificationDismiss?: (id: string) => void;
+  onNotificationArchive?: (id: string) => void;
+  onNotificationDelete?: (id: string) => void;
+  onNotificationRestore?: (id: string) => void;
+  onNotificationMarkSeen?: (ids: string[]) => void;
 }
 
 type WorkspaceNavItem = {
@@ -138,6 +149,16 @@ type SidebarContentProps = {
   onGroupToggle: (groupId: string, defaultExpanded?: boolean) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
+  notificationUnseenCount: number;
+  activeNotifications: NotificationListItem[];
+  archivedNotifications: NotificationListItem[];
+  notificationLoading: boolean;
+  onNotificationOpen: (id: string) => void;
+  onNotificationDismiss: (id: string) => void;
+  onNotificationArchive: (id: string) => void;
+  onNotificationDelete: (id: string) => void;
+  onNotificationRestore: (id: string) => void;
+  onNotificationMarkSeen: (ids: string[]) => void;
   onSearchKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   highlightedItemId: WorkspacePageId | null;
   onClose: () => void;
@@ -161,6 +182,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   onGroupToggle,
   searchQuery,
   onSearchQueryChange,
+  notificationUnseenCount,
+  activeNotifications,
+  archivedNotifications,
+  notificationLoading,
+  onNotificationOpen,
+  onNotificationDismiss,
+  onNotificationArchive,
+  onNotificationDelete,
+  onNotificationRestore,
+  onNotificationMarkSeen,
   onSearchKeyDown,
   highlightedItemId,
   onClose,
@@ -240,28 +271,57 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           </div>
 
           {isMobile ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-              aria-label="Close workspace menu"
-            >
-              <X size={iconSize("lg")} />
-            </button>
+            <div className="flex items-center gap-2">
+              <NotificationBellPopover
+                activeNotifications={activeNotifications}
+                archivedNotifications={archivedNotifications}
+                unseenCount={notificationUnseenCount}
+                loading={notificationLoading}
+                onNotificationOpen={onNotificationOpen}
+                onNotificationDismiss={onNotificationDismiss}
+                onNotificationArchive={onNotificationArchive}
+                onNotificationDelete={onNotificationDelete}
+                onNotificationRestore={onNotificationRestore}
+                onNotificationMarkSeen={onNotificationMarkSeen}
+              />
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+                aria-label="Close workspace menu"
+              >
+                <X size={iconSize("lg")} />
+              </button>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={onDesktopCollapseToggle}
-              className={
-                isDesktopCollapsed
-                  ? "hidden"
-                  : "hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
-              }
-              aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {isDesktopCollapsed ? <ChevronRight size={iconSize("md")} /> : <ChevronLeft size={iconSize("md")} />}
-            </button>
+            <div className="flex items-center gap-2">
+              <NotificationBellPopover
+                activeNotifications={activeNotifications}
+                archivedNotifications={archivedNotifications}
+                unseenCount={notificationUnseenCount}
+                loading={notificationLoading}
+                isCompact={isDesktopCollapsed}
+                onNotificationOpen={onNotificationOpen}
+                onNotificationDismiss={onNotificationDismiss}
+                onNotificationArchive={onNotificationArchive}
+                onNotificationDelete={onNotificationDelete}
+                onNotificationRestore={onNotificationRestore}
+                onNotificationMarkSeen={onNotificationMarkSeen}
+              />
+              <button
+                type="button"
+                onClick={onDesktopCollapseToggle}
+                className={
+                  isDesktopCollapsed
+                    ? "hidden"
+                    : "hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+                }
+                aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {isDesktopCollapsed ? <ChevronRight size={iconSize("md")} /> : <ChevronLeft size={iconSize("md")} />}
+              </button>
+            </div>
           )}
         </div>
 
@@ -481,6 +541,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onGroupToggle,
   searchQuery,
   onSearchQueryChange,
+  notificationUnseenCount = 0,
+  activeNotifications = [],
+  archivedNotifications = [],
+  notificationLoading = false,
+  onNotificationOpen,
+  onNotificationDismiss,
+  onNotificationArchive,
+  onNotificationDelete,
+  onNotificationRestore,
+  onNotificationMarkSeen,
 }) => {
   const navigate = useNavigate();
   const mobileDialogRef = useRef<HTMLDivElement | null>(null);
@@ -562,6 +632,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const handleNotificationOpen = (id: string) => {
+    onNotificationOpen?.(id);
+  };
+  const handleNotificationDismiss = (id: string) => {
+    onNotificationDismiss?.(id);
+  };
+  const handleNotificationArchive = (id: string) => {
+    onNotificationArchive?.(id);
+  };
+  const handleNotificationDelete = (id: string) => {
+    onNotificationDelete?.(id);
+  };
+  const handleNotificationRestore = (id: string) => {
+    onNotificationRestore?.(id);
+  };
+  const handleNotificationMarkSeen = (ids: string[]) => {
+    onNotificationMarkSeen?.(ids);
+  };
+
   return (
     <>
       {isMobileOpen ? (
@@ -595,6 +684,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onGroupToggle={onGroupToggle}
               searchQuery={searchQuery}
               onSearchQueryChange={onSearchQueryChange}
+              notificationUnseenCount={notificationUnseenCount}
+              activeNotifications={activeNotifications}
+              archivedNotifications={archivedNotifications}
+              notificationLoading={notificationLoading}
+              onNotificationOpen={handleNotificationOpen}
+              onNotificationDismiss={handleNotificationDismiss}
+              onNotificationArchive={handleNotificationArchive}
+              onNotificationDelete={handleNotificationDelete}
+              onNotificationRestore={handleNotificationRestore}
+              onNotificationMarkSeen={handleNotificationMarkSeen}
               onSearchKeyDown={handleSearchKeyDown}
               highlightedItemId={highlightedItemId}
               onClose={onMobileClose}
@@ -626,6 +725,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onGroupToggle={onGroupToggle}
           searchQuery={searchQuery}
           onSearchQueryChange={onSearchQueryChange}
+          notificationUnseenCount={notificationUnseenCount}
+          activeNotifications={activeNotifications}
+          archivedNotifications={archivedNotifications}
+          notificationLoading={notificationLoading}
+          onNotificationOpen={handleNotificationOpen}
+          onNotificationDismiss={handleNotificationDismiss}
+          onNotificationArchive={handleNotificationArchive}
+          onNotificationDelete={handleNotificationDelete}
+          onNotificationRestore={handleNotificationRestore}
+          onNotificationMarkSeen={handleNotificationMarkSeen}
           highlightedItemId={highlightedItemId}
           onClose={() => {
             // Desktop nav should remain open; no-op for shared link handlers.

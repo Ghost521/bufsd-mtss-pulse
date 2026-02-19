@@ -5,6 +5,7 @@ type TenantDomain =
   | "branding"
   | "settings"
   | "documents"
+  | "notifications"
   | "messages"
   | "calendar"
   | "interventions"

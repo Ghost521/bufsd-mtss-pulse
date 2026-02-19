@@ -167,6 +167,35 @@ export interface Conversation {
   threadContext?: MessageThreadContext;
 }
 
+export type NotificationCategory = 'Message' | 'Referral' | 'Intervention' | 'Document' | 'System';
+export type NotificationSeverity = 'info' | 'warning' | 'critical';
+export type NotificationSourceType = 'messages' | 'referrals' | 'interventions' | 'documents' | 'system';
+
+export interface NotificationRow {
+  id: string;
+  recipientUserId: string;
+  recipientUserName: string;
+  title: string;
+  summary: string;
+  body: string;
+  category: NotificationCategory;
+  severity: NotificationSeverity;
+  sourceType: NotificationSourceType;
+  sourceId: string;
+  sourceFingerprint: string;
+  sourceRoute?: string;
+  sourceContext?: Record<string, string>;
+  createdAt: string;
+  seenAt?: string;
+  readAt?: string;
+  dismissedAt?: string;
+  archivedAt?: string;
+  deletedAt?: string;
+  updatedAt: string;
+}
+
+export type NotificationListItem = NotificationRow;
+
 // --- Existing Types ---
 
 export interface MetricData {

@@ -5,6 +5,7 @@ import { dataDomainCollectionSchemaMap, dataDomainRowSchemaMap } from "../schema
 export type DataDomain =
   | "branding"
   | "calendar"
+  | "notifications"
   | "messages"
   | "documents"
   | "interventions"
@@ -20,6 +21,7 @@ export type DataDomain =
 type PersistedDomain =
   | "branding"
   | "calendar"
+  | "notifications"
   | "messages"
   | "documents"
   | "interventions"

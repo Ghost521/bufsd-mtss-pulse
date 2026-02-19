@@ -85,6 +85,33 @@ export const conversationRowSchema = z.object({
   threadContext: messageThreadContextSchema.optional(),
 });
 
+const notificationCategorySchema = z.enum(["Message", "Referral", "Intervention", "Document", "System"]);
+const notificationSeveritySchema = z.enum(["info", "warning", "critical"]);
+const notificationSourceTypeSchema = z.enum(["messages", "referrals", "interventions", "documents", "system"]);
+
+export const notificationRowSchema = z.object({
+  id: nonEmptyTrimmedString("Notification id", 160),
+  recipientUserId: nonEmptyTrimmedString("Notification recipient user id", 160),
+  recipientUserName: nonEmptyTrimmedString("Notification recipient user name", 200),
+  title: nonEmptyTrimmedString("Notification title", 280),
+  summary: nonEmptyTrimmedString("Notification summary", 1_000),
+  body: nonEmptyTrimmedString("Notification body", 10_000),
+  category: notificationCategorySchema,
+  severity: notificationSeveritySchema,
+  sourceType: notificationSourceTypeSchema,
+  sourceId: nonEmptyTrimmedString("Notification source id", 160),
+  sourceFingerprint: nonEmptyTrimmedString("Notification source fingerprint", 320),
+  sourceRoute: z.string().trim().min(1).max(120).optional(),
+  sourceContext: z.record(z.string(), z.string().trim().max(500)).optional(),
+  createdAt: z.string().datetime("Notification createdAt must be an ISO datetime."),
+  seenAt: z.string().datetime("Notification seenAt must be an ISO datetime.").optional(),
+  readAt: z.string().datetime("Notification readAt must be an ISO datetime.").optional(),
+  dismissedAt: z.string().datetime("Notification dismissedAt must be an ISO datetime.").optional(),
+  archivedAt: z.string().datetime("Notification archivedAt must be an ISO datetime.").optional(),
+  deletedAt: z.string().datetime("Notification deletedAt must be an ISO datetime.").optional(),
+  updatedAt: z.string().datetime("Notification updatedAt must be an ISO datetime."),
+});
+
 export const documentRowSchema = z.object({
   id: nonEmptyTrimmedString("Document id", 160),
   name: nonEmptyTrimmedString("Document name", 512),
@@ -290,6 +317,7 @@ export const referralRowSchema = z.object({
 export const dataDomainRowSchemaMap = {
   branding: districtBrandingRecordSchema,
   calendar: calendarEventRowSchema,
+  notifications: notificationRowSchema,
   messages: conversationRowSchema,
   documents: documentRowSchema,
   interventions: interventionRowSchema,
@@ -306,6 +334,7 @@ export const dataDomainRowSchemaMap = {
 export const dataDomainCollectionSchemaMap = {
   branding: z.array(districtBrandingRecordSchema),
   calendar: z.array(calendarEventRowSchema),
+  notifications: z.array(notificationRowSchema),
   messages: z.array(conversationRowSchema),
   documents: z.array(documentRowSchema),
   interventions: z.array(interventionRowSchema),

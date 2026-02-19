@@ -4,6 +4,7 @@ import { queryKeys } from "../lib/query-keys";
 export type CollectionDomain =
   | "branding"
   | "calendar"
+  | "notifications"
   | "messages"
   | "documents"
   | "interventions"

@@ -17,6 +17,7 @@ export type AppResource =
   | "gradebook_grades"
   | "documents"
   | "calendar"
+  | "notifications"
   | "messages"
   | "interventions"
   | "referrals"

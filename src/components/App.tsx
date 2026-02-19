@@ -23,7 +23,13 @@ import { MetricCard } from './MetricCard';
 import { ActionItemsList } from './ActionItemsList';
 import { TierDistribution } from './TierDistribution';
 import { MonitoringPulse } from './MonitoringPulse';
-import type { DashboardData, MessagesLaunchContext, RAGDocument } from '../types';
+import type {
+  Conversation,
+  DashboardData,
+  MessagesLaunchContext,
+  NotificationRow,
+  RAGDocument,
+} from '../types';
 import { UserRole, ApprovalStatus, DocumentScope } from '../types';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { generateDashboardBriefing } from '../services/geminiService';
@@ -38,8 +44,10 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useTenantBranding } from '../hooks/useTenantBranding';
 import { useSidebarState } from '../hooks/useSidebarState';
+import { useNotifications } from '../hooks/useNotifications';
 import { ACTION_ICON_BY_ID, getRouteIcon, iconSize } from '../lib/ui/icons';
 import { Button } from './ui/Button';
+import { NotificationDetailModal } from './notifications/NotificationDetailModal';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -90,10 +98,32 @@ type FlashMessage = {
 type HealthSessionResponse = {
   session: {
     user?: {
+      id?: string;
       primaryRole?: string;
     };
     effectiveRoles?: string[];
   } | null;
+};
+
+type ReferralNotificationSource = {
+  id: string;
+  studentName: string;
+  type: string;
+  urgency: string;
+  status?: string;
+  notes?: string;
+  createdAt?: string;
+  grade?: string;
+};
+
+type InterventionNotificationSource = {
+  id: string;
+  studentName: string;
+  planName?: string;
+  status?: string;
+  progress?: number;
+  startDate?: string;
+  teacher?: string;
 };
 
 type SettingsAvatarResponse = {
@@ -146,6 +176,7 @@ const App: React.FC = () => {
   }, [pathname]);
 
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.PRINCIPAL);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>([UserRole.PRINCIPAL]);
   const [data, setData] = useState<DashboardData>(createEmptyDashboardData(UserRole.PRINCIPAL));
   const [settingsDisplayName, setSettingsDisplayName] = useState<string | null>(null);
@@ -165,6 +196,7 @@ const App: React.FC = () => {
   // UI State
   const [activePage, setActivePage] = useState<WorkspacePageId>(DEFAULT_WORKSPACE_PAGE);
   const [messageLaunchContext, setMessageLaunchContext] = useState<MessagesLaunchContext | null>(null);
+  const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [flashMessage, setFlashMessage] = useState<FlashMessage | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -217,8 +249,16 @@ const App: React.FC = () => {
   // RAG Document State
   const [ragDocuments, setRagDocuments] = useState<RAGDocument[]>([]);
   const dashboardQuery = useDashboardData(currentRole);
+  const messagesCollection = useTenantCollection<Conversation>("messages");
+  const referralsCollection = useTenantCollection<ReferralNotificationSource>("referrals");
+  const interventionsCollection = useTenantCollection<InterventionNotificationSource>("interventions");
   const documentsCollection = useTenantCollection<RAGDocument>("documents");
   const { branding } = useTenantBranding();
+  const notifications = useNotifications({
+    userId: sessionUserId,
+    userName: data.userName || null,
+    currentRole,
+  });
 
   const roleHeadline = useMemo(
     () =>
@@ -262,6 +302,7 @@ const App: React.FC = () => {
         const payload = (await response.json()) as HealthSessionResponse;
         const session = payload.session;
         if (!session) return;
+        setSessionUserId(session.user?.id ?? null);
 
         const mappedRoles = (session.effectiveRoles ?? [])
           .map((role) => mapSessionRoleToUserRole(role))
@@ -332,6 +373,7 @@ const App: React.FC = () => {
     setIsMoreMenuOpen(false);
     setMessageLaunchContext(null);
     setIsReferralModalOpen(false);
+    setSelectedNotificationId(null);
   }, [closeMobileMenu, currentRole]);
 
   useEffect(() => {
@@ -375,6 +417,21 @@ const App: React.FC = () => {
     if (!documentsCollection.query.data?.rows) return;
     setRagDocuments(documentsCollection.query.data.rows);
   }, [documentsCollection.query.data]);
+
+  useEffect(() => {
+    notifications.syncDerivedNotifications({
+      messages: messagesCollection.query.data?.rows ?? [],
+      referrals: referralsCollection.query.data?.rows ?? [],
+      interventions: interventionsCollection.query.data?.rows ?? [],
+      documents: documentsCollection.query.data?.rows ?? [],
+    });
+  }, [
+    documentsCollection.query.data?.rows,
+    interventionsCollection.query.data?.rows,
+    messagesCollection.query.data?.rows,
+    notifications.syncDerivedNotifications,
+    referralsCollection.query.data?.rows,
+  ]);
 
   useEffect(() => {
     setHasHydrated(true);
@@ -462,6 +519,18 @@ const App: React.FC = () => {
     Users,
     Calendar
   };
+
+  const selectedNotification = useMemo(
+    () =>
+      notifications.userNotifications.find((notification) => notification.id === selectedNotificationId) ?? null,
+    [notifications.userNotifications, selectedNotificationId],
+  );
+
+  useEffect(() => {
+    if (!selectedNotificationId) return;
+    if (selectedNotification) return;
+    setSelectedNotificationId(null);
+  }, [selectedNotification, selectedNotificationId]);
 
   const computedFreshness = useMemo(() => {
     if (!freshness.lastUpdatedAt) {
@@ -1445,6 +1514,30 @@ const App: React.FC = () => {
         />
       </Suspense>
 
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={Boolean(selectedNotification)}
+        onClose={() => setSelectedNotificationId(null)}
+        onDismiss={(id) => {
+          notifications.dismiss(id);
+          setSelectedNotificationId(null);
+        }}
+        onArchive={(id) => {
+          notifications.archive(id);
+          setSelectedNotificationId(null);
+        }}
+        onDelete={(id) => {
+          notifications.deleteNotification(id);
+          setSelectedNotificationId(null);
+        }}
+        onOpenSource={(notification) => {
+          if (notification.sourceRoute) {
+            navigateToPage(notification.sourceRoute as WorkspacePageId);
+          }
+          setSelectedNotificationId(null);
+        }}
+      />
+
       <Sidebar 
         currentRole={currentRole} 
         availableRoles={availableRoles}
@@ -1463,6 +1556,19 @@ const App: React.FC = () => {
         onGroupToggle={sidebarActions.toggleGroupExpanded}
         searchQuery={sidebarState.searchQuery}
         onSearchQueryChange={sidebarActions.setSearchQuery}
+        notificationUnseenCount={notifications.unseenCount}
+        activeNotifications={notifications.activeNotifications}
+        archivedNotifications={notifications.archivedNotifications}
+        notificationLoading={notifications.query.isLoading}
+        onNotificationOpen={(id) => {
+          setSelectedNotificationId(id);
+          notifications.markRead(id);
+        }}
+        onNotificationDismiss={(id) => notifications.dismiss(id)}
+        onNotificationArchive={(id) => notifications.archive(id)}
+        onNotificationDelete={(id) => notifications.deleteNotification(id)}
+        onNotificationRestore={(id) => notifications.restore(id)}
+        onNotificationMarkSeen={(ids) => notifications.markSeen(ids)}
       />
       
       <main
