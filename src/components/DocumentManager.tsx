@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { RAGDocument} from '../types';
 import { DocumentScope, ApprovalStatus, UserRole } from '../types';
-import { Upload, FileText, CheckCircle2, AlertCircle, Download, Trash2, Globe, Youtube, Link as LinkIcon, Sparkles, Loader2, ChevronDown, AlertTriangle, FileType, Eye, ExternalLink, MonitorPlay, Image as ImageIcon } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, Download, Trash2, Globe, Youtube, Link as LinkIcon, Sparkles, Loader2, ChevronDown, AlertTriangle, FileType, Eye, ExternalLink, MonitorPlay, Image as ImageIcon, Undo2 } from 'lucide-react';
 import { generateResourceSummary, generateFileSummary } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
 import { SidebarToggleButton } from './SidebarToggleButton';
@@ -20,6 +20,52 @@ interface DocumentManagerProps {
   onScopeChange: (id: string, scope: DocumentScope) => void;
   onMenuClick: () => void;
 }
+
+type MenuScope = 'scope' | 'status';
+
+type PendingChange = {
+  type: 'scope' | 'status';
+  docId: string;
+  docName: string;
+  from: DocumentScope | ApprovalStatus;
+  to: DocumentScope | ApprovalStatus;
+};
+
+type UndoToast = {
+  message: string;
+  onUndo: () => void;
+};
+
+const SCOPE_PRIORITY: Record<DocumentScope, number> = {
+  [DocumentScope.INTERNAL]: 0,
+  [DocumentScope.STUDENT]: 1,
+  [DocumentScope.CLASS]: 2,
+  [DocumentScope.SCHOOL]: 3,
+  [DocumentScope.DISTRICT]: 4,
+};
+
+const SCOPE_LABELS: Record<DocumentScope, string> = {
+  [DocumentScope.INTERNAL]: 'Internal (Private)',
+  [DocumentScope.STUDENT]: 'Student',
+  [DocumentScope.CLASS]: 'Class',
+  [DocumentScope.SCHOOL]: 'School',
+  [DocumentScope.DISTRICT]: 'District',
+};
+
+const getRoleScopeOptions = (role: UserRole): DocumentScope[] => {
+  switch (role) {
+    case UserRole.PARENT:
+      return [DocumentScope.INTERNAL, DocumentScope.STUDENT];
+    case UserRole.TEACHER:
+      return [DocumentScope.INTERNAL, DocumentScope.CLASS, DocumentScope.STUDENT, DocumentScope.SCHOOL, DocumentScope.DISTRICT];
+    case UserRole.PRINCIPAL:
+      return [DocumentScope.INTERNAL, DocumentScope.SCHOOL, DocumentScope.CLASS, DocumentScope.STUDENT, DocumentScope.DISTRICT];
+    case UserRole.DISTRICT:
+      return [DocumentScope.INTERNAL, DocumentScope.DISTRICT, DocumentScope.SCHOOL, DocumentScope.CLASS, DocumentScope.STUDENT];
+    default:
+      return [DocumentScope.INTERNAL];
+  }
+};
 
 // Helper Component for Safe PDF Rendering
 const PdfViewer = ({ base64Data }: { base64Data: string }) => {
@@ -120,6 +166,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   onScopeChange,
   onMenuClick
 }) => {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const undoTimeoutRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<'browse' | 'upload' | 'link' | 'approvals'>('browse');
   const [scope, setScope] = useState<DocumentScope>(DocumentScope.INTERNAL);
   const [targetId, setTargetId] = useState('');
@@ -138,9 +186,13 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [linkUrl, setLinkUrl] = useState('');
   const [linkType, setLinkType] = useState<'WEBSITE' | 'YOUTUBE'>('WEBSITE');
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   // Delete Confirmation State
   const [deleteTarget, setDeleteTarget] = useState<RAGDocument | null>(null);
+  const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
+  const [undoToast, setUndoToast] = useState<UndoToast | null>(null);
+  const [openMenu, setOpenMenu] = useState<{ docId: string; type: MenuScope } | null>(null);
 
   // Filter logic for Approvals Tab
   const pendingApprovals = documents.filter(doc => doc.status === ApprovalStatus.PENDING);
@@ -151,8 +203,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
     return false;
   };
 
-  const canManageStatus = () => {
-      return currentUserRole === UserRole.DISTRICT || currentUserRole === UserRole.PRINCIPAL;
+  const canManageStatus = (doc: RAGDocument) => {
+    if (currentUserRole === UserRole.DISTRICT) return true;
+    if (currentUserRole === UserRole.PRINCIPAL && doc.scope !== DocumentScope.DISTRICT) return true;
+    return false;
   };
 
   const canDelete = (doc: RAGDocument) => {
@@ -173,6 +227,130 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   };
 
   const myApprovals = pendingApprovals.filter(doc => canApprove(doc));
+
+  const getDisplayScopeLabel = (value: DocumentScope) => SCOPE_LABELS[value] ?? value;
+
+  const isHighImpactScopeChange = (from: DocumentScope, to: DocumentScope) => SCOPE_PRIORITY[to] > SCOPE_PRIORITY[from];
+
+  const isHighImpactStatusChange = (from: ApprovalStatus, to: ApprovalStatus) => {
+    if (from === to) return false;
+    return [from, to].includes(ApprovalStatus.APPROVED) || [from, to].includes(ApprovalStatus.REJECTED);
+  };
+
+  const queueUndoToast = (message: string, onUndo: () => void) => {
+    if (undoTimeoutRef.current) {
+      window.clearTimeout(undoTimeoutRef.current);
+    }
+    setUndoToast({ message, onUndo });
+    undoTimeoutRef.current = window.setTimeout(() => {
+      setUndoToast(null);
+      undoTimeoutRef.current = null;
+    }, 7000);
+  };
+
+  const handleUndoToast = () => {
+    if (!undoToast) return;
+    undoToast.onUndo();
+    setUndoToast(null);
+    if (undoTimeoutRef.current) {
+      window.clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = null;
+    }
+  };
+
+  const requestScopeChange = (doc: RAGDocument, nextScope: DocumentScope) => {
+    setOpenMenu(null);
+    if (doc.scope === nextScope) return;
+    if (isHighImpactScopeChange(doc.scope, nextScope)) {
+      setPendingChange({
+        type: 'scope',
+        docId: doc.id,
+        docName: doc.name,
+        from: doc.scope,
+        to: nextScope,
+      });
+      return;
+    }
+    onScopeChange(doc.id, nextScope);
+    queueUndoToast(
+      `Scope updated for "${doc.name}".`,
+      () => onScopeChange(doc.id, doc.scope)
+    );
+  };
+
+  const requestStatusChange = (doc: RAGDocument, nextStatus: ApprovalStatus) => {
+    setOpenMenu(null);
+    if (doc.status === nextStatus) return;
+    if (isHighImpactStatusChange(doc.status, nextStatus)) {
+      setPendingChange({
+        type: 'status',
+        docId: doc.id,
+        docName: doc.name,
+        from: doc.status,
+        to: nextStatus,
+      });
+      return;
+    }
+    onStatusChange(doc.id, nextStatus);
+    queueUndoToast(
+      `Status updated for "${doc.name}".`,
+      () => onStatusChange(doc.id, doc.status)
+    );
+  };
+
+  const handleConfirmPendingChange = () => {
+    if (!pendingChange) return;
+    const { type, docId, docName, from, to } = pendingChange;
+    if (type === 'scope') {
+      onScopeChange(docId, to as DocumentScope);
+      queueUndoToast(
+        `Scope updated for "${docName}".`,
+        () => onScopeChange(docId, from as DocumentScope)
+      );
+    } else {
+      onStatusChange(docId, to as ApprovalStatus);
+      queueUndoToast(
+        `Status updated for "${docName}".`,
+        () => onStatusChange(docId, from as ApprovalStatus)
+      );
+    }
+    setPendingChange(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (undoTimeoutRef.current) {
+        window.clearTimeout(undoTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setOpenMenu(null);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-doc-menu-root="true"]')) {
+        setOpenMenu(null);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenMenu(null);
+        setPendingChange(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleDocumentClick);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   // Determine status based on role and scope hierarchy
   const getInitialStatus = (selectedScope: DocumentScope) => {
@@ -307,11 +485,18 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
   const handleLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!linkUrl) return;
+    const normalizedUrl = linkUrl.trim();
+    if (!normalizedUrl) return;
+    setLinkError(null);
 
     // Duplicate Check for Links
-    if (documents.some(doc => doc.sourceUrl === linkUrl)) {
-        alert("This resource URL is already in the knowledge base.");
+    if (documents.some(doc => doc.sourceUrl?.trim() === normalizedUrl)) {
+        setLinkError('This resource URL already exists in the library.');
+        return;
+    }
+
+    if (linkType === 'YOUTUBE' && !getYoutubeId(normalizedUrl)) {
+        setLinkError('Enter a valid YouTube URL to add this video.');
         return;
     }
 
@@ -342,7 +527,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                     id: `link-${Date.now()}`,
                     name: aiData.title,
                     type: linkType,
-                    sourceUrl: linkUrl,
+                    sourceUrl: normalizedUrl,
                     uploadDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
                     uploaderName: currentUserName,
                     uploaderRole: currentUserRole,
@@ -358,13 +543,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                 setLinkType('WEBSITE');
                 setTargetId('');
                 setIsSummarizing(false);
+                setLinkError(null);
                 setIngestionStage('');
                 setActiveTab('browse');
             }, 800);
 
-        } catch {
-            console.error("Failed to analyze link");
+        } catch (error) {
+            console.error("Failed to analyze link", error);
             setIsSummarizing(false);
+            setIngestionStage('');
+            setLinkError('We could not analyze this resource. Check the URL and try again.');
         }
     }, 1000);
   };
@@ -418,40 +606,21 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   };
 
   const renderScopeOptions = () => {
+    const availableScopes = getRoleScopeOptions(currentUserRole);
     return (
         <>
-            <option value={DocumentScope.INTERNAL}>Internal (Private)</option>
-            
-            {currentUserRole === UserRole.PARENT && (
-                <option value={DocumentScope.STUDENT}>My Child (Student Record)</option>
-            )}
-
-            {currentUserRole === UserRole.TEACHER && (
-                <>
-                    <option value={DocumentScope.CLASS}>My Classroom</option>
-                    <option value={DocumentScope.STUDENT}>Specific Student</option>
-                    <option value={DocumentScope.SCHOOL}>School Wide (Requires Approval)</option>
-                    <option value={DocumentScope.DISTRICT}>District Wide (Requires Approval)</option>
-                </>
-            )}
-
-            {currentUserRole === UserRole.PRINCIPAL && (
-                <>
-                    <option value={DocumentScope.SCHOOL}>School Wide</option>
-                    <option value={DocumentScope.CLASS}>Specific Class</option>
-                    <option value={DocumentScope.STUDENT}>Specific Student</option>
-                    <option value={DocumentScope.DISTRICT}>District Wide (Requires Approval)</option>
-                </>
-            )}
-
-            {currentUserRole === UserRole.DISTRICT && (
-                <>
-                    <option value={DocumentScope.DISTRICT}>District Wide</option>
-                    <option value={DocumentScope.SCHOOL}>Specific School</option>
-                    <option value={DocumentScope.CLASS}>Specific Class</option>
-                    <option value={DocumentScope.STUDENT}>Specific Student</option>
-                </>
-            )}
+            {availableScopes.map((scopeOption) => (
+                <option key={scopeOption} value={scopeOption}>
+                    {scopeOption === DocumentScope.STUDENT && currentUserRole === UserRole.PARENT
+                      ? 'My Child (Student Record)'
+                      : getDisplayScopeLabel(scopeOption)}
+                    {scopeOption === DocumentScope.SCHOOL && currentUserRole === UserRole.TEACHER ? ' (Requires Approval)' : ''}
+                    {scopeOption === DocumentScope.DISTRICT &&
+                      (currentUserRole === UserRole.TEACHER || currentUserRole === UserRole.PRINCIPAL)
+                        ? ' (Requires Approval)'
+                        : ''}
+                </option>
+            ))}
         </>
     );
   };
@@ -459,6 +628,23 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const renderDocumentContent = (doc: RAGDocument) => {
     if (doc.type === 'YOUTUBE' && doc.sourceUrl) {
         const videoId = getYoutubeId(doc.sourceUrl);
+        if (!videoId) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full bg-slate-50 p-8 text-center">
+                    <AlertTriangle size={40} className="text-amber-500 mb-3" />
+                    <h3 className="font-bold text-slate-800 mb-1">Video Preview Unavailable</h3>
+                    <p className="text-sm text-slate-500 mb-4">This YouTube URL could not be parsed for preview.</p>
+                    <a
+                        href={doc.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 inline-flex items-center gap-2"
+                    >
+                        <ExternalLink size={14} /> Open Original Link
+                    </a>
+                </div>
+            );
+        }
         return (
             <div className="w-full h-full flex items-center justify-center bg-black">
                 <iframe 
@@ -582,7 +768,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             <h2 className="text-2xl font-bold text-slate-800 mb-2">{doc.name}</h2>
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-left w-full mb-6">
                 <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Summary / Extracted Text</h4>
-                <p className="text-slate-600 text-sm leading-relaxed">{doc.summary || "No summary available for this document."}</p>
+                <p className="text-slate-600 text-sm leading-relaxed">{doc.summary || "Summary unavailable."}</p>
             </div>
             
             {doc.sourceUrl ? (
@@ -604,7 +790,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                 </a>
             ) : (
                 <div className="px-4 py-3 bg-slate-100 text-slate-500 rounded-lg text-sm font-medium flex items-center gap-2">
-                    <MonitorPlay size={16} /> Preview Unavailable
+                    <MonitorPlay size={16} /> No preview available for this resource.
                 </div>
             )}
         </div>
@@ -612,7 +798,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col relative">
+    <div ref={rootRef} className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col relative">
       
       {/* View Document Modal (Draggable) */}
       <DraggableModal
@@ -625,7 +811,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                 </div>
                 <div>
                     <h3 className="font-bold text-slate-900 leading-tight text-lg truncate max-w-[300px]">{viewingDoc.name}</h3>
-                    <p className="text-xs text-slate-500">{viewingDoc.type} • {viewingDoc.size || 'Unknown Size'}</p>
+                    <p className="text-xs text-slate-500">{viewingDoc.type} &bull; {viewingDoc.size || 'Unknown Size'}</p>
                 </div>
             </div>
         ) : "View Document"}
@@ -689,6 +875,61 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         </div>
       )}
 
+      {/* Scope / Status Confirmation */}
+      {pendingChange && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm rounded-xl animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full border-2 border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-amber-50 text-amber-600 mt-0.5">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  Confirm {pendingChange.type === 'scope' ? 'scope' : 'status'} update
+                </h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  You are updating <span className="font-semibold">"{pendingChange.docName}"</span> from{' '}
+                  <span className="font-semibold">{pendingChange.from}</span> to{' '}
+                  <span className="font-semibold">{pendingChange.to}</span>.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingChange(null)}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPendingChange}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
+              >
+                Confirm change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {undoToast && (
+        <div className="absolute bottom-4 right-4 z-40 max-w-sm w-[calc(100%-2rem)] md:w-auto">
+          <div className="rounded-xl border border-indigo-100 bg-white shadow-xl p-3 flex items-center gap-3">
+            <CheckCircle2 size={18} className="text-indigo-600 shrink-0" />
+            <p className="text-sm text-slate-700 flex-1">{undoToast.message}</p>
+            <button
+              type="button"
+              onClick={handleUndoToast}
+              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-md hover:bg-indigo-100"
+            >
+              <Undo2 size={12} /> Undo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-3">
@@ -697,38 +938,42 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
           />
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Knowledge Base Manager</h2>
-            <p className="text-slate-500 text-sm">Manage RAG documents, websites, and permissions.</p>
+            <h2 className="text-xl font-bold text-slate-900">Resource Library</h2>
+            <p className="text-slate-500 text-sm">Upload, organize, and share school resources securely.</p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button 
+          <button
+            type="button"
             onClick={() => setActiveTab('browse')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'browse' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             Browse
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => setActiveTab('upload')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'upload' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             Upload File
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => setActiveTab('link')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'link' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             Add Resource
           </button>
-          {myApprovals.length > 0 && (
-             <button 
-                onClick={() => setActiveTab('approvals')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-indigo-600 text-white' : 'text-indigo-600 bg-indigo-50 border border-indigo-100'}`}
-             >
-                Approvals
-                <span className="bg-white text-indigo-600 text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">{myApprovals.length}</span>
-             </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('approvals')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-indigo-600 text-white' : 'text-indigo-600 bg-indigo-50 border border-indigo-100'}`}
+          >
+            Approvals
+            {myApprovals.length > 0 && (
+              <span className="bg-white text-indigo-600 text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">{myApprovals.length}</span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -738,156 +983,200 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         {/* BROWSE TAB */}
         {activeTab === 'browse' && (
           <div className="space-y-4">
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               {documents.map(doc => {
-                 const ytId = doc.type === 'YOUTUBE' && doc.sourceUrl ? getYoutubeId(doc.sourceUrl) : null;
-                 const domain = doc.type === 'WEBSITE' && doc.sourceUrl ? getDomain(doc.sourceUrl) : null;
+            {documents.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                  <FileText size={20} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">No resources yet</h3>
+                <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
+                  Start your library by uploading a document or adding a website resource your team can use.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2 justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('upload')}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('link')}
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+                  >
+                    Add Resource
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {documents.map((doc) => {
+                  const ytId = doc.type === 'YOUTUBE' && doc.sourceUrl ? getYoutubeId(doc.sourceUrl) : null;
+                  const domain = doc.type === 'WEBSITE' && doc.sourceUrl ? getDomain(doc.sourceUrl) : null;
+                  const scopeMenuOpen = openMenu?.docId === doc.id && openMenu.type === 'scope';
+                  const statusMenuOpen = openMenu?.docId === doc.id && openMenu.type === 'status';
 
-                 return (
-                 <div key={doc.id} className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group bg-white flex flex-col relative">
-                    <div className="flex justify-between items-start mb-2">
-                       <div className={`p-2 rounded-lg border border-slate-100 flex items-center justify-center w-10 h-10 shrink-0 ${
-                           doc.type === 'YOUTUBE' ? 'text-red-600 bg-red-50' : 
-                           doc.type === 'WEBSITE' ? 'text-blue-600 bg-blue-50' : 
-                           'text-indigo-600 bg-indigo-50'
-                       }`}>
-                          {doc.type === 'WEBSITE' && domain ? (
-                              <img 
-                                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`} 
-                                alt="favicon" 
-                                className="w-6 h-6 object-contain"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-                              />
-                          ) : (
-                              getIconForType(doc.type)
-                          )}
-                       </div>
-                       <div className="flex gap-1">
-                           {/* View Button */}
-                           <button 
-                                onClick={() => setViewingDoc(doc)}
-                                className="text-slate-400 hover:text-indigo-600 p-1 rounded hover:bg-slate-50 transition-colors"
-                                title="View Document"
-                           >
-                                <Eye size={16} />
-                           </button>
-
-                           {/* Scope Badge with Dropdown */}
-                           <div className="relative group/scope z-20">
-                                {canEditScope(doc) ? (
-                                    <button 
-                                        className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 hover:brightness-95 transition-all ${getScopeBadge(doc.scope)}`}
-                                    >
-                                        {doc.scope} <ChevronDown size={10} />
-                                    </button>
-                                ) : (
-                                    <div className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getScopeBadge(doc.scope)}`}>
-                                        {doc.scope}
-                                    </div>
-                                )}
-                                
-                                {canEditScope(doc) && (
-                                    <div className="absolute top-full right-0 mt-1 w-40 bg-white rounded-lg shadow-xl border border-slate-100 hidden group-hover/scope:block p-1">
-                                        <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50 mb-1">Change Scope</div>
-                                        {Object.values(DocumentScope).map(s => (
-                                            <button
-                                                key={s}
-                                                onClick={() => onScopeChange(doc.id, s as DocumentScope)}
-                                                className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-50 flex items-center justify-between ${doc.scope === s ? 'font-bold text-indigo-600' : 'text-slate-600'}`}
-                                            >
-                                                {s}
-                                                {doc.scope === s && <CheckCircle2 size={10} />}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                           </div>
-
-                           {canDelete(doc) && (
-                               <button 
-                                onClick={() => setDeleteTarget(doc)}
-                                className="text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-colors"
-                                title="Delete File"
-                               >
-                                   <Trash2 size={14} />
-                               </button>
-                           )}
-                       </div>
-                    </div>
-                    
-                    {ytId && (
-                        <div 
-                            className="w-full h-32 bg-slate-100 rounded-lg mb-3 overflow-hidden border border-slate-100 relative group/video cursor-pointer"
-                            onClick={() => setViewingDoc(doc)}
-                        >
-                            <img src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`} className="w-full h-full object-cover opacity-90 group-hover/video:opacity-100 transition-opacity" alt="Video thumbnail" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-8 h-8 bg-white/80 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover/video:scale-110">
-                                    <Youtube size={16} className="text-red-600 fill-current" />
-                                </div>
-                            </div>
+                  return (
+                    <div key={doc.id} className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group bg-white flex flex-col relative">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className={`p-2 rounded-lg border border-slate-100 flex items-center justify-center w-10 h-10 shrink-0 ${
+                          doc.type === 'YOUTUBE' ? 'text-red-600 bg-red-50' :
+                          doc.type === 'WEBSITE' ? 'text-blue-600 bg-blue-50' :
+                          'text-indigo-600 bg-indigo-50'
+                        }`}>
+                          {getIconForType(doc.type)}
                         </div>
-                    )}
+                        <div className="flex gap-1 items-start">
+                          <button
+                            type="button"
+                            onClick={() => setViewingDoc(doc)}
+                            className="text-slate-400 hover:text-indigo-600 p-1 rounded hover:bg-slate-50 transition-colors"
+                            aria-label={`Preview ${doc.name}`}
+                          >
+                            <Eye size={16} />
+                          </button>
 
-                    <h3 
-                        className="font-bold text-slate-800 text-sm mb-1 truncate leading-tight cursor-pointer hover:text-indigo-600 hover:underline" 
+                          <div className="relative z-20" data-doc-menu-root="true">
+                            {canEditScope(doc) ? (
+                              <>
+                                <button
+                                  type="button"
+                                  aria-haspopup="menu"
+                                  aria-expanded={scopeMenuOpen}
+                                  onClick={() => setOpenMenu(scopeMenuOpen ? null : { docId: doc.id, type: 'scope' })}
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 hover:brightness-95 transition-all ${getScopeBadge(doc.scope)}`}
+                                >
+                                  {getDisplayScopeLabel(doc.scope)} <ChevronDown size={10} />
+                                </button>
+                                {scopeMenuOpen && (
+                                  <div className="absolute top-full right-0 mt-1 w-44 bg-white rounded-lg shadow-xl border border-slate-100 p-1">
+                                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-50 mb-1">
+                                      Change Scope
+                                    </div>
+                                    {getRoleScopeOptions(currentUserRole).map((s) => (
+                                      <button
+                                        type="button"
+                                        key={s}
+                                        onClick={() => requestScopeChange(doc, s)}
+                                        className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-50 flex items-center justify-between ${doc.scope === s ? 'font-bold text-indigo-600' : 'text-slate-600'}`}
+                                      >
+                                        {getDisplayScopeLabel(s)}
+                                        {doc.scope === s && <CheckCircle2 size={10} />}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getScopeBadge(doc.scope)}`}>
+                                {getDisplayScopeLabel(doc.scope)}
+                              </div>
+                            )}
+                          </div>
+
+                          {canDelete(doc) && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(doc)}
+                              className="text-slate-300 hover:text-rose-600 hover:bg-rose-50 p-1 rounded transition-colors"
+                              aria-label={`Delete ${doc.name}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {ytId && (
+                        <button
+                          type="button"
+                          className="w-full h-32 bg-slate-100 rounded-lg mb-3 overflow-hidden border border-slate-100 relative group/video cursor-pointer"
+                          onClick={() => setViewingDoc(doc)}
+                          aria-label={`Preview video ${doc.name}`}
+                        >
+                          <img src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`} className="w-full h-full object-cover opacity-90 group-hover/video:opacity-100 transition-opacity" alt={`${doc.name} thumbnail`} />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-8 h-8 bg-white/80 rounded-full flex items-center justify-center shadow-sm transition-transform group-hover/video:scale-110">
+                              <Youtube size={16} className="text-red-600 fill-current" />
+                            </div>
+                          </div>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="font-bold text-slate-800 text-sm mb-1 truncate leading-tight text-left hover:text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
                         title={doc.name}
                         onClick={() => setViewingDoc(doc)}
-                    >
+                        aria-label={`Open ${doc.name}`}
+                      >
                         {doc.name}
-                    </h3>
-                    
-                    <div className="bg-slate-50 p-2 rounded-lg mb-3 flex-1">
+                      </button>
+
+                      {domain && (
+                        <p className="text-[11px] text-slate-500 mb-2 truncate">{domain}</p>
+                      )}
+
+                      <div className="bg-slate-50 p-2 rounded-lg mb-3 flex-1">
                         {doc.summary ? (
-                            <p className="text-xs text-slate-600 leading-snug line-clamp-3">
-                                {doc.summary}
-                            </p>
+                          <p className="text-xs text-slate-600 leading-snug line-clamp-3">{doc.summary}</p>
                         ) : (
-                            <p className="text-xs text-slate-400 italic">No summary available.</p>
+                          <p className="text-xs text-slate-400 italic">Summary unavailable.</p>
                         )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                          {doc.uploadDate} <span className="text-slate-300">&bull;</span> {doc.size}
+                        </div>
+
+                        {canManageStatus(doc) ? (
+                          <div className="relative z-10" data-doc-menu-root="true">
+                            <button
+                              type="button"
+                              aria-haspopup="menu"
+                              aria-expanded={statusMenuOpen}
+                              onClick={() => setOpenMenu(statusMenuOpen ? null : { docId: doc.id, type: 'status' })}
+                              className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadgeColor(doc.status)} hover:opacity-80`}
+                            >
+                              {doc.status} <ChevronDown size={10} />
+                            </button>
+                            {statusMenuOpen && (
+                              <div className="absolute bottom-full right-0 mb-1 w-40 bg-white rounded-lg shadow-xl border border-slate-100 p-1">
+                                {Object.values(ApprovalStatus).filter((s) => s !== ApprovalStatus.NONE).map((s) => (
+                                  <button
+                                    type="button"
+                                    key={s}
+                                    onClick={() => requestStatusChange(doc, s)}
+                                    className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-50 flex items-center justify-between ${doc.status === s ? 'font-bold text-indigo-600' : 'text-slate-600'}`}
+                                  >
+                                    {s}
+                                    {doc.status === s && <CheckCircle2 size={10} />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadgeColor(doc.status)}`}>
+                            {doc.status}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
-                       <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                          {doc.uploadDate} <span className="text-slate-300">•</span> {doc.size}
-                       </div>
-                       
-                       {/* Status Badge or Admin Control */}
-                       {canManageStatus() ? (
-                           <div className="relative group/status z-10">
-                               <button className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadgeColor(doc.status)} hover:opacity-80`}>
-                                   {doc.status} <ChevronDown size={10} />
-                               </button>
-                               <div className="absolute bottom-full right-0 mb-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 hidden group-hover/status:block p-1">
-                                    {Object.values(ApprovalStatus).filter(s => s !== ApprovalStatus.NONE).map(s => (
-                                        <button
-                                            key={s}
-                                            onClick={() => onStatusChange(doc.id, s)}
-                                            className={`w-full text-left px-2 py-1 text-xs rounded hover:bg-slate-50 ${doc.status === s ? 'font-bold text-indigo-600' : 'text-slate-600'}`}
-                                        >
-                                            {s}
-                                        </button>
-                                    ))}
-                               </div>
-                           </div>
-                       ) : (
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadgeColor(doc.status)}`}>
-                                {doc.status}
-                            </span>
-                       )}
-                    </div>
-                 </div>
-               )})}
-             </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
-
         {/* UPLOAD TAB */}
         {activeTab === 'upload' && (
            <div className="max-w-2xl mx-auto">
               <form onSubmit={handleUploadSubmit} className="space-y-6 bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <Upload size={20} className="text-indigo-600" /> Upload File to Knowledge Base
+                    <Upload size={20} className="text-indigo-600" /> Upload File to Resource Library
                  </h3>
                  
                  {isProcessingFile ? (
@@ -895,7 +1184,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                         <div className="space-y-2 text-center">
                             <Loader2 size={40} className="animate-spin text-indigo-600 mx-auto" />
                             <h4 className="text-lg font-bold text-slate-800">{ingestionStage}</h4>
-                            <p className="text-sm text-slate-500">Integrating document into RAG context...</p>
+                            <p className="text-sm text-slate-500">Preparing this resource for secure search and retrieval...</p>
                         </div>
                         
                         <div className="max-w-md mx-auto space-y-2">
@@ -975,7 +1264,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                             <span className="text-sm font-bold text-slate-600">
                                 {uploadFile ? uploadFile.name : "Click to select a document"}
                             </span>
-                            <span className="text-xs text-slate-400">PDF, DOCX, RTF, TXT supported</span>
+                            <span className="text-xs text-slate-400">PDF, DOC, DOCX, RTF, TXT, PNG, JPG, JPEG supported</span>
                             </label>
                         </div>
 
@@ -1021,14 +1310,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                  <div className="flex gap-4 mb-4">
                      <button
                         type="button"
-                        onClick={() => setLinkType('WEBSITE')}
+                        onClick={() => { setLinkType('WEBSITE'); setLinkError(null); }}
                         className={`flex-1 py-3 border rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all ${linkType === 'WEBSITE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}
                      >
                          <Globe size={18} /> Website
                      </button>
                      <button
                         type="button"
-                        onClick={() => setLinkType('YOUTUBE')}
+                        onClick={() => { setLinkType('YOUTUBE'); setLinkError(null); }}
                         className={`flex-1 py-3 border rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all ${linkType === 'YOUTUBE' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-slate-200 text-slate-600'}`}
                      >
                          <Youtube size={18} /> YouTube Video
@@ -1041,11 +1330,27 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                         type="url"
                         placeholder={linkType === 'YOUTUBE' ? "https://youtube.com/watch?v=..." : "https://example.org/article"}
                         value={linkUrl}
-                        onChange={(e) => setLinkUrl(e.target.value)}
+                        onChange={(e) => { setLinkUrl(e.target.value); if (linkError) setLinkError(null); }}
                         className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
                         required
                     />
                  </div>
+
+                 {linkError && (
+                    <div className="p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-lg text-sm flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        <span>{linkError}</span>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isSummarizing || !linkUrl.trim()}
+                        className="px-3 py-1.5 rounded-md border border-rose-200 bg-white text-rose-700 font-semibold text-xs hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                 )}
 
                  <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">Access Scope</label>
@@ -1057,6 +1362,20 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                       {renderScopeOptions()}
                     </select>
                  </div>
+
+                 {scope === DocumentScope.STUDENT && (
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Student Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Leo Martinez"
+                        value={targetId}
+                        onChange={(e) => setTargetId(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm"
+                        required
+                      />
+                    </div>
+                 )}
 
                  <div className="bg-indigo-50 p-4 rounded-lg flex items-start gap-3 border border-indigo-100">
                      <Sparkles size={18} className="text-indigo-600 mt-0.5 shrink-0" />
@@ -1080,7 +1399,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         {activeTab === 'approvals' && (
            <div className="space-y-4">
               {myApprovals.length === 0 ? (
-                 <div className="text-center py-12 text-slate-500">All caught up! No documents pending approval.</div>
+                 <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
+                   <p className="font-semibold text-slate-700">All caught up.</p>
+                   <p className="text-sm mt-1">No resources are waiting for approval right now.</p>
+                 </div>
               ) : (
                 myApprovals.map(doc => (
                   <div key={doc.id} className="flex flex-col md:flex-row md:items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-sm gap-4">
@@ -1099,13 +1421,15 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                         </div>
                      </div>
                      <div className="flex gap-2 shrink-0">
-                        <button 
+                        <button
+                           type="button"
                            onClick={() => onReject(doc.id)}
                            className="px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-sm transition-colors"
                         >
                            Reject
                         </button>
-                        <button 
+                        <button
+                           type="button"
                            onClick={() => onApprove(doc.id)}
                            className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-sm text-sm transition-colors flex items-center gap-2"
                         >
