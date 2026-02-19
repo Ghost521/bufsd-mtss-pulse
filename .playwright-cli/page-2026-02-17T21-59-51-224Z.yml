@@ -1,0 +1,146 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - button "Open MTSS Assistant" [ref=e3]:
+      - img [ref=e4]
+    - complementary [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - generic [ref=e10]:
+            - generic [ref=e11]:
+              - img [ref=e13]
+              - generic [ref=e16]:
+                - heading "BUFSD MTSS" [level=1] [ref=e17]
+                - paragraph [ref=e18]: Workspace
+            - button "Collapse sidebar" [ref=e19]:
+              - img [ref=e20]
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: MTSS Platform
+            - paragraph [ref=e24]: Role Workspace
+          - generic [ref=e25]:
+            - generic [ref=e26]: Search navigation
+            - generic [ref=e27]:
+              - img
+              - textbox "Search navigation" [ref=e28]:
+                - /placeholder: Quick navigation
+        - navigation "Workspace navigation" [ref=e29]:
+          - generic [ref=e30]:
+            - button "Work" [expanded] [ref=e31]:
+              - text: Work
+              - img [ref=e32]
+            - link "Leadership Dashboard" [ref=e34] [cursor=pointer]:
+              - /url: /app
+              - img [ref=e35]
+              - generic [ref=e40]: Leadership Dashboard
+            - link "Rosters" [ref=e41] [cursor=pointer]:
+              - /url: /app/rosters
+              - img [ref=e42]
+              - generic [ref=e47]: Rosters
+            - link "Intervention Plans" [ref=e48] [cursor=pointer]:
+              - /url: /app/interventions
+              - img [ref=e49]
+              - generic [ref=e52]: Intervention Plans
+            - link "School Reports" [ref=e53] [cursor=pointer]:
+              - /url: /app/reports
+              - img [ref=e54]
+              - generic [ref=e55]: School Reports
+          - generic [ref=e56]:
+            - button "Planning" [expanded] [ref=e57]:
+              - text: Planning
+              - img [ref=e58]
+            - link "Lesson Plans" [ref=e60] [cursor=pointer]:
+              - /url: /app/lesson-plans
+              - img [ref=e61]
+              - generic [ref=e65]: Lesson Plans
+            - link "Calendar" [ref=e66] [cursor=pointer]:
+              - /url: /app/calendar
+              - img [ref=e67]
+              - generic [ref=e69]: Calendar
+          - generic [ref=e70]:
+            - button "Communication" [expanded] [ref=e71]:
+              - text: Communication
+              - img [ref=e72]
+            - link "Messages" [ref=e74] [cursor=pointer]:
+              - /url: /app/messages
+              - img [ref=e75]
+              - generic [ref=e77]: Messages
+          - generic [ref=e78]:
+            - button "Administration" [expanded] [ref=e79]:
+              - text: Administration
+              - img [ref=e80]
+            - link "Resource Library" [ref=e82] [cursor=pointer]:
+              - /url: /app/documents
+              - img [ref=e83]
+              - generic [ref=e87]: Resource Library
+            - link "Data Integrations" [ref=e88] [cursor=pointer]:
+              - /url: /app/import
+              - img [ref=e89]
+              - generic [ref=e92]: Data Integrations
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - generic [ref=e96]: US
+            - generic [ref=e97]:
+              - paragraph [ref=e98]: Account & Workspace
+              - paragraph
+              - paragraph [ref=e99]: Workspace
+            - generic [ref=e100]: Principal
+          - link "Settings Manage" [ref=e102] [cursor=pointer]:
+            - /url: /app/settings
+            - generic [ref=e103]:
+              - img [ref=e104]
+              - generic [ref=e107]: Settings
+            - generic [ref=e108]: Manage
+    - main [ref=e109]:
+      - generic [ref=e111]:
+        - generic [ref=e114]:
+          - paragraph [ref=e115]: Dashboard
+          - heading "Leadership Dashboard" [level=2] [ref=e116]
+          - paragraph [ref=e117]: "| Workspace | Tuesday, February 17"
+          - paragraph [ref=e118]: Data refresh status unavailable | Tenant workspace data
+        - generic [ref=e119]:
+          - button "Create Referral" [ref=e120]:
+            - img [ref=e121]
+            - text: Create Referral
+          - button "Actions" [ref=e123]:
+            - text: Actions
+            - img [ref=e124]
+      - generic [ref=e129]:
+        - button "Create Support Referral" [ref=e130]
+        - button "Review Active Supports" [ref=e131]
+        - button "Open MTSS Calendar" [ref=e132]
+      - generic [ref=e133]:
+        - generic [ref=e134]:
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]:
+                - heading "Priority Student Support Actions" [level=2] [ref=e139]
+                - paragraph [ref=e140]: 0 student cases ready for team review.
+              - generic [ref=e141]:
+                - img [ref=e142]
+                - text: Decision Support
+            - generic [ref=e155]:
+              - img [ref=e156]
+              - paragraph [ref=e159]: All caught up!
+              - paragraph [ref=e160]: No student cases currently flagged for follow-up.
+          - generic [ref=e165]:
+            - heading "Intervention Effectiveness" [level=3] [ref=e166]
+            - paragraph [ref=e167]: Outcome Trend View
+        - generic [ref=e170]:
+          - heading "Tiered Support Distribution" [level=3] [ref=e174]
+          - generic [ref=e177]:
+            - generic [ref=e179]:
+              - heading "Student Monitoring Queue" [level=3] [ref=e180]:
+                - img [ref=e181]
+                - text: Student Monitoring Queue
+              - paragraph [ref=e183]: Data refresh status unavailable
+            - generic [ref=e185]: No students currently flagged for progress check.
+            - button "View Full Monitoring Queue" [ref=e187]:
+              - text: View Full Monitoring Queue
+              - img [ref=e188]
+  - generic:
+    - contentinfo:
+      - button "Open TanStack Router Devtools" [ref=e190] [cursor=pointer]:
+        - generic [ref=e191]:
+          - img [ref=e193]
+          - img [ref=e228]
+        - generic [ref=e262]: "-"
+        - generic [ref=e263]: TanStack Router

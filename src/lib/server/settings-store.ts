@@ -6,6 +6,7 @@ import {
   type SettingsRecord,
   type SettingsSectionId,
 } from "../schemas/settings";
+import { READING_BENCHMARK_GRADE_ORDER, normalizeReadingLevel } from "../reading-benchmarks";
 
 export class SettingsStoreError extends Error {
   status: number;
@@ -22,11 +23,35 @@ const SETTINGS_DOMAIN = "settings" as const;
 const hasAnyRole = (roles: RoleKey[], required: RoleKey[]): boolean =>
   required.some((role) => roles.includes(role));
 
+const normalizeReadingBenchmarks = (
+  value: SettingsRecord["system"]["readingBenchmarks"],
+): SettingsRecord["system"]["readingBenchmarks"] => {
+  if (!value) return undefined;
+
+  const next: NonNullable<SettingsRecord["system"]["readingBenchmarks"]> = {};
+  for (const grade of READING_BENCHMARK_GRADE_ORDER) {
+    const candidate = value[grade];
+    if (!candidate) continue;
+
+    const min = normalizeReadingLevel(candidate.min);
+    const max = normalizeReadingLevel(candidate.max);
+    if (!min || !max || min > max) continue;
+    next[grade] = { min, max };
+  }
+
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
+const normalizeSystemSettings = (value: SettingsRecord["system"]): SettingsRecord["system"] => ({
+  ...value,
+  readingBenchmarks: normalizeReadingBenchmarks(value.readingBenchmarks),
+});
+
 export const isSettingsSectionAllowedForRoles = (section: SettingsSectionId, roles: RoleKey[]): boolean => {
   if (section === "profile" || section === "notifications" || section === "security") return true;
   if (section === "preferences") return roles.includes("parent");
   if (section === "classroom") return roles.includes("teacher");
-  if (section === "system") return hasAnyRole(roles, ["principal", "district_admin", "org_admin"]);
+  if (section === "system") return hasAnyRole(roles, ["principal", "school_admin", "district_admin", "org_admin"]);
   return false;
 };
 
@@ -117,12 +142,17 @@ export const updateUserSettingsSection = async <TSection extends SettingsSection
     throw new SettingsStoreError(parsedSection.error.issues[0]?.message ?? "Invalid settings payload.", 400);
   }
 
+  const sectionData =
+    section === "system"
+      ? normalizeSystemSettings(parsedSection.data as SettingsRecord["system"])
+      : parsedSection.data;
+
   const rows = await readTenantSettingsRows(session);
   const fallback = createDefaultRecord(session);
   const existing = rows.find((row) => row.userId === session.user.id) ?? fallback;
   const next: SettingsRecord = settingsRecordSchema.parse({
     ...existing,
-    [section]: parsedSection.data,
+    [section]: sectionData,
     security: {
       ...existing.security,
       providerManagedAuth: true,

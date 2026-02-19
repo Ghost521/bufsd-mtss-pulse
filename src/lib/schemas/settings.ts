@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { READING_BENCHMARK_GRADE_ORDER, type NormalizedGrade } from "../reading-benchmarks";
 
 export const settingsSectionIds = [
   "profile",
@@ -57,10 +58,49 @@ export const classroomSettingsSchema = z.object({
   weeklyParentSummary: z.boolean(),
 });
 
+const readingBenchmarkBandSchema = z
+  .object({
+    min: z.string().trim().regex(/^[A-Za-z]$/, "Use one letter from A to Z.").transform((value) => value.toUpperCase()),
+    max: z.string().trim().regex(/^[A-Za-z]$/, "Use one letter from A to Z.").transform((value) => value.toUpperCase()),
+  })
+  .superRefine((value, context) => {
+    if (value.min > value.max) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Maximum level must be greater than or equal to minimum level.",
+        path: ["max"],
+      });
+    }
+  });
+
+export const readingBenchmarkOverridesSchema = z
+  .record(z.string(), readingBenchmarkBandSchema)
+  .superRefine((value, context) => {
+    for (const key of Object.keys(value)) {
+      if (!READING_BENCHMARK_GRADE_ORDER.includes(key as NormalizedGrade)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Grade key must be one of K, 1, 2, 3, 4, 5, 6, 7, 8.",
+          path: [key],
+        });
+      }
+    }
+  })
+  .transform((value) => {
+    const next: Partial<Record<NormalizedGrade, { min: string; max: string }>> = {};
+    for (const grade of READING_BENCHMARK_GRADE_ORDER) {
+      const band = value[grade];
+      if (!band) continue;
+      next[grade] = { min: band.min, max: band.max };
+    }
+    return next;
+  });
+
 export const systemSettingsSchema = z.object({
   infiniteCampusConnected: z.boolean(),
   cleverConnected: z.boolean(),
   powerSchoolConnected: z.boolean(),
+  readingBenchmarks: readingBenchmarkOverridesSchema.optional(),
 });
 
 export const settingsRecordSchema = z.object({

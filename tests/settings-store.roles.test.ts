@@ -6,7 +6,7 @@ import type { RoleKey } from "../src/lib/server/tenant-types";
 describe("isSettingsSectionAllowedForRoles", () => {
   it("allows shared sections for all roles", () => {
     const sharedSections: SettingsSectionId[] = ["profile", "notifications", "security"];
-    const roles: RoleKey[] = ["org_admin", "district_admin", "principal", "teacher", "parent"];
+    const roles: RoleKey[] = ["org_admin", "district_admin", "principal", "school_admin", "teacher", "parent"];
 
     for (const role of roles) {
       for (const section of sharedSections) {
@@ -23,6 +23,7 @@ describe("isSettingsSectionAllowedForRoles", () => {
     expect(isSettingsSectionAllowedForRoles("classroom", ["principal"])).toBe(false);
 
     expect(isSettingsSectionAllowedForRoles("system", ["principal"])).toBe(true);
+    expect(isSettingsSectionAllowedForRoles("system", ["school_admin"])).toBe(true);
     expect(isSettingsSectionAllowedForRoles("system", ["district_admin"])).toBe(true);
     expect(isSettingsSectionAllowedForRoles("system", ["org_admin"])).toBe(true);
     expect(isSettingsSectionAllowedForRoles("system", ["teacher"])).toBe(false);

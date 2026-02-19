@@ -1,0 +1,110 @@
+- generic [ref=e2]:
+  - button "Open MTSS Assistant" [ref=e3]:
+    - img [ref=e4]
+  - complementary [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - img [ref=e13]
+            - generic [ref=e16]:
+              - heading "BUFSD MTSS" [level=1] [ref=e17]
+              - paragraph [ref=e18]: Workspace
+          - button "Collapse sidebar" [ref=e19]:
+            - img [ref=e20]
+        - generic [ref=e22]:
+          - paragraph [ref=e23]: MTSS Platform
+          - paragraph [ref=e24]: Role Workspace
+        - generic [ref=e25]:
+          - generic [ref=e26]: Search navigation
+          - generic [ref=e27]:
+            - img
+            - textbox "Search navigation" [ref=e28]:
+              - /placeholder: Quick navigation
+      - navigation "Workspace navigation" [ref=e29]:
+        - generic [ref=e30]:
+          - button "Work" [expanded] [ref=e31]:
+            - text: Work
+            - img [ref=e32]
+          - link "Leadership Dashboard" [ref=e34] [cursor=pointer]:
+            - /url: /app
+            - img [ref=e35]
+            - generic [ref=e40]: Leadership Dashboard
+          - link "Rosters" [ref=e41] [cursor=pointer]:
+            - /url: /app/rosters
+            - img [ref=e42]
+            - generic [ref=e47]: Rosters
+          - link "Intervention Plans" [ref=e48] [cursor=pointer]:
+            - /url: /app/interventions
+            - img [ref=e49]
+            - generic [ref=e52]: Intervention Plans
+          - link "School Reports" [ref=e53] [cursor=pointer]:
+            - /url: /app/reports
+            - img [ref=e54]
+            - generic [ref=e55]: School Reports
+        - generic [ref=e56]:
+          - button "Planning" [expanded] [ref=e57]:
+            - text: Planning
+            - img [ref=e58]
+          - link "Lesson Plans" [ref=e60] [cursor=pointer]:
+            - /url: /app/lesson-plans
+            - img [ref=e61]
+            - generic [ref=e65]: Lesson Plans
+          - link "Calendar" [ref=e66] [cursor=pointer]:
+            - /url: /app/calendar
+            - img [ref=e67]
+            - generic [ref=e69]: Calendar
+        - generic [ref=e70]:
+          - button "Communication" [expanded] [ref=e71]:
+            - text: Communication
+            - img [ref=e72]
+          - link "Messages" [ref=e74] [cursor=pointer]:
+            - /url: /app/messages
+            - img [ref=e75]
+            - generic [ref=e77]: Messages
+        - generic [ref=e78]:
+          - button "Administration" [expanded] [ref=e79]:
+            - text: Administration
+            - img [ref=e80]
+          - link "Resource Library" [ref=e82] [cursor=pointer]:
+            - /url: /app/documents
+            - img [ref=e83]
+            - generic [ref=e87]: Resource Library
+          - link "Data Integrations" [ref=e88] [cursor=pointer]:
+            - /url: /app/import
+            - img [ref=e89]
+            - generic [ref=e92]: Data Integrations
+      - generic [ref=e94]:
+        - generic [ref=e95]:
+          - generic [ref=e96]: US
+          - generic [ref=e97]:
+            - paragraph [ref=e98]: Account & Workspace
+            - paragraph
+            - paragraph [ref=e99]: Workspace
+          - generic [ref=e100]: Principal
+        - generic [ref=e101]:
+          - generic [ref=e102]:
+            - generic [ref=e103]: View As Role
+            - paragraph [ref=e104]: Choose the perspective for this workspace.
+            - combobox "Switch active role view" [ref=e105]:
+              - option "Principal" [selected]
+              - option "Teacher"
+              - option "District Admin"
+              - option "Parent"
+          - link "Settings Manage" [ref=e106] [cursor=pointer]:
+            - /url: /app/settings
+            - generic [ref=e107]:
+              - img [ref=e108]
+              - generic [ref=e111]: Settings
+            - generic [ref=e112]: Manage
+          - generic [ref=e113]:
+            - paragraph [ref=e114]: Workspace Session
+            - paragraph [ref=e115]: Update organization context and authentication state.
+            - generic [ref=e116]:
+              - paragraph [ref=e117]: Organization Context
+              - combobox "Active organization context" [disabled] [ref=e118]
+              - button "Refresh Context" [ref=e119]
+  - main [ref=e120]:
+    - paragraph [ref=e122]:
+      - img [ref=e123]
+      - text: Loading settings...
