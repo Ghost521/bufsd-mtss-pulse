@@ -666,11 +666,11 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
         initialHeight={800}
         footer={
             <div className="flex justify-end gap-3 w-full">
-                <button onClick={closeCreateModal} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button onClick={closeCreateModal} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button 
                     onClick={handleSave} 
                     disabled={!generatedPlan}
-                    className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
                 >
                     <Save size={16} /> Save Plan
                 </button>
@@ -828,7 +828,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                       <button 
                         onClick={handleGenerate}
                         disabled={!newPlanData.topic || isGenerating || (generationMode === 'Group' && selectedStudentIds.size === 0)}
-                        className="w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 shadow-sm mt-auto"
+                        className="w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 shadow-sm mt-auto"
                       >
                           {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />}
                           {isGenerating ? 'Generating Plan...' : 'Generate Plan'}
@@ -1109,7 +1109,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                     {/* Left Actions */}
                     <div className="flex gap-2">
                       {isEditMode ? (
-                         <button onClick={requestCancelEditing} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                         <button onClick={requestCancelEditing} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                       ) : (
                          isLessonPlanOwnedBy(selectedPlan, ownerKey) && (
                             <button 
@@ -1129,7 +1129,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                             <button 
                                 onClick={saveEditedPlan}
                                 disabled={!isEditDirty}
-                                className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
+                                className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2"
                             >
                                 <Save size={16} /> Save Changes
                             </button>
@@ -1138,14 +1138,14 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                                 {isLessonPlanOwnedBy(selectedPlan, ownerKey) && (
                                     <button 
                                         onClick={startEditing}
-                                        className="px-4 py-2 text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 flex items-center gap-2"
+                                        className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 flex items-center gap-2"
                                     >
                                         <Edit3 size={16} /> Edit
                                     </button>
                                 )}
                                 <button
                                   onClick={handlePrintPlan}
-                                  className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
+                                  className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
                                 >
                                     <Printer size={16} /> Print
                                 </button>

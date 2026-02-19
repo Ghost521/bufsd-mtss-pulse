@@ -481,7 +481,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                       </div>
                     </div>
                   ))}
-                  <button className="w-full py-3 text-sm text-slate-600 font-medium border border-dashed border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 transition-all flex items-center justify-center gap-2 group">
+                  <button className="w-full py-3 text-sm text-slate-600 font-semibold border border-dashed border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 transition-all flex items-center justify-center gap-2 group">
                     <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center group-hover:bg-slate-300 group-hover:text-slate-700 transition-colors">
                       <Plus size={12} strokeWidth={3} />
                     </div>
@@ -522,7 +522,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                                     </div>
                                   </div>
                                </div>
-                               <button className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm shadow-indigo-200 hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5 transition-all group-hover/card:bg-indigo-700">
+                               <button className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg shadow-sm shadow-indigo-200 hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5 transition-all group-hover/card:bg-indigo-700">
                                  <Plus size={14} className="text-indigo-200 group-hover/card:text-white transition-colors" />
                                  Add
                                </button>
@@ -662,7 +662,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                       <button 
                         onClick={loadOlderHistory}
                         disabled={isLoadingHistory}
-                        className="text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 -ml-3 rounded-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-xs font-semibold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 -ml-3 rounded-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                           {isLoadingHistory ? (
                             <>
@@ -690,7 +690,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
           <div className="flex gap-3 w-full sm:w-auto">
             <button 
               onClick={handleMessageParentsClick}
-              className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white hover:border-slate-300 hover:text-slate-900 rounded-lg transition-all shadow-sm"
+              className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white hover:border-slate-300 hover:text-slate-900 rounded-lg transition-all shadow-sm"
             >
               <Mail size={16} className="text-slate-500" />
               <span className="sm:hidden">Message</span>
@@ -698,7 +698,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             </button>
             <button 
               onClick={handleSmsParent}
-              className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white hover:border-slate-300 hover:text-slate-900 rounded-lg transition-all shadow-sm"
+              className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-50 border border-slate-200 hover:bg-white hover:border-slate-300 hover:text-slate-900 rounded-lg transition-all shadow-sm"
             >
               <Smartphone size={16} className="text-slate-500" />
               <span className="sm:hidden">SMS</span>

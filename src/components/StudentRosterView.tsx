@@ -447,13 +447,13 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-6 animate-in slide-in-from-bottom-4 zoom-in-95">
                 <span className="font-bold text-sm">{selectedIds.size} Selected</span>
                 <div className="h-4 w-px bg-white/20"></div>
-                <button onClick={handleBulkDelete} className="flex items-center gap-2 hover:text-rose-400 transition-colors text-sm font-medium">
+                <button onClick={handleBulkDelete} className="flex items-center gap-2 hover:text-rose-400 transition-colors text-sm font-semibold">
                     <Trash2 size={16} /> Delete
                 </button>
-                <button className="flex items-center gap-2 hover:text-indigo-300 transition-colors text-sm font-medium">
+                <button className="flex items-center gap-2 hover:text-indigo-300 transition-colors text-sm font-semibold">
                     <Archive size={16} /> Archive
                 </button>
-                <button className="flex items-center gap-2 hover:text-emerald-300 transition-colors text-sm font-medium">
+                <button className="flex items-center gap-2 hover:text-emerald-300 transition-colors text-sm font-semibold">
                     <Download size={16} /> Export
                 </button>
                 <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-white/20 rounded-full">
@@ -489,7 +489,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                     </button>
                     <button 
                         onClick={handleSaveStudent}
-                        className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2"
+                        className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2"
                     >
                         <Save size={16} /> Save Changes
                     </button>
@@ -567,7 +567,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                     <button 
                         onClick={handleAddNewStudent}
                         disabled={!newStudentData.firstName || !newStudentData.lastName}
-                        className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <UserPlus size={16} /> Create Record
                     </button>
@@ -712,7 +712,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                    <div className="relative group">
                        <button 
                            onClick={handleToggleBulkMode}
-                           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold border transition-all ${isBulkMode ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600'}`}
+                           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border transition-all ${isBulkMode ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600'}`}
                        >
                            {isBulkMode ? <X size={16} /> : <CheckCircle2 size={16} />}
                            {isBulkMode ? 'Cancel Selection' : 'Bulk Actions'}
@@ -725,14 +725,14 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                         <>
                             <button 
                                 onClick={handleExitAttendanceMode}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 transition-all"
                                 disabled={isSubmittingAttendance}
                             >
                                 Cancel
                             </button>
                             <button 
                                 onClick={handleSubmitAttendance}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold shadow-md hover:bg-emerald-700 transition-all active:scale-95"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold shadow-md hover:bg-emerald-700 transition-all active:scale-95"
                                 disabled={isSubmittingAttendance}
                             >
                                 {isSubmittingAttendance ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
@@ -750,14 +750,14 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                             </button>
                             <button 
                                 onClick={handleStartAttendance}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-600 transition-all shadow-sm"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-600 transition-all shadow-sm"
                             >
                                 <ClipboardCheck size={18} />
                                 <span className="hidden sm:inline">Attendance</span>
                             </button>
                             <button 
                                 onClick={handleOpenNewReferral}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95 hover:shadow-lg"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-700 transition-all active:scale-95 hover:shadow-lg"
                             >
                                 <ShieldAlert size={18} />
                                 <span className="hidden sm:inline">Referral</span>
@@ -1040,7 +1040,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                         <div className="flex flex-col justify-end">
                             <button 
                                 onClick={clearFilters}
-                                className="p-2 text-xs font-bold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1"
+                                className="p-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1"
                             >
                                 <X size={14} /> Clear All
                             </button>
@@ -1092,7 +1092,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                     )}
                     <button
                         onClick={clearFilters}
-                        className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-bold text-rose-600 hover:bg-rose-50"
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-rose-600 hover:bg-rose-50"
                     >
                         <X size={12} />
                         Clear all
@@ -1108,7 +1108,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                     <div className="col-span-full py-12 flex flex-col items-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                         <Search size={48} className="mb-2 opacity-50" />
                         <p className="font-medium">No students found.</p>
-                        <button onClick={clearFilters} className="text-indigo-600 text-sm hover:underline mt-2 font-bold">Clear Filters</button>
+                        <button onClick={clearFilters} className="text-indigo-600 text-sm hover:underline mt-2 font-semibold">Clear Filters</button>
                     </div>
                 ) : (
                     filteredAndSortedStudents.map((student) => {

@@ -39,6 +39,7 @@ import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useTenantBranding } from '../hooks/useTenantBranding';
 import { useSidebarState } from '../hooks/useSidebarState';
 import { ACTION_ICON_BY_ID, getRouteIcon, iconSize } from '../lib/ui/icons';
+import { Button } from './ui/Button';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -511,10 +512,11 @@ const App: React.FC = () => {
   };
 
   const renderMobileSectionHeader = (section: DashboardSectionKey, label: string, subtitle: string) => (
-    <button
-      type="button"
+    <Button
+      variant="secondary"
       onClick={() => toggleMobileSection(section)}
-      className="app-button-secondary flex w-full items-center justify-between rounded-lg px-4 py-3 text-left lg:hidden"
+      fullWidth
+      className="app-button-secondary justify-between px-4 py-3 text-left lg:hidden"
       aria-expanded={mobileSections[section]}
     >
       <span>
@@ -522,7 +524,7 @@ const App: React.FC = () => {
         <span className="block text-xs text-slate-500">{subtitle}</span>
       </span>
       <ChevronDown size={16} className={`text-slate-500 transition-transform ${mobileSections[section] ? 'rotate-180' : ''}`} />
-    </button>
+    </Button>
   );
 
   const navigateToPage = (page: WorkspacePageId) => {
@@ -886,29 +888,29 @@ const App: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           {primaryAction ? (
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={primaryAction.onClick}
               disabled={!primaryAction.enabled}
               title={primaryAction.tooltip}
-              className="app-button-primary flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors"
+              className="app-button-primary gap-2 shadow-sm"
             >
               <primaryAction.icon size={iconSize("md")} />
               {primaryAction.label}
-            </button>
+            </Button>
           ) : null}
 
           <div className="relative" ref={moreMenuRef}>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => setIsMoreMenuOpen((previous) => !previous)}
-              className="app-button-secondary inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors"
+              className="app-button-secondary gap-2"
               aria-expanded={isMoreMenuOpen}
               aria-haspopup="menu"
             >
               Actions
               <ChevronDown size={iconSize("md")} className={`transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
+            </Button>
 
             {isMoreMenuOpen ? (
               <div className="absolute right-0 z-30 mt-2 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-xl" role="menu">
@@ -965,13 +967,14 @@ const App: React.FC = () => {
           <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             <p className="font-semibold">AI summary unavailable.</p>
             <p className="mt-1">{briefingError}</p>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => void handleGenerateInsight()}
-              className="mt-2 rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+              className="mt-2 border-rose-200 bg-white text-rose-700 hover:bg-rose-100"
             >
               Retry Summary
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -1035,7 +1038,7 @@ const App: React.FC = () => {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={handleSubmitFeedback} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 sm:flex-none">Submit <Send size={14} /></button>
+                  <Button type="button" variant="primary" onClick={handleSubmitFeedback} className="flex-1 gap-2 sm:flex-none">Submit <Send size={14} /></Button>
                   <button type="button" aria-label="Close feedback input" onClick={() => setShowFeedbackInput(false)} className="rounded-lg border border-indigo-100 bg-white p-2 text-indigo-400 hover:text-indigo-600 sm:border-none sm:bg-transparent"><X size={18} /></button>
                 </div>
               </div>
@@ -1072,14 +1075,15 @@ const App: React.FC = () => {
           <div className="app-card rounded-xl p-4">
             <div className="flex flex-wrap gap-2">
               {topTasks.map((task) => (
-                <button
+                <Button
                   key={task.id}
-                  type="button"
                   onClick={task.onClick}
-                  className="app-chip-action rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+                  variant="secondary"
+                  size="sm"
+                  className="app-chip-action rounded-full text-xs transition-colors"
                 >
                   {task.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>

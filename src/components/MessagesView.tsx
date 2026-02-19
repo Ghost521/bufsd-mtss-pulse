@@ -985,7 +985,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                       <button 
                         onClick={handleCreateConversation}
                         disabled={selectedContacts.length === 0}
-                        className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                        className="w-full py-3 bg-indigo-600 text-white rounded-lg font-semibold shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                       >
                           {selectedContacts.length > 1 && isStaffUser ? `Create Group (${selectedContacts.length})` : 'Start Conversation'}
                       </button>
@@ -1068,7 +1068,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                       <button 
                         ref={convoDeleteButtonRef}
                         onClick={handleDeleteConversationRequest}
-                        className="w-full py-3 bg-white border border-rose-200 text-rose-600 rounded-lg font-bold shadow-sm hover:bg-rose-50 hover:border-rose-300 transition-all flex items-center justify-center gap-2 text-sm"
+                        className="w-full py-3 bg-white border border-rose-200 text-rose-600 rounded-lg font-semibold shadow-sm hover:bg-rose-50 hover:border-rose-300 transition-all flex items-center justify-center gap-2 text-sm"
                         aria-label="Delete conversation"
                       >
                           <Trash2 size={16} /> Delete Conversation
@@ -1111,7 +1111,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             <button
               type="button"
               onClick={handleUndoDelete}
-              className="text-sm font-bold text-indigo-200 hover:text-indigo-100"
+              className="text-sm font-semibold text-indigo-200 hover:text-indigo-100"
             >
               Undo
             </button>

@@ -143,7 +143,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ currentUserRole }) => 
         <button
           onClick={handleExport}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
         >
           <Download size={16} />
           {isExporting ? 'Generating...' : 'Export PDF'}

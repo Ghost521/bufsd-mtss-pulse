@@ -776,7 +776,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     {missingWorkList.length > 0 && (
                         <button 
                             onClick={handleMessageAllParents}
-                            className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-all active:scale-95"
+                            className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-all active:scale-95"
                         >
                             <MessageSquare size={16} /> Message All Parents
                         </button>
@@ -835,14 +835,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                             <div className="flex gap-3">
                                 <button 
                                     onClick={handleGenerateDraft}
-                                    className="flex-1 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
+                                    className="flex-1 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
                                 >
                                     <Sparkles size={16} /> {draftMessage ? 'Regenerate Draft' : 'Generate with AI'}
                                 </button>
                                 <button 
                                     onClick={handleSendMessage}
                                     disabled={!draftMessage.trim()}
-                                    className="flex-[2] py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
+                                    className="flex-[2] py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
                                 >
                                     Send Message <Send size={16} />
                                 </button>
@@ -919,7 +919,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                 <button 
                     onClick={handleCreateAssignment}
                     disabled={!newAssignmentData.title}
-                    className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all hover:shadow-lg transform active:scale-95"
+                    className="px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all hover:shadow-lg transform active:scale-95"
                 >
                     <Save size={18} /> Create Assignment
                 </button>
@@ -1055,7 +1055,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     ))}
                     <button
                       onClick={normalizeWeights}
-                      className="py-2 px-2 rounded-lg text-xs font-bold border bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                      className="py-2 px-2 rounded-lg text-xs font-semibold border bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
                     >
                       Normalize
                     </button>
@@ -1218,7 +1218,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
           <button onClick={() => setDateFilter('All')} className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
             {dateFilter === 'All' ? 'All Time' : dateFilter === '30Days' ? 'Last 30 Days' : 'Last 7 Days'}
           </button>
-          <button onClick={resetFiltersToDefault} className="ml-auto text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg px-2 py-1">
+          <button onClick={resetFiltersToDefault} className="ml-auto text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg px-2 py-1">
             Reset Filters
           </button>
         </div>
@@ -1302,13 +1302,13 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
 
             <div className="mt-4 space-y-2">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Recommended Actions</p>
-              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-semibold">
                 Send homework reminder to families with missing work
               </button>
-              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-semibold">
                 Create intervention follow-up for Tier 3 students below 70%
               </button>
-              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">
+              <button className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-semibold">
                 Review weight distribution before final posting
               </button>
             </div>
@@ -1357,7 +1357,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                  {saveStatus === 'error' && (
                   <button
                     onClick={retrySavingGrades}
-                    className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs font-bold hover:bg-rose-50"
+                    className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs font-semibold hover:bg-rose-50"
                   >
                     Retry Save
                   </button>

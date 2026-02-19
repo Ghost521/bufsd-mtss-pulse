@@ -500,7 +500,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 <button
                   onClick={handleConfirmShare}
                   disabled={!shareTargets.family && !shareTargets.principal && !shareTargets.support}
-                  className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     <Send size={16} /> Send
                 </button>
@@ -584,7 +584,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
             <button 
                 onClick={handleSaveNewPlan} 
                 disabled={!generatedPlanDetails}
-                className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
+                className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
             >
               <Save size={16} /> Save Plan
             </button>
@@ -638,7 +638,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                  <button 
                     onClick={handleGeneratePlan}
                     disabled={isGeneratingPlan || !newPlanData.studentName}
-                    className="h-[38px] px-4 bg-indigo-100 text-indigo-700 font-bold text-sm rounded-lg hover:bg-indigo-200 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    className="h-[38px] px-4 bg-indigo-100 text-indigo-700 font-semibold text-sm rounded-lg hover:bg-indigo-200 transition-colors flex items-center gap-2 disabled:opacity-50"
                  >
                      {isGeneratingPlan ? <Loader2 size={16} className="animate-spin" /> : <Bot size={16} />}
                      Generate Lesson Plan
@@ -706,7 +706,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 <button 
                     onClick={handleScanClass}
                     disabled={isScanning}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-indigo-200 text-indigo-700 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-70"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-indigo-200 text-indigo-700 rounded-xl font-semibold text-sm shadow-sm hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-70"
                 >
                     {isScanning ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />}
                     Scan Class for Needs
@@ -960,7 +960,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                         <div className="flex flex-col justify-end">
                             <button 
                                 onClick={clearFilters}
-                                className="p-2 text-xs font-bold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1"
+                                className="p-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1"
                             >
                                 <X size={14} /> Clear All
                             </button>
@@ -1010,7 +1010,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 <div className="text-center py-20 text-slate-400">
                     <Filter size={48} className="mx-auto mb-3 opacity-20" />
                     <p className="font-medium">No interventions match your filters.</p>
-                    <button onClick={clearFilters} className="text-indigo-600 font-bold text-sm hover:underline mt-2">Clear Filters</button>
+                    <button onClick={clearFilters} className="text-indigo-600 font-semibold text-sm hover:underline mt-2">Clear Filters</button>
                 </div>
             ) : (
                 Object.entries(processedData).map(([groupName, groupItems]: [string, InterventionRecord[]]) => {

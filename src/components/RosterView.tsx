@@ -258,13 +258,13 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-6 animate-in slide-in-from-bottom-4 zoom-in-95">
                 <span className="font-bold text-sm">{selectedIds.size} Selected</span>
                 <div className="h-4 w-px bg-white/20"></div>
-                <button onClick={handleBulkDelete} className="flex items-center gap-2 hover:text-rose-400 transition-colors text-sm font-medium">
+                <button onClick={handleBulkDelete} className="flex items-center gap-2 hover:text-rose-400 transition-colors text-sm font-semibold">
                     <Trash2 size={16} /> Remove
                 </button>
-                <button className="flex items-center gap-2 hover:text-indigo-300 transition-colors text-sm font-medium">
+                <button className="flex items-center gap-2 hover:text-indigo-300 transition-colors text-sm font-semibold">
                     <Archive size={16} /> Deactivate
                 </button>
-                <button className="flex items-center gap-2 hover:text-emerald-300 transition-colors text-sm font-medium">
+                <button className="flex items-center gap-2 hover:text-emerald-300 transition-colors text-sm font-semibold">
                     <Download size={16} /> Export
                 </button>
                 <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-white/20 rounded-full">
@@ -449,7 +449,7 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                 <div className="mb-4 flex items-center gap-2 bg-slate-100 p-2 rounded-lg w-fit">
                     <button 
                         onClick={handleSelectAll}
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white rounded shadow-sm"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white rounded shadow-sm"
                     >
                         Select All
                     </button>

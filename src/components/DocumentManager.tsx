@@ -865,7 +865,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                         </button>
                         <button 
                             onClick={handleConfirmDelete}
-                            className="flex-1 py-2.5 text-white font-bold bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors text-sm shadow-sm"
+                            className="flex-1 py-2.5 text-white font-semibold bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors text-sm shadow-sm"
                         >
                             Delete File
                         </button>
@@ -922,7 +922,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             <button
               type="button"
               onClick={handleUndoToast}
-              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-md hover:bg-indigo-100"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-md hover:bg-indigo-100"
             >
               <Undo2 size={12} /> Undo
             </button>
@@ -1106,7 +1106,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
                       <button
                         type="button"
-                        className="font-bold text-slate-800 text-sm mb-1 truncate leading-tight text-left hover:text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+                        className="font-semibold text-slate-800 text-sm mb-1 truncate leading-tight text-left hover:text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
                         title={doc.name}
                         onClick={() => setViewingDoc(doc)}
                         aria-label={`Open ${doc.name}`}
@@ -1271,7 +1271,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                         <button 
                             type="submit" 
                             disabled={!uploadFile}
-                            className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex justify-center items-center gap-2"
+                            className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex justify-center items-center gap-2"
                         >
                             Upload & Process
                         </button>
@@ -1387,7 +1387,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                  <button 
                     type="submit" 
                     disabled={!linkUrl || isSummarizing}
-                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                  >
                     Add Resource
                  </button>

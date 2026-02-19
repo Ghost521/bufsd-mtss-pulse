@@ -1117,7 +1117,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </div>
                         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                             <button onClick={() => setEditingGroup(null)} className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-                            <button onClick={handleSaveGroup} disabled={!editingGroup.name.trim()} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">Save Group</button>
+                            <button onClick={handleSaveGroup} disabled={!editingGroup.name.trim()} className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 shadow-sm">Save Group</button>
                         </div>
                       </>
                   ) : (
@@ -1172,7 +1172,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         footer={
             <div className="flex justify-end gap-4 w-full">
                 <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button onClick={handleCreateEvent} className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 hover:shadow-xl transition-all active:scale-95 transform">Create Event</button>
+                <button onClick={handleCreateEvent} className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-lg shadow-indigo-200 hover:shadow-xl transition-all active:scale-95 transform">Create Event</button>
             </div>
         }
       >
@@ -1340,7 +1340,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-transparent hover:border-indigo-100">
                                             <Paperclip size={14} /> Add File
                                         </button>
-                                        <button type="button" onClick={startCamera} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-transparent hover:border-indigo-100">
+                                        <button type="button" onClick={startCamera} className="text-xs font-semibold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors border border-transparent hover:border-indigo-100">
                                             <Camera size={14} /> Photo
                                         </button>
                                     </div>
@@ -1410,7 +1410,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     <button 
                                         type="button" 
                                         onClick={handleInviteAllStaff}
-                                        className="text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 px-3 py-2 rounded-lg transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
+                                        className="text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 px-3 py-2 rounded-lg transition-colors shadow-sm flex items-center gap-1.5 active:scale-95"
                                     >
                                         <Briefcase size={14} /> All Staff
                                     </button>
@@ -1560,7 +1560,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                         <button 
                                             type="button" 
                                             onClick={handleAiSuggest}
-                                            className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow"
+                                            className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow"
                                         >
                                             {detectedConflicts.length > 0 ? 'Find Conflict-Free Slots' : 'Suggest Best Times'}
                                         </button>
@@ -1683,7 +1683,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors">
                                     + Add File
                                 </button>
-                                <button onClick={startCamera} className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors">
+                                <button onClick={startCamera} className="text-[10px] font-semibold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors">
                                     + Photo
                                 </button>
                             </div>
@@ -1746,7 +1746,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {myStatus === AttendanceStatus.ORGANIZER ? (
                         <div className="w-full flex justify-between items-center">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Event Owner</span>
-                            <button className="text-xs font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 px-4 py-2 rounded-lg transition-colors border border-rose-200 bg-rose-50">Cancel Event</button>
+                            <button className="text-xs font-semibold text-rose-600 hover:bg-rose-100 hover:text-rose-700 px-4 py-2 rounded-lg transition-colors border border-rose-200 bg-rose-50">Cancel Event</button>
                         </div>
                     ) : (
                         <>
@@ -1793,7 +1793,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         >
                             <ChevronLeft size={18}/>
                         </button>
-                        <button onClick={handleToday} className="px-3 py-1 text-xs font-bold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-md">Today</button>
+                        <button onClick={handleToday} className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-md">Today</button>
                         <button
                             onClick={handleNextRange}
                             aria-label="Next month"
@@ -1852,7 +1852,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                     <div className="flex items-center gap-3">
                                         <button 
                                             onClick={clearTypeFilters}
-                                            className="text-[10px] text-indigo-600 hover:underline font-bold"
+                                            className="text-[10px] text-indigo-600 hover:underline font-semibold"
                                         >
                                             Clear
                                         </button>
@@ -1907,7 +1907,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     </p>
                     <button
                         onClick={clearTypeFilters}
-                        className="text-xs font-bold text-indigo-700 hover:underline"
+                        className="text-xs font-semibold text-indigo-700 hover:underline"
                     >
                         Reset Filters
                     </button>

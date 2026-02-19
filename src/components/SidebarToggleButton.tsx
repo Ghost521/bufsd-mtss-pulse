@@ -1,5 +1,6 @@
 import React from "react";
 import { Menu } from "lucide-react";
+import { Button } from "./ui/Button";
 
 type SidebarToggleButtonProps = {
   onClick: () => void;
@@ -14,12 +15,13 @@ export const SidebarToggleButton: React.FC<SidebarToggleButtonProps> = ({
   ariaLabel = "Open workspace menu",
   iconSize = 24,
 }) => (
-  <button
-    type="button"
+  <Button
+    variant="ghost"
+    size="icon"
     onClick={onClick}
-    className={className ?? "app-icon-button lg:hidden rounded-lg p-2 transition-colors"}
+    className={className ?? "app-icon-button lg:hidden transition-colors"}
     aria-label={ariaLabel}
   >
     <Menu size={iconSize} />
-  </button>
+  </Button>
 );

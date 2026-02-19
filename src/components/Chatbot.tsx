@@ -360,7 +360,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                   <div className="absolute bottom-full left-0 right-0 p-2 bg-gradient-to-t from-white via-white/90 to-transparent flex justify-center pointer-events-none pb-6">
                      <button 
                       onClick={handleStop}
-                      className="pointer-events-auto flex items-center gap-2 px-4 py-1.5 bg-white border border-rose-200 shadow-md rounded-full text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                      className="pointer-events-auto flex items-center gap-2 px-4 py-1.5 bg-white border border-rose-200 shadow-md rounded-full text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
                       aria-label="Stop generating response"
                      >
                         <StopCircle size={14} /> Stop Generating

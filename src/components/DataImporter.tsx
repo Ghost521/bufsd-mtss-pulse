@@ -790,7 +790,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                       type="button"
                       onClick={handlePasteSubmit}
                       disabled={!pastedText.trim()}
-                      className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50"
+                      className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-semibold shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50"
                     >
                       Process Data
                     </button>
@@ -1169,7 +1169,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   <button
                     type="button"
                     onClick={onImportComplete}
-                    className="px-8 py-3 bg-white text-slate-700 border border-slate-200 rounded-lg font-bold hover:bg-slate-50"
+                    className="px-8 py-3 bg-white text-slate-700 border border-slate-200 rounded-lg font-semibold hover:bg-slate-50"
                   >
                     Back to Dashboard
                   </button>

@@ -317,7 +317,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                 <button 
                     onClick={handleApprovePlan}
                     disabled={isGeneratingPlan}
-                    className="flex-1 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all text-sm flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all text-sm flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     Approve and Add Plan <ArrowRight size={16} />
                 </button>
