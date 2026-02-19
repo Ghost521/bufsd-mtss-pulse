@@ -11,6 +11,7 @@
     "lint": "oxlint --react-plugin --vitest-plugin --ignore-pattern dist/** --ignore-pattern node_modules/** --ignore-pattern convex/_generated/** .",
     "lint:icons": "node scripts/check-icon-consistency.mjs",
     "test": "vitest run",
+    "test:referral-modal": "vitest run tests/referral-modal.ui.test.ts",
     "test:sidebar-bounds": "vitest run tests/sidebar-layout.containment.test.ts",
     "test:responsive": "vitest run tests/responsive-layout.containment.test.ts",
     "test:watch": "vitest",

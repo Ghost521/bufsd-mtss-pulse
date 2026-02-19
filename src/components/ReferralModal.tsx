@@ -44,6 +44,20 @@ type ReferralSubmitResult = {
   routedTo: string;
 };
 
+type ReferralDraftAttachment = {
+  name: string;
+  size: number;
+  lastModified: number;
+  type: string;
+};
+
+type ReferralDraftRecord = {
+  version: 1;
+  updatedAt: string;
+  formData: ReferralFormData;
+  attachments: ReferralDraftAttachment[];
+};
+
 type ReferralRecord = {
   id: string;
   studentId: string;
@@ -67,6 +81,8 @@ type StudentOption = StudentRosterItem & {
 };
 
 const STUDENT_LISTBOX_ID = 'referral-student-options';
+const REFERRAL_DRAFT_TTL_MS = 8 * 60 * 60 * 1000;
+const REFERRAL_DRAFT_SCHEMA_VERSION = 1 as const;
 const MAX_FILE_SIZE_MB = 10;
 const ACCEPTED_ATTACHMENT_INPUT = '.pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif';
 
@@ -80,19 +96,50 @@ const buildDefaultForm = (studentId = ''): ReferralFormData => ({
 const formatStudentLabel = (student: StudentOption): string =>
   `${student.name} (Grade ${student.grade} | ID ${student.id})`;
 
-const formSnapshot = (formData: ReferralFormData, files: File[]): string =>
+const toDraftAttachment = (file: Pick<File, 'name' | 'size' | 'lastModified' | 'type'>): ReferralDraftAttachment => ({
+  name: file.name,
+  size: file.size,
+  lastModified: file.lastModified,
+  type: file.type || '',
+});
+
+const formSnapshot = (formData: ReferralFormData, files: File[], draftAttachments: ReferralDraftAttachment[] = []): string =>
   JSON.stringify({
     formData: {
       ...formData,
       notes: normalizeNotes(formData.notes),
     },
-    files: files.map((file) => ({
-      name: file.name,
-      size: file.size,
-      lastModified: file.lastModified,
-      type: file.type,
-    })),
+    attachments: files.length > 0 ? files.map((file) => toDraftAttachment(file)) : draftAttachments,
   });
+
+const classifySubmitError = (error: unknown): 'network' | 'validation' | 'unknown' => {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (/network|failed to fetch|timeout|timed out|unavailable|502|503|504/.test(message)) {
+    return 'network';
+  }
+  if (/invalid|required|must|unauthorized|forbidden|400|401|403|422/.test(message)) {
+    return 'validation';
+  }
+  return 'unknown';
+};
+
+const parseDraftRecord = (raw: string | null, storageKey: string): ReferralDraftRecord | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as ReferralDraftRecord;
+    if (parsed.version !== REFERRAL_DRAFT_SCHEMA_VERSION) return null;
+    const updatedAtMs = Number(new Date(parsed.updatedAt).getTime());
+    if (!Number.isFinite(updatedAtMs) || Date.now() - updatedAtMs > REFERRAL_DRAFT_TTL_MS) {
+      window.sessionStorage.removeItem(storageKey);
+      return null;
+    }
+    if (!parsed.formData || typeof parsed.formData !== 'object') return null;
+    if (!Array.isArray(parsed.attachments)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
 
 const trackReferralEvent = (event: string, details: Record<string, unknown> = {}) => {
   if (typeof window === 'undefined') return;
@@ -120,7 +167,9 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
   const [studentQuery, setStudentQuery] = useState('');
   const [isStudentMenuOpen, setIsStudentMenuOpen] = useState(false);
   const [highlightedStudentIndex, setHighlightedStudentIndex] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [draftAttachmentMetadata, setDraftAttachmentMetadata] = useState<ReferralDraftAttachment[]>([]);
   const [attachmentMessages, setAttachmentMessages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -132,7 +181,13 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
   const [showDraftRestoredBanner, setShowDraftRestoredBanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const studentInputRef = useRef<HTMLInputElement>(null);
+  const studentComboboxRef = useRef<HTMLDivElement>(null);
+  const studentListboxRef = useRef<HTMLUListElement>(null);
   const baselineFormRef = useRef<ReferralFormData>(buildDefaultForm(defaultStudentId));
+  const draftStorageKey = useMemo(
+    () => `mtss:referralDraft:${defaultStudentId || 'global'}`,
+    [defaultStudentId]
+  );
   const students = useMemo<StudentOption[]>(() => {
     const merged: StudentOption[] = [
       ...(classStudentsApi.studentsQuery.data?.rows ?? []).map((row) => ({ ...row, source: 'Class' as const })),
@@ -154,18 +209,25 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       `${student.name} ${student.grade} ${student.id} ${student.tier} ${student.source}`.toLowerCase().includes(query)
     );
   }, [studentQuery, students]);
+  const areStudentsLoading =
+    classStudentsApi.studentsQuery.isLoading || masterStudentsApi.studentsQuery.isLoading;
+  const studentSourceError = classStudentsApi.studentsQuery.error ?? masterStudentsApi.studentsQuery.error;
+  const studentRosterUnavailable = Boolean(studentSourceError) && students.length === 0;
+  const highlightedStudent = filteredStudents[highlightedStudentIndex] ?? null;
+  const activeStudentOptionId = highlightedStudent ? `${STUDENT_LISTBOX_ID}-${highlightedStudent.id}` : undefined;
 
   const evidenceIsRequired = requiresEvidence(formData.type, formData.urgency);
   const evidenceReason = evidenceRequirementReason(formData.type, formData.urgency);
   const normalizedNotes = normalizeNotes(formData.notes);
   const submitDisabledReason = useMemo(() => {
+    if (studentRosterUnavailable && !formData.studentId) return 'Student roster unavailable. Retry loading students.';
     if (!formData.studentId) return 'Select a student to continue.';
     if (!normalizedNotes) return 'Add referral notes to continue.';
     if (evidenceIsRequired && files.length === 0) {
       return evidenceReason ?? 'Upload supporting documentation to continue.';
     }
     return null;
-  }, [evidenceIsRequired, evidenceReason, files.length, formData.studentId, normalizedNotes]);
+  }, [evidenceIsRequired, evidenceReason, files.length, formData.studentId, normalizedNotes, studentRosterUnavailable]);
   const isSubmitDisabled = isSubmitting || Boolean(submitDisabledReason);
 
   const isDirty = useMemo(() => {
@@ -175,50 +237,136 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       formData.type !== baseline.type ||
       formData.urgency !== baseline.urgency ||
       normalizeNotes(formData.notes) !== normalizeNotes(baseline.notes) ||
-      files.length > 0
+      files.length > 0 ||
+      draftAttachmentMetadata.length > 0
     );
-  }, [files.length, formData]);
+  }, [draftAttachmentMetadata.length, files.length, formData]);
+
+  const clearStoredDraft = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.removeItem(draftStorageKey);
+  }, [draftStorageKey]);
+
+  const persistDraft = useCallback(
+    (
+      nextFormData: ReferralFormData = formData,
+      nextFiles: File[] = files,
+      nextDraftAttachments: ReferralDraftAttachment[] = draftAttachmentMetadata
+    ) => {
+      if (typeof window === 'undefined') return;
+      const draftRecord: ReferralDraftRecord = {
+        version: REFERRAL_DRAFT_SCHEMA_VERSION,
+        updatedAt: new Date().toISOString(),
+        formData: {
+          ...nextFormData,
+          notes: normalizeNotes(nextFormData.notes),
+        },
+        attachments: nextFiles.length > 0 ? nextFiles.map((file) => toDraftAttachment(file)) : nextDraftAttachments,
+      };
+      window.sessionStorage.setItem(draftStorageKey, JSON.stringify(draftRecord));
+      setSavedDraftSnapshot(formSnapshot(draftRecord.formData, [], draftRecord.attachments));
+      setHasSavedDraft(true);
+    },
+    [draftAttachmentMetadata, draftStorageKey, files, formData]
+  );
 
   const resetForm = useCallback((nextStudentId = defaultStudentId) => {
     const nextForm = buildDefaultForm(nextStudentId);
     baselineFormRef.current = nextForm;
     setFormData(nextForm);
-    const nextStudent = students.find((student) => student.id === nextStudentId);
-    setStudentQuery(nextStudent ? formatStudentLabel(nextStudent) : '');
+    setStudentQuery(nextStudentId || '');
+    setSubmitError(null);
     setFiles([]);
+    setDraftAttachmentMetadata([]);
     setErrors({});
     setAttachmentMessages([]);
     setIsStudentMenuOpen(false);
     setHighlightedStudentIndex(0);
     setShowClosePrompt(false);
-  }, [defaultStudentId, students]);
+  }, [defaultStudentId]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     setErrors({});
     setAttachmentMessages([]);
+    setSubmitError(null);
     setShowClosePrompt(false);
     setIsStudentMenuOpen(false);
     setHighlightedStudentIndex(0);
     setIsSuccess(false);
     setSubmitResult(null);
 
-    if (hasSavedDraft) {
-      setShowDraftRestoredBanner(true);
-      trackReferralEvent('referral_modal_opened', { restoredDraft: true });
-      return;
+    if (typeof window !== 'undefined') {
+      const restoredDraft = parseDraftRecord(window.sessionStorage.getItem(draftStorageKey), draftStorageKey);
+      if (restoredDraft) {
+        const restoredFormData: ReferralFormData = {
+          ...restoredDraft.formData,
+          studentId: restoredDraft.formData.studentId || defaultStudentId,
+        };
+        setFormData(restoredFormData);
+        setStudentQuery(restoredFormData.studentId);
+        setFiles([]);
+        setDraftAttachmentMetadata(restoredDraft.attachments);
+        setHasSavedDraft(true);
+        setSavedDraftSnapshot(formSnapshot(restoredFormData, [], restoredDraft.attachments));
+        setShowDraftRestoredBanner(true);
+        trackReferralEvent('referral_modal_opened', {
+          restoredDraft: true,
+          draftSource: 'session',
+          defaultStudentProvided: Boolean(defaultStudentId),
+        });
+        return;
+      }
     }
 
-    resetForm(defaultStudentId);
+    setHasSavedDraft(false);
+    setSavedDraftSnapshot(null);
     setShowDraftRestoredBanner(false);
-    trackReferralEvent('referral_modal_opened', { restoredDraft: false });
-  }, [defaultStudentId, hasSavedDraft, isOpen, resetForm]);
+    resetForm(defaultStudentId);
+    trackReferralEvent('referral_modal_opened', {
+      restoredDraft: false,
+      draftSource: 'none',
+      defaultStudentProvided: Boolean(defaultStudentId),
+    });
+  }, [defaultStudentId, draftStorageKey, isOpen, resetForm]);
 
   useEffect(() => {
     if (highlightedStudentIndex < filteredStudents.length) return;
     setHighlightedStudentIndex(Math.max(0, filteredStudents.length - 1));
   }, [filteredStudents.length, highlightedStudentIndex]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!formData.studentId) return;
+    const selected = students.find((student) => student.id === formData.studentId);
+    if (!selected) return;
+    const nextLabel = formatStudentLabel(selected);
+    if (!isStudentMenuOpen && studentQuery !== nextLabel) {
+      setStudentQuery(nextLabel);
+    }
+  }, [formData.studentId, isOpen, isStudentMenuOpen, studentQuery, students]);
+
+  useEffect(() => {
+    if (!isStudentMenuOpen || !activeStudentOptionId || !studentListboxRef.current) return;
+    const nextOption = studentListboxRef.current.querySelector<HTMLElement>(`#${activeStudentOptionId}`);
+    if (nextOption && typeof nextOption.scrollIntoView === 'function') {
+      nextOption.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeStudentOptionId, isStudentMenuOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !isStudentMenuOpen) return;
+    const handleDocumentMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (target && studentComboboxRef.current?.contains(target)) return;
+      setIsStudentMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+    };
+  }, [isOpen, isStudentMenuOpen]);
 
   useEffect(() => {
     if (!errors.files) return;
@@ -232,6 +380,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     if (!student) return;
     setFormData((previous) => ({ ...previous, studentId: student.id }));
     setStudentQuery(formatStudentLabel(student));
+    setSubmitError(null);
     setIsStudentMenuOpen(false);
     setHighlightedStudentIndex(0);
     setErrors((previous) => ({ ...previous, studentId: '' }));
@@ -241,6 +390,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     setStudentQuery(value);
     setIsStudentMenuOpen(true);
     setHighlightedStudentIndex(0);
+    setSubmitError(null);
     if (formData.studentId) {
       setFormData((previous) => ({ ...previous, studentId: '' }));
     }
@@ -255,6 +405,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       setIsStudentMenuOpen(true);
       setHighlightedStudentIndex((previous) => {
         if (filteredStudents.length === 0) return 0;
+        if (!isStudentMenuOpen) return 0;
         return Math.min(previous + 1, filteredStudents.length - 1);
       });
       return;
@@ -262,7 +413,23 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       setIsStudentMenuOpen(true);
-      setHighlightedStudentIndex((previous) => Math.max(previous - 1, 0));
+      setHighlightedStudentIndex((previous) => {
+        if (filteredStudents.length === 0) return 0;
+        if (!isStudentMenuOpen) return filteredStudents.length - 1;
+        return Math.max(previous - 1, 0);
+      });
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setIsStudentMenuOpen(true);
+      setHighlightedStudentIndex(0);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setIsStudentMenuOpen(true);
+      setHighlightedStudentIndex(Math.max(0, filteredStudents.length - 1));
       return;
     }
     if (event.key === 'Enter' && isStudentMenuOpen && filteredStudents.length > 0) {
@@ -272,6 +439,10 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       return;
     }
     if (event.key === 'Escape') {
+      setIsStudentMenuOpen(false);
+      return;
+    }
+    if (event.key === 'Tab') {
       setIsStudentMenuOpen(false);
     }
   };
@@ -295,13 +466,20 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     });
 
     setFiles(nextFiles);
-    setAttachmentMessages((previous) => [...previous, ...nextMessages]);
+    setAttachmentMessages((previous) => {
+      const deduped = Array.from(new Set([...previous, ...nextMessages]));
+      return deduped.slice(-4);
+    });
     if (nextMessages.length > 0) {
       trackReferralEvent('referral_attachment_validation_failed', { count: nextMessages.length });
+    }
+    if (addedCount > 0) {
+      setDraftAttachmentMetadata([]);
     }
     if (addedCount > 0 && errors.files) {
       setErrors((previous) => ({ ...previous, files: '' }));
     }
+    setSubmitError(null);
     event.target.value = '';
   };
 
@@ -309,9 +487,13 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     setFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index));
   };
 
-  const createReferralId = (): string => `RF-${Date.now().toString().slice(-6)}`;
+  const handleRetryStudentLoad = () => {
+    void classStudentsApi.studentsQuery.refetch();
+    void masterStudentsApi.studentsQuery.refetch();
+  };
 
   const handleSubmit = () => {
+    setSubmitError(null);
     const normalized = normalizeNotes(formData.notes);
     const validationErrors = validateReferralInput({
       ...formData,
@@ -331,6 +513,8 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       category: formData.type,
       urgency: formData.urgency,
       hasAttachments: files.length > 0,
+      attachmentCount: files.length,
+      studentSelected: Boolean(formData.studentId),
     });
 
     const selectedStudent = students.find((student) => student.id === formData.studentId);
@@ -338,7 +522,6 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
 
     referralCollection.createMutation.mutate(
       {
-        id: createReferralId(),
         studentId: formData.studentId,
         studentName: selectedStudent?.name ?? 'Unknown Student',
         grade: selectedStudent?.grade,
@@ -353,28 +536,34 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
         status: 'Pending Review',
         routedTo,
         createdAt: new Date().toISOString(),
-      },
+      } as unknown as ReferralRecord,
       {
         onSuccess: (created) => {
+          const createdReferralId = created.id ?? 'RF-UNKNOWN';
           setSubmitResult({
-            referralId: created.id,
+            referralId: createdReferralId,
             status: created.status,
             routedTo: created.routedTo,
           });
           setHasSavedDraft(false);
           setSavedDraftSnapshot(null);
           setShowDraftRestoredBanner(false);
+          clearStoredDraft();
+          setDraftAttachmentMetadata([]);
           setIsSuccess(true);
           trackReferralEvent('referral_submit_success', {
             category: formData.type,
             urgency: formData.urgency,
+            referralId: createdReferralId,
+            routedTo: created.routedTo,
           });
         },
         onError: (error) => {
-          setErrors((previous) => ({
-            ...previous,
-            notes: error instanceof Error ? error.message : 'Unable to submit referral.',
-          }));
+          const message = error instanceof Error ? error.message : 'Unable to submit referral.';
+          setSubmitError(message);
+          trackReferralEvent('referral_submit_failed', {
+            errorType: classifySubmitError(error),
+          });
         },
         onSettled: () => {
           setIsSubmitting(false);
@@ -387,6 +576,8 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     setHasSavedDraft(false);
     setSavedDraftSnapshot(null);
     setShowDraftRestoredBanner(false);
+    clearStoredDraft();
+    setSubmitError(null);
     setIsSuccess(false);
     setSubmitResult(null);
     resetForm(defaultStudentId);
@@ -394,8 +585,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
   };
 
   const handleCloseWithSavedDraft = () => {
-    setHasSavedDraft(true);
-    setSavedDraftSnapshot(formSnapshot(formData, files));
+    persistDraft(formData, files, draftAttachmentMetadata);
     setShowClosePrompt(false);
     setShowDraftRestoredBanner(false);
     trackReferralEvent('referral_draft_kept');
@@ -414,7 +604,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       return;
     }
 
-    const currentSnapshot = formSnapshot(formData, files);
+    const currentSnapshot = formSnapshot(formData, files, draftAttachmentMetadata);
     if (hasSavedDraft && savedDraftSnapshot === currentSnapshot) {
       onClose();
       return;
@@ -435,6 +625,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     setHasSavedDraft(false);
     setSavedDraftSnapshot(null);
     setShowDraftRestoredBanner(false);
+    clearStoredDraft();
     trackReferralEvent('referral_create_another');
     window.setTimeout(() => {
       studentInputRef.current?.focus();
@@ -526,6 +717,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       initialHeight={720}
       footer={footer}
       showResizeHandle={false}
+      mobileMode="sheet"
     >
       {isSuccess && submitResult ? (
         <div className="p-8 flex flex-col items-center justify-center text-center h-full">
@@ -549,25 +741,30 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
             </div>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={handleViewQueue}
-              disabled={!onViewQueue}
-              className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              View Referral Queue
-            </button>
+            {onViewQueue ? (
+              <button
+                type="button"
+                onClick={handleViewQueue}
+                className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-700"
+              >
+                View Referral Queue
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={handleCreateAnother}
-              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              className={`px-4 py-2 text-sm font-semibold rounded-lg border ${
+                onViewQueue
+                  ? 'text-slate-700 bg-white border-slate-200 hover:bg-slate-50'
+                  : 'text-white bg-indigo-600 border-indigo-600 hover:bg-indigo-700'
+              }`}
             >
               Create Another Referral
             </button>
             <button
               type="button"
               onClick={closeAndReset}
-              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-transparent rounded-lg hover:text-slate-800"
             >
               Close
             </button>
@@ -590,6 +787,8 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  trackReferralEvent('referral_draft_discarded');
+                  clearStoredDraft();
                   setHasSavedDraft(false);
                   setSavedDraftSnapshot(null);
                   setShowDraftRestoredBanner(false);
@@ -607,6 +806,17 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
             <p>Include specific details and evidence so the support team can act quickly.</p>
           </div>
 
+          {submitError ? (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-3 text-sm text-rose-700"
+            >
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <p>{submitError}</p>
+            </div>
+          ) : null}
+
           <div>
             <label
               htmlFor="referral-student-search"
@@ -614,7 +824,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
             >
               Student <span className="text-rose-500">*</span>
             </label>
-            <div className="relative">
+            <div ref={studentComboboxRef} className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 id="referral-student-search"
@@ -624,12 +834,15 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
                 aria-autocomplete="list"
                 aria-controls={STUDENT_LISTBOX_ID}
                 aria-expanded={isStudentMenuOpen}
+                aria-activedescendant={isStudentMenuOpen ? activeStudentOptionId : undefined}
                 aria-invalid={Boolean(errors.studentId)}
                 placeholder="Search by student name or ID..."
                 value={studentQuery}
                 onFocus={() => setIsStudentMenuOpen(true)}
-                onBlur={() => {
-                  window.setTimeout(() => setIsStudentMenuOpen(false), 120);
+                onBlur={(event) => {
+                  const nextFocused = event.relatedTarget as Node | null;
+                  if (nextFocused && studentComboboxRef.current?.contains(nextFocused)) return;
+                  setIsStudentMenuOpen(false);
                 }}
                 onChange={(event) => handleStudentQueryChange(event.target.value)}
                 onKeyDown={handleStudentInputKeyDown}
@@ -643,21 +856,39 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
               {isStudentMenuOpen ? (
                 <ul
                   id={STUDENT_LISTBOX_ID}
+                  ref={studentListboxRef}
                   role="listbox"
                   className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
                 >
-                  {filteredStudents.length === 0 ? (
+                  {areStudentsLoading && students.length === 0 ? (
+                    <li className="px-3 py-2 text-xs text-slate-500">Loading students...</li>
+                  ) : studentRosterUnavailable ? (
+                    <li className="px-3 py-2 text-xs text-rose-700">
+                      <p>Student roster is unavailable right now.</p>
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={handleRetryStudentLoad}
+                        className="mt-1 font-semibold text-indigo-700 hover:text-indigo-800"
+                      >
+                        Retry loading roster
+                      </button>
+                    </li>
+                  ) : filteredStudents.length === 0 ? (
                     <li className="px-3 py-2 text-xs text-slate-500">No students found.</li>
                   ) : (
                     filteredStudents.map((student, index) => (
                       <li
                         key={student.id}
+                        id={`${STUDENT_LISTBOX_ID}-${student.id}`}
                         role="option"
                         aria-selected={index === highlightedStudentIndex}
+                        tabIndex={-1}
                         onMouseDown={(event) => {
                           event.preventDefault();
                           selectStudent(student.id);
                         }}
+                        onMouseEnter={() => setHighlightedStudentIndex(index)}
                         className={`cursor-pointer rounded-md px-3 py-2 ${
                           index === highlightedStudentIndex ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50'
                         }`}
@@ -686,7 +917,10 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
               <select
                 id="referral-category"
                 value={formData.type}
-                onChange={(event) => setFormData((previous) => ({ ...previous, type: event.target.value as ReferralCategory }))}
+                onChange={(event) => {
+                  setFormData((previous) => ({ ...previous, type: event.target.value as ReferralCategory }));
+                  setSubmitError(null);
+                }}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
               >
                 <option value="Behavior">Behavioral Issue</option>
@@ -703,7 +937,10 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
               <select
                 id="referral-urgency"
                 value={formData.urgency}
-                onChange={(event) => setFormData((previous) => ({ ...previous, urgency: event.target.value as ReferralUrgency }))}
+                onChange={(event) => {
+                  setFormData((previous) => ({ ...previous, urgency: event.target.value as ReferralUrgency }));
+                  setSubmitError(null);
+                }}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
               >
                 <option value="Low">Low (Monitor)</option>
@@ -725,6 +962,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
               value={formData.notes}
               onChange={(event) => {
                 setFormData((previous) => ({ ...previous, notes: event.target.value }));
+                setSubmitError(null);
                 if (errors.notes) setErrors((previous) => ({ ...previous, notes: '' }));
               }}
               aria-invalid={Boolean(errors.notes)}
@@ -798,11 +1036,13 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
                 ))}
               </div>
             )}
-
-            {evidenceIsRequired && files.length === 0 ? (
-              <p className="mt-1 text-xs font-medium text-amber-700">
-                Upload at least one document before submitting this referral.
-              </p>
+            {draftAttachmentMetadata.length > 0 && files.length === 0 ? (
+              <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50 p-2 text-xs text-amber-800">
+                <p className="font-medium">Draft restored with previous attachments metadata. Reattach files before submitting.</p>
+                <p className="mt-1 text-amber-700 truncate">
+                  {draftAttachmentMetadata.map((attachment) => attachment.name).join(', ')}
+                </p>
+              </div>
             ) : null}
             {errors.files ? <p className="text-xs text-rose-500 mt-1 font-medium">{errors.files}</p> : null}
             {attachmentMessages.length > 0 ? (
