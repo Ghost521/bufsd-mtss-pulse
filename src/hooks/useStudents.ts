@@ -15,15 +15,23 @@ export type CreateStudentPayload = {
   gpa: string;
   attendance: number;
   readingLevel: string;
+  teacherUserId?: string;
+  teacherName?: string;
+  status?: "active" | "monitoring" | "completed" | "unknown";
 };
 
 export type UpdateStudentPayload = {
   id: string;
-  patch: Partial<CreateStudentPayload>;
+  patch: Partial<CreateStudentPayload> & { isArchived?: boolean };
 };
 
 export type DeleteStudentPayload = {
   id: string;
+};
+
+export type ArchiveStudentsPayload = {
+  ids: string[];
+  isArchived?: boolean;
 };
 
 type QuerySnapshot = {
@@ -40,8 +48,13 @@ const parseError = async (response: Response): Promise<Error> => {
   return new Error(message);
 };
 
-const fetchStudents = async (scope: "master" | "class"): Promise<StudentsResponse> => {
-  const response = await fetch(`/api/students?scope=${scope}`);
+const fetchStudents = async (
+  scope: "master" | "class",
+  options?: { includeArchived?: boolean }
+): Promise<StudentsResponse> => {
+  const params = new URLSearchParams({ scope });
+  if (options?.includeArchived) params.set("includeArchived", "1");
+  const response = await fetch(`/api/students?${params.toString()}`);
   if (!response.ok) throw await parseError(response);
   return (await response.json()) as StudentsResponse;
 };
@@ -70,6 +83,18 @@ const updateStudent = async (payload: UpdateStudentPayload): Promise<StudentRost
   return data.row;
 };
 
+const archiveStudents = async (payload: ArchiveStudentsPayload): Promise<StudentRosterItem[]> => {
+  const response = await fetch(`/api/students?operation=archive`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: payload.ids, isArchived: payload.isArchived ?? true }),
+  });
+
+  if (!response.ok) throw await parseError(response);
+  const data = (await response.json()) as { rows: StudentRosterItem[] };
+  return data.rows;
+};
+
 const deleteStudent = async (payload: DeleteStudentPayload): Promise<StudentRosterItem> => {
   const response = await fetch(`/api/students?id=${encodeURIComponent(payload.id)}`, {
     method: "DELETE",
@@ -80,13 +105,13 @@ const deleteStudent = async (payload: DeleteStudentPayload): Promise<StudentRost
   return data.row;
 };
 
-export const useStudents = (scope: "master" | "class", options?: { enabled?: boolean }) => {
+export const useStudents = (scope: "master" | "class", options?: { enabled?: boolean; includeArchived?: boolean }) => {
   const queryClient = useQueryClient();
   const studentsKey = queryKeys.students.byScope(scope);
 
   const studentsQuery = useQuery({
     queryKey: studentsKey,
-    queryFn: () => fetchStudents(scope),
+    queryFn: () => fetchStudents(scope, { includeArchived: options?.includeArchived }),
     enabled: options?.enabled ?? true,
   });
 
@@ -111,6 +136,10 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
         activeInterventions: payload.tier === "Tier 1" ? 0 : 1,
         alerts: payload.tier === "Tier 3" ? 1 : 0,
         avatarSeed: payload.name.toLowerCase().replace(/\s+/g, "-"),
+        teacherName: payload.teacherName,
+        teacher: payload.teacherName,
+        status: payload.status ?? (payload.tier === "Tier 1" ? "monitoring" : "active"),
+        isArchived: false,
       };
 
       queryClient.setQueryData<StudentsResponse>(studentsKey, (current) => {
@@ -182,6 +211,38 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
     },
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: async (payload: ArchiveStudentsPayload) => {
+      if (scope !== "master") throw new Error("Archiving is only supported for master scope.");
+      return archiveStudents(payload);
+    },
+    onMutate: async ({ ids }): Promise<QuerySnapshot> => {
+      await queryClient.cancelQueries({ queryKey: studentsKey });
+      const previous = queryClient.getQueryData<StudentsResponse>(studentsKey);
+      const idSet = new Set(ids);
+
+      queryClient.setQueryData<StudentsResponse>(studentsKey, (current) => {
+        if (!current) return current;
+        const rows = current.rows.filter((student) => !idSet.has(student.id));
+        return {
+          ...current,
+          rows,
+          total: rows.length,
+        };
+      });
+
+      return { previous };
+    },
+    onError: (_error, _payload, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(studentsKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: studentsKey });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (payload: DeleteStudentPayload) => {
       if (scope !== "master") throw new Error("Student deletion is only supported for master scope.");
@@ -212,11 +273,12 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
     },
   });
 
-  const mutationError = createMutation.error || updateMutation.error || deleteMutation.error;
+  const mutationError = createMutation.error || updateMutation.error || archiveMutation.error || deleteMutation.error;
 
   const resetMutationState = () => {
     createMutation.reset();
     updateMutation.reset();
+    archiveMutation.reset();
     deleteMutation.reset();
   };
 
@@ -224,6 +286,7 @@ export const useStudents = (scope: "master" | "class", options?: { enabled?: boo
     studentsQuery,
     createMutation,
     updateMutation,
+    archiveMutation,
     deleteMutation,
     mutationError,
     resetMutationState,

@@ -297,6 +297,10 @@ export interface StudentRosterItem {
   activeInterventions: number;
   alerts: number;
   avatarSeed: string;
+  teacherName?: string;
+  teacher?: string;
+  status?: 'active' | 'monitoring' | 'completed' | 'unknown';
+  isArchived?: boolean;
 }
 
 export interface SchoolNode {

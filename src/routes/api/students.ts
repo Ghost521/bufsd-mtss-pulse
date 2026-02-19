@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  archiveMasterStudents,
   createMasterStudent,
   deleteMasterStudent,
   getStudentById,
@@ -15,11 +16,50 @@ import {
 } from "../../lib/server/auth-context";
 import { requirePermission } from "../../lib/server/rbac";
 import { newRequestId, writeAuditLog } from "../../lib/server/audit-log";
-import { createStudentInputSchema, updateStudentInputSchema } from "../../lib/schemas/students";
+import {
+  archiveStudentsInputSchema,
+  createStudentInputSchema,
+  updateStudentInputSchema,
+} from "../../lib/schemas/students";
 
 const toScope = (value: string | null): StudentScope => (value === "master" ? "master" : "class");
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toBoolean = (value: string | null): boolean => value === "1" || value === "true";
+
+const csvEscape = (value: string | number | boolean | null | undefined): string => {
+  const stringValue = value == null ? "" : String(value);
+  if (/[,"\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+};
+
+const toCsv = (rows: Array<Record<string, unknown>>): string => {
+  const headers = [
+    "id",
+    "name",
+    "grade",
+    "tier",
+    "gpa",
+    "attendance",
+    "readingLevel",
+    "teacherName",
+    "status",
+    "isArchived",
+    "activeInterventions",
+    "alerts",
+  ];
+
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    const values = headers.map((header) => csvEscape((row as Record<string, unknown>)[header] as string | number | boolean | null | undefined));
+    lines.push(values.join(","));
+  }
+
+  return `${lines.join("\n")}\n`;
+};
 
 type BatchStudentError = { index: number; reason: string };
 
@@ -40,22 +80,50 @@ export const Route = createFileRoute("/api/students")({
 
         const url = new URL(request.url);
         const scope = toScope(url.searchParams.get("scope"));
+        const includeArchived = toBoolean(url.searchParams.get("includeArchived"));
+        const format = (url.searchParams.get("format") ?? "json").toLowerCase();
+        const selectedIds = new Set(
+          (url.searchParams.get("ids") ?? "")
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        );
+
         const rows = await listStudents({
           scope,
           context: session.activeContext,
           requesterUserId: session.user.id,
           requesterRoles: session.effectiveRoles,
+          includeArchived,
         });
 
-        return appendActivityCookie(Response.json({
-          ok: true,
-          rows,
-          total: rows.length,
-          scope,
-          requestId,
-          context: session.activeContext,
-          session: getSessionSummary(session),
-        }));
+        const exportRows = selectedIds.size === 0 ? rows : rows.filter((row) => selectedIds.has(row.id));
+
+        if (format === "csv") {
+          const csv = toCsv(exportRows as unknown as Array<Record<string, unknown>>);
+          const filename = `${scope}-roster-${new Date().toISOString().slice(0, 10)}.csv`;
+          const response = new Response(csv, {
+            status: 200,
+            headers: {
+              "Content-Type": "text/csv; charset=utf-8",
+              "Content-Disposition": `attachment; filename="${filename}"`,
+              "X-Request-Id": requestId,
+            },
+          });
+          return appendActivityCookie(response);
+        }
+
+        return appendActivityCookie(
+          Response.json({
+            ok: true,
+            rows,
+            total: rows.length,
+            scope,
+            requestId,
+            context: session.activeContext,
+            session: getSessionSummary(session),
+          })
+        );
       },
       POST: async ({ request }) => {
         const requestId = newRequestId();
@@ -68,7 +136,18 @@ export const Route = createFileRoute("/api/students")({
         const permission = requirePermission(session, {
           resource: "students",
           action: "create",
-          fields: ["name", "grade", "tier", "gpa", "attendance", "readingLevel", "schoolId"],
+          fields: [
+            "name",
+            "grade",
+            "tier",
+            "gpa",
+            "attendance",
+            "readingLevel",
+            "schoolId",
+            "teacherUserId",
+            "teacherName",
+            "status",
+          ],
         });
         if (!permission.ok) {
           return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
@@ -106,22 +185,35 @@ export const Route = createFileRoute("/api/students")({
               resourceType: "students",
               resourceId: created.id,
               action: "create",
-              changedFields: ["name", "grade", "tier", "gpa", "attendance", "readingLevel", "schoolId"],
+              changedFields: [
+                "name",
+                "grade",
+                "tier",
+                "gpa",
+                "attendance",
+                "readingLevel",
+                "schoolId",
+                "teacherUserId",
+                "teacherName",
+                "status",
+              ],
               before: null,
               after: created,
               requestId,
             });
           }
 
-          return appendActivityCookie(Response.json({
-            ok: errors.length === 0,
-            total: body.rows.length,
-            succeeded: createdRows.length,
-            failed: errors.length,
-            errors,
-            rows: createdRows,
-            requestId,
-          }));
+          return appendActivityCookie(
+            Response.json({
+              ok: errors.length === 0,
+              total: body.rows.length,
+              succeeded: createdRows.length,
+              failed: errors.length,
+              errors,
+              rows: createdRows,
+              requestId,
+            })
+          );
         }
 
         const parsed = createStudentInputSchema.safeParse(body);
@@ -144,17 +236,33 @@ export const Route = createFileRoute("/api/students")({
           resourceType: "students",
           resourceId: created.id,
           action: "create",
-          changedFields: ["name", "grade", "tier", "gpa", "attendance", "readingLevel", "schoolId"],
+          changedFields: [
+            "name",
+            "grade",
+            "tier",
+            "gpa",
+            "attendance",
+            "readingLevel",
+            "schoolId",
+            "teacherUserId",
+            "teacherName",
+            "status",
+          ],
           before: null,
           after: created,
           requestId,
         });
 
-        return appendActivityCookie(Response.json({
-          ok: true,
-          row: created,
-          requestId,
-        }, { status: 201 }));
+        return appendActivityCookie(
+          Response.json(
+            {
+              ok: true,
+              row: created,
+              requestId,
+            },
+            { status: 201 }
+          )
+        );
       },
       PATCH: async ({ request }) => {
         const requestId = newRequestId();
@@ -165,6 +273,54 @@ export const Route = createFileRoute("/api/students")({
         }
 
         const url = new URL(request.url);
+        const operation = (url.searchParams.get("operation") ?? "update").toLowerCase();
+
+        if (operation === "archive") {
+          const body = (await request.json().catch(() => null)) as unknown;
+          const parsed = archiveStudentsInputSchema.safeParse(body);
+          if (!parsed.success) {
+            return Response.json(
+              { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid archive payload.", requestId },
+              { status: 400 }
+            );
+          }
+
+          const permission = requirePermission(session, {
+            resource: "students",
+            action: "update",
+            fields: ["isArchived"],
+          });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
+
+          const updatedRows = await archiveMasterStudents(parsed.data.ids, session.activeContext, parsed.data.isArchived);
+
+          for (const row of updatedRows) {
+            writeAuditLog({
+              actorUserId: session.user.id,
+              actorName: session.user.name,
+              context: session.activeContext,
+              resourceType: "students",
+              resourceId: row.id,
+              action: "update",
+              changedFields: ["isArchived"],
+              before: null,
+              after: row,
+              requestId,
+            });
+          }
+
+          return appendActivityCookie(
+            Response.json({
+              ok: true,
+              rows: updatedRows,
+              total: updatedRows.length,
+              requestId,
+            })
+          );
+        }
+
         const studentId = url.searchParams.get("id");
         if (!studentId) {
           return Response.json({ ok: false, error: "Missing student id.", requestId }, { status: 400 });

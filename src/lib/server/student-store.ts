@@ -1,8 +1,14 @@
 import { CLASS_ROSTER_DATA, generateMasterRoster } from "../../constants";
 import { Tier } from "../../types";
-import { tenantStudentCollectionSchema, tenantStudentRecordSchema, type CreateStudentInput, type TenantStudentRecord, type UpdateStudentInput } from "../schemas/students";
-import { getDistricts, getSchools } from "./tenant-store";
+import {
+  tenantStudentCollectionSchema,
+  tenantStudentRecordSchema,
+  type CreateStudentInput,
+  type TenantStudentRecord,
+  type UpdateStudentInput,
+} from "../schemas/students";
 import { readTenantCollection, toTenantKey, writeTenantCollection } from "./persistence";
+import { getDistricts, getSchools, findUserById } from "./tenant-store";
 import type { TenantContext } from "./tenant-types";
 
 export type StudentScope = "master" | "class";
@@ -13,6 +19,7 @@ type StudentListOptions = {
   context: TenantContext;
   requesterUserId: string;
   requesterRoles: string[];
+  includeArchived?: boolean;
 };
 
 const STUDENTS_MASTER_DOMAIN = "students_master";
@@ -50,18 +57,52 @@ const extractNumericId = (id: string): number => {
 
 const toAvatarSeed = (name: string): string => name.trim().replace(/\s+/g, "-").toLowerCase();
 
+const deriveLifecycleStatus = (student: Pick<TenantStudentRecord, "activeInterventions">): TenantStudentRecord["status"] =>
+  student.activeInterventions > 0 ? "active" : "monitoring";
+
 const parseStoredRows = (rows: unknown): TenantStudentRecord[] => {
   const parsed = tenantStudentCollectionSchema.safeParse(rows);
-  if (parsed.success) return parsed.data;
+  if (parsed.success) {
+    return parsed.data.map((student) => ({
+      ...student,
+      status: student.status ?? deriveLifecycleStatus(student),
+      isArchived: student.isArchived ?? false,
+    }));
+  }
 
   if (!Array.isArray(rows)) return [];
   return rows
     .map((row) => tenantStudentRecordSchema.safeParse(row))
     .filter((candidate): candidate is { success: true; data: TenantStudentRecord } => candidate.success)
-    .map((candidate) => candidate.data);
+    .map((candidate) => ({
+      ...candidate.data,
+      status: candidate.data.status ?? deriveLifecycleStatus(candidate.data),
+      isArchived: candidate.data.isArchived ?? false,
+    }));
 };
 
-const assignTenantMetadata = (student: Omit<TenantStudentRecord, "organizationId" | "districtId" | "schoolId" | "teacherUserId" | "guardianUserIds">, schoolId: string): TenantStudentRecord | null => {
+const resolveTeacherName = (student: TenantStudentRecord): string => {
+  if (student.teacherName && student.teacherName.trim().length > 0) return student.teacherName;
+  if (!student.teacherUserId) return "Unassigned";
+  const user = findUserById(student.teacherUserId);
+  return user?.name?.trim() || "Unassigned";
+};
+
+const toCanonicalStudent = (student: TenantStudentRecord): TenantStudentRecord => {
+  const teacherName = resolveTeacherName(student);
+  return {
+    ...student,
+    teacherName,
+    teacher: teacherName,
+    status: student.status ?? deriveLifecycleStatus(student),
+    isArchived: student.isArchived ?? false,
+  };
+};
+
+const assignTenantMetadata = (
+  student: Omit<TenantStudentRecord, "organizationId" | "districtId" | "schoolId" | "teacherUserId" | "guardianUserIds" | "teacherName" | "status" | "isArchived">,
+  schoolId: string
+): TenantStudentRecord | null => {
   const school = getSchoolById(schoolId);
   if (!school) return null;
   const district = getDistrictById(school.districtId);
@@ -73,6 +114,9 @@ const assignTenantMetadata = (student: Omit<TenantStudentRecord, "organizationId
     districtId: district.id,
     schoolId,
     teacherUserId: schoolId === "sch-ne" ? "u-teacher-ne" : undefined,
+    teacherName: schoolId === "sch-ne" ? "Mr. Davis" : undefined,
+    status: deriveLifecycleStatus(student),
+    isArchived: false,
     guardianUserIds: student.id === "STU-LEO-1" ? ["u-parent-leo"] : [],
   };
 };
@@ -98,6 +142,8 @@ const seedMasterRoster = (): TenantStudentRecord[] => {
     leo.organizationId = "org-bufsd";
     leo.guardianUserIds = ["u-parent-leo"];
     leo.teacherUserId = "u-teacher-ne";
+    leo.teacherName = "Mr. Davis";
+    leo.status = deriveLifecycleStatus(leo);
     leo.avatarSeed = toAvatarSeed(leo.name);
   }
 
@@ -114,6 +160,9 @@ const seedClassRoster = (): TenantStudentRecord[] =>
       districtId: "dist-bufsd",
       schoolId: "sch-ne",
       teacherUserId: "u-teacher-ne",
+      teacherName: student.teacherName ?? student.teacher ?? "Mr. Davis",
+      status: student.status ?? deriveLifecycleStatus(student),
+      isArchived: student.isArchived ?? false,
       guardianUserIds: id === "STU-LEO-1" ? ["u-parent-leo"] : [],
       avatarSeed: toAvatarSeed(student.name),
     };
@@ -190,13 +239,14 @@ export const listStudents = async (options: StudentListOptions): Promise<TenantS
   const baseStore = options.scope === "master" ? await readMasterRoster(options.context) : await readClassRoster(options.context);
   const scoped = baseStore.filter((student) => contextContainsStudent(options.context, student));
   const roleScoped = filterByRole(scoped, options.requesterUserId, options.requesterRoles);
-  return cloneStudents(roleScoped);
+  const activeOnly = options.includeArchived ? roleScoped : roleScoped.filter((student) => !student.isArchived);
+  return cloneStudents(activeOnly.map(toCanonicalStudent));
 };
 
 export const getStudentById = async (studentId: string, context: TenantContext): Promise<TenantStudentRecord | null> => {
   const [masterRows, classRows] = await Promise.all([readMasterRoster(context), readClassRoster(context)]);
   const found = masterRows.find((student) => student.id === studentId) ?? classRows.find((student) => student.id === studentId);
-  return found ? cloneStudent(found) : null;
+  return found ? cloneStudent(toCanonicalStudent(found)) : null;
 };
 
 export const createMasterStudent = async (
@@ -212,6 +262,7 @@ export const createMasterStudent = async (
   if (!district) return null;
 
   const rows = await readMasterRoster(context);
+  const actor = findUserById(actorUserId);
   const created: TenantStudentRecord = {
     id: makeMasterId(rows),
     name: input.name,
@@ -226,12 +277,15 @@ export const createMasterStudent = async (
     organizationId: district.organizationId,
     districtId: district.id,
     schoolId: targetSchoolId,
-    teacherUserId: actorUserId.startsWith("u-teacher") ? actorUserId : undefined,
+    teacherUserId: input.teacherUserId ?? (actorUserId.startsWith("u-teacher") ? actorUserId : undefined),
+    teacherName: input.teacherName ?? actor?.name ?? undefined,
+    status: input.status ?? (input.tier === Tier.TIER_1 ? "monitoring" : "active"),
+    isArchived: false,
     guardianUserIds: [],
   };
 
   await writeMasterRoster(context, [...rows, created]);
-  return cloneStudent(created);
+  return cloneStudent(toCanonicalStudent(created));
 };
 
 export const updateMasterStudent = async (
@@ -248,13 +302,34 @@ export const updateMasterStudent = async (
   const updated: TenantStudentRecord = {
     ...current,
     ...patch,
+    status: patch.status ?? (patch.tier ? (patch.tier === Tier.TIER_1 ? "monitoring" : "active") : current.status),
     avatarSeed: patch.name ? toAvatarSeed(patch.name) : current.avatarSeed,
   };
 
   const nextRows = [...rows];
   nextRows[index] = updated;
   await writeMasterRoster(context, nextRows);
-  return cloneStudent(updated);
+  return cloneStudent(toCanonicalStudent(updated));
+};
+
+export const archiveMasterStudents = async (
+  studentIds: string[],
+  context: TenantContext,
+  isArchived = true
+): Promise<TenantStudentRecord[]> => {
+  const rows = await readMasterRoster(context);
+  const idSet = new Set(studentIds);
+  const nextRows = rows.map((student) => {
+    if (!idSet.has(student.id) || !contextContainsStudent(context, student)) return student;
+    return {
+      ...student,
+      isArchived,
+      status: isArchived && student.status === "active" ? "monitoring" : student.status,
+    };
+  });
+
+  await writeMasterRoster(context, nextRows);
+  return nextRows.filter((student) => idSet.has(student.id)).map((student) => cloneStudent(toCanonicalStudent(student)));
 };
 
 export const deleteMasterStudent = async (studentId: string, context: TenantContext): Promise<TenantStudentRecord | null> => {
@@ -264,5 +339,5 @@ export const deleteMasterStudent = async (studentId: string, context: TenantCont
 
   const nextRows = rows.filter((student) => student.id !== studentId);
   await writeMasterRoster(context, nextRows);
-  return cloneStudent(existing);
+  return cloneStudent(toCanonicalStudent(existing));
 };
