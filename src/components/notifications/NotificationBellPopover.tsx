@@ -64,6 +64,7 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [position, setPosition] = useState({ top: 56, left: 16 });
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const lastSeenSignatureRef = useRef<string>("");
 
   const visibleActive = useMemo(() => activeNotifications.slice(0, 8), [activeNotifications]);
   const visibleArchived = useMemo(() => archivedNotifications.slice(0, 8), [archivedNotifications]);
@@ -96,9 +97,18 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
   }, []);
 
   useEffect(() => {
+    if (!open) {
+      lastSeenSignatureRef.current = "";
+      return;
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (!open || loading || hasError) return;
     const unseenVisibleIds = visibleActive.filter((item) => !item.seenAt).map((item) => item.id);
-    if (unseenVisibleIds.length > 0) {
+    const signature = unseenVisibleIds.join("|");
+    if (unseenVisibleIds.length > 0 && signature !== lastSeenSignatureRef.current) {
+      lastSeenSignatureRef.current = signature;
       onNotificationMarkSeen(unseenVisibleIds);
     }
   }, [hasError, loading, onNotificationMarkSeen, open, visibleActive]);
@@ -158,7 +168,7 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
           <p className="text-sm font-bold text-slate-900">Notifications</p>
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-              {unseenCount} unseen
+              {unseenCount} unread
             </span>
             {resolvedPresentation === "sheet" ? (
               <button
@@ -221,11 +231,19 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
         ) : null}
 
         {!loading && !hasError
-          ? activeRows.map((notification) => (
-              <article
-                key={notification.id}
-                className="group mb-2 rounded-xl border border-slate-200 bg-white p-3 transition-colors hover:bg-slate-50"
-              >
+          ? activeRows.map((notification) => {
+              const isUnread = tab === "active" && !notification.readAt;
+              return (
+                <article
+                  key={notification.id}
+                  data-notification-id={notification.id}
+                  data-unread={isUnread ? "true" : "false"}
+                  className={`group mb-2 rounded-xl border p-3 transition-colors ${
+                    isUnread
+                      ? "border-brand-200 bg-brand-50/70 shadow-sm hover:bg-brand-50"
+                      : "border-slate-200 bg-white hover:bg-slate-50"
+                  }`}
+                >
                 <div className="flex items-start gap-2">
                   <button
                     type="button"
@@ -241,10 +259,22 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
                       >
                         {notification.category}
                       </span>
+                      {isUnread ? (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            data-unread-dot="true"
+                            className="inline-block h-2 w-2 rounded-full bg-brand-600"
+                          />
+                          <span className="sr-only">Unread notification</span>
+                        </>
+                      ) : null}
                       <span className="text-[11px] text-slate-400">{formatTime(notification.createdAt)}</span>
                     </div>
-                    <p className="mt-1 line-clamp-1 text-sm font-semibold text-slate-800">{notification.title}</p>
-                    <p className="line-clamp-2 text-xs text-slate-500">{notification.summary}</p>
+                    <p className={`mt-1 line-clamp-1 text-sm font-semibold ${isUnread ? "text-slate-900" : "text-slate-800"}`}>
+                      {notification.title}
+                    </p>
+                    <p className={`line-clamp-2 text-xs ${isUnread ? "text-slate-600" : "text-slate-500"}`}>{notification.summary}</p>
                   </button>
 
                   <div className="ml-1 flex shrink-0 items-center gap-1">
@@ -303,8 +333,9 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
                     </button>
                   </div>
                 </div>
-              </article>
-            ))
+                </article>
+              );
+            })
           : null}
       </div>
 
@@ -328,8 +359,8 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
         className={`relative inline-flex items-center justify-center border border-slate-700 bg-slate-800/80 text-slate-100 transition-colors hover:border-slate-500 hover:text-white ${
           isCompact ? "h-8 w-8 rounded-md" : "h-9 w-9 rounded-lg"
         }`}
-        aria-label={unseenCount > 0 ? `Notifications (${unseenCount} unseen)` : "Notifications"}
-        title={unseenCount > 0 ? `${unseenCount} unseen notifications` : "Notifications"}
+        aria-label={unseenCount > 0 ? `Notifications (${unseenCount} unread)` : "Notifications"}
+        title={unseenCount > 0 ? `${unseenCount} unread notifications` : "Notifications"}
       >
         <Bell size={16} />
         {unseenCount > 0 ? (

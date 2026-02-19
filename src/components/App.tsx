@@ -1564,7 +1564,7 @@ const App: React.FC = () => {
         onGroupToggle={sidebarActions.toggleGroupExpanded}
         searchQuery={sidebarState.searchQuery}
         onSearchQueryChange={sidebarActions.setSearchQuery}
-        notificationUnseenCount={notifications.unseenCount}
+        notificationUnseenCount={notifications.unreadCount}
         activeNotifications={notifications.activeNotifications}
         archivedNotifications={notifications.archivedNotifications}
         notificationLoading={notifications.query.isLoading}

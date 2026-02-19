@@ -73,6 +73,10 @@ export const useNotifications = (input: {
     () => activeNotifications.filter((row) => !row.seenAt).length,
     [activeNotifications],
   );
+  const unreadCount = useMemo(
+    () => activeNotifications.filter((row) => !row.readAt).length,
+    [activeNotifications],
+  );
 
   const updateMany = useCallback(
     (ids: string[], patchFactory: (row: NotificationRow) => Partial<NotificationRow>) => {
@@ -203,6 +207,7 @@ export const useNotifications = (input: {
     archivedNotifications,
     userNotifications: userRows,
     unseenCount,
+    unreadCount,
     markSeen,
     markRead,
     dismiss,

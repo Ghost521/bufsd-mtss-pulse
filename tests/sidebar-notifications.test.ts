@@ -47,6 +47,14 @@ const sampleNotification: NotificationListItem = {
   updatedAt: "2026-02-19T12:00:00.000Z",
 };
 
+const readNotification: NotificationListItem = {
+  ...sampleNotification,
+  id: "n-2",
+  title: "Reviewed intervention note",
+  sourceFingerprint: "messages:conv-2:latest",
+  readAt: "2026-02-19T12:05:00.000Z",
+};
+
 const baseProps: React.ComponentProps<typeof Sidebar> = {
   currentRole: UserRole.PRINCIPAL,
   availableRoles: [UserRole.PRINCIPAL],
@@ -104,12 +112,39 @@ afterEach(() => {
 });
 
 describe("sidebar notifications", () => {
-  it("renders the notification bell with unseen count", async () => {
+  it("renders the notification bell with unread count", async () => {
     const handle = await renderSidebar();
-    const bell = handle.container.querySelector('button[aria-label="Notifications (1 unseen)"]');
+    const bell = handle.container.querySelector('button[aria-label="Notifications (1 unread)"]');
     expect(bell).toBeInstanceOf(HTMLButtonElement);
     expect(handle.container.textContent).toContain("1");
     await cleanupRender(handle);
   });
-});
 
+  it("highlights unread notifications in the popover", async () => {
+    const handle = await renderSidebar({
+      activeNotifications: [sampleNotification, readNotification],
+      notificationUnseenCount: 1,
+    });
+    const bell = handle.container.querySelector('button[aria-label="Notifications (1 unread)"]') as HTMLButtonElement | null;
+    expect(bell).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      bell?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const unreadRow = document.body.querySelector('[data-notification-id="n-1"]') as HTMLElement | null;
+    const readRow = document.body.querySelector('[data-notification-id="n-2"]') as HTMLElement | null;
+
+    expect(unreadRow).toBeInstanceOf(HTMLElement);
+    expect(unreadRow?.getAttribute("data-unread")).toBe("true");
+    expect(unreadRow?.className.includes("bg-brand-50/70")).toBe(true);
+    expect(unreadRow?.querySelector('[data-unread-dot="true"]')).toBeInstanceOf(HTMLElement);
+
+    expect(readRow).toBeInstanceOf(HTMLElement);
+    expect(readRow?.getAttribute("data-unread")).toBe("false");
+    expect(readRow?.className.includes("bg-white")).toBe(true);
+    expect(readRow?.querySelector('[data-unread-dot="true"]')).toBe(null);
+
+    await cleanupRender(handle);
+  });
+});

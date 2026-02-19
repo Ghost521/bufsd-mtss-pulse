@@ -207,6 +207,22 @@ export const buildDerivedNotificationCandidates = (snapshot: NotificationSourceS
 const rowMatchesRecipient = (row: NotificationRow, candidate: NotificationCandidate): boolean =>
   row.recipientUserId === candidate.recipientUserId || normalize(row.recipientUserName) === normalize(candidate.recipientUserName);
 
+const candidateProjectionFromRow = (row: NotificationRow): NotificationCandidate => ({
+  recipientUserId: row.recipientUserId,
+  recipientUserName: row.recipientUserName,
+  title: row.title,
+  summary: row.summary,
+  body: row.body,
+  category: row.category,
+  severity: row.severity,
+  sourceType: row.sourceType,
+  sourceId: row.sourceId,
+  sourceFingerprint: row.sourceFingerprint,
+  sourceRoute: row.sourceRoute,
+  sourceContext: row.sourceContext,
+  createdAt: row.createdAt,
+});
+
 export const mergeDerivedNotifications = (input: {
   existingRows: NotificationRow[];
   candidates: NotificationCandidate[];
@@ -224,15 +240,17 @@ export const mergeDerivedNotifications = (input: {
     if (existingIndex >= 0) {
       const existing = nextRows[existingIndex];
       if (existing.deletedAt) continue;
+      const existingProjection = candidateProjectionFromRow(existing);
+      if (JSON.stringify(existingProjection) === JSON.stringify(candidate)) {
+        continue;
+      }
       const merged: NotificationRow = {
         ...existing,
         ...candidate,
         updatedAt: now,
       };
-      if (JSON.stringify(existing) !== JSON.stringify(merged)) {
-        nextRows[existingIndex] = merged;
-        changed = true;
-      }
+      nextRows[existingIndex] = merged;
+      changed = true;
       continue;
     }
 
@@ -258,4 +276,3 @@ export const mergeDerivedNotifications = (input: {
   nextRows.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
   return { rows: nextRows, changed: true };
 };
-
