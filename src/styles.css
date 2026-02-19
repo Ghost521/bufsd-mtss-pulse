@@ -147,13 +147,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.app-main h1,
-.app-main h2,
-.app-main h3,
-.app-main h4,
-.app-main h5,
-.app-main h6,
-.app-main [role="heading"] {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+[role="heading"] {
   font-family: var(--font-heading);
   color: var(--color-text-primary);
 }

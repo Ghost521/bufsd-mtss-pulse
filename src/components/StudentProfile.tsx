@@ -586,7 +586,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
                   )}
                 </h1>
                 <div className="mt-1.5 flex items-center gap-3 text-sm font-medium text-slate-500">
-                  <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">
+                  <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
                     ID: {currentStudent.id}
                   </span>
                   <span className="text-slate-300">&middot;</span>

@@ -978,7 +978,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                 onChange={(e) => setNewAssignmentData({...newAssignmentData, maxPoints: parseInt(e.target.value) || 0})}
                                 className="w-full p-3 pl-9 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
                             />
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none font-serif italic text-sm">#</div>
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none italic text-sm">#</div>
                         </div>
                     </div>
                     <div className="col-span-2">

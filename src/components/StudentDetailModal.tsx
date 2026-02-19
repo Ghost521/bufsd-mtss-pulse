@@ -292,7 +292,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">{studentName}</h2>
                 <span 
                   title="Student ID Number"
-                  className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 cursor-help hover:bg-slate-200 transition-colors"
+                  className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 cursor-help hover:bg-slate-200 transition-colors"
                 >
                   {details.id}
                 </span>

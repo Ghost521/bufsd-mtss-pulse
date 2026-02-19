@@ -29,7 +29,7 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
       }
       if (part.startsWith('`') && part.endsWith('`')) {
           return (
-              <code key={index} className={`font-mono text-xs px-1.5 py-0.5 rounded border ${variant === 'light' ? 'bg-indigo-700 border-indigo-500 text-indigo-100' : 'bg-slate-100 border-slate-200 text-rose-600'}`}>
+              <code key={index} className={`text-xs px-1.5 py-0.5 rounded border ${variant === 'light' ? 'bg-indigo-700 border-indigo-500 text-indigo-100' : 'bg-slate-100 border-slate-200 text-rose-600'}`}>
                   {part.slice(1, -1)}
               </code>
           );

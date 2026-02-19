@@ -717,7 +717,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                             
                             {/* Simulated Content */}
                             <div className="space-y-6 opacity-80">
-                                <p className="font-serif text-lg">1. Introduction</p>
+                                <p className="text-lg font-semibold text-slate-800">1. Introduction</p>
                                 <p>
                                     Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
                                 </p>
@@ -727,7 +727,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                                 <div className="h-64 w-full bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 border border-dashed border-slate-300">
                                     [Chart/Graphic Placeholder]
                                 </div>
-                                <p className="font-serif text-lg">2. Analysis</p>
+                                <p className="text-lg font-semibold text-slate-800">2. Analysis</p>
                                 <p>
                                     Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit.
                                 </p>

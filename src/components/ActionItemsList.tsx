@@ -384,7 +384,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                             <textarea 
                                 value={planNotes}
                                 onChange={(e) => setPlanNotes(e.target.value)}
-                                className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
                         ) : (
                             <div className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg overflow-y-auto prose prose-sm max-w-none">

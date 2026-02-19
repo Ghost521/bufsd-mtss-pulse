@@ -1153,7 +1153,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                                             
                                             <div>
                                                 <h3 className={`font-bold group-hover:text-indigo-600 transition-colors text-lg leading-tight ${isAttendanceMode && attendanceStatus === 'Absent' ? 'text-rose-700' : 'text-slate-900'}`}>{student.name}</h3>
-                                                <p className="text-xs text-slate-400 font-mono mt-0.5">{student.id}</p>
+                                                <p className="text-xs text-slate-400 mt-0.5">{student.id}</p>
                                                 {viewType === 'master' && <p className="text-xs text-slate-500 mt-0.5 font-medium truncate max-w-[120px]">{student.teacher}</p>}
                                             </div>
                                         </div>
@@ -1308,7 +1308,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                                             </div>
                                             <div>
                                                 <p className={`font-bold transition-colors ${isAttendanceMode && attendanceStatus === 'Absent' ? 'text-rose-700' : 'text-slate-800 group-hover:text-indigo-600'}`}>{student.name}</p>
-                                                <p className="text-[10px] text-slate-400 font-mono">{student.id}</p>
+                                                <p className="text-[10px] text-slate-400">{student.id}</p>
                                             </div>
                                             {student.alerts > 0 && !isAttendanceMode && (
                                                 <AlertCircle size={14} className="text-rose-500 animate-pulse ml-1" />

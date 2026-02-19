@@ -782,7 +782,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   <textarea
                     value={pastedText}
                     onChange={(event) => setPastedText(event.target.value)}
-                    className="w-full h-64 p-4 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none resize-none mb-4"
+                    className="w-full h-64 p-4 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none mb-4"
                     placeholder={`Name\tID\tGrade\nJohn Doe\t123\t4th\nJane Smith\t124\t4th`}
                   />
                   <div className="flex justify-end">
@@ -923,7 +923,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                         <label className="text-xs font-bold text-slate-400 uppercase block mb-1">
                           Source Header
                         </label>
-                        <div className="truncate font-mono text-sm font-medium text-slate-700">{mapping.sourceHeader}</div>
+                        <div className="truncate text-sm font-medium text-slate-700">{mapping.sourceHeader}</div>
                       </div>
                       <ArrowRight size={16} className="hidden text-slate-300 md:block" />
                       <div className="min-w-0 flex-1">
