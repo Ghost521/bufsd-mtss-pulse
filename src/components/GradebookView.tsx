@@ -64,6 +64,14 @@ const WEIGHT_PRESETS: Record<string, Record<AssignmentType, number>> = {
 type PersistedGradeEntry = GradeEntry & { id: string };
 type CellSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+type MissingModalMode = 'list' | 'composer' | 'bulk';
+
+type MessageComposerState = {
+  studentId: string;
+  studentName: string;
+  assignment: string;
+  parentName: string;
+};
 
 const toGradeRowId = (studentId: string, assignmentId: string): string => `${studentId}::${assignmentId}`;
 
@@ -113,6 +121,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     maxPoints: 100,
     description: ''
   });
+  const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false);
+  const [editAssignmentData, setEditAssignmentData] = useState<{
+    id: string;
+    title: string;
+    type: AssignmentType;
+    date: string;
+    maxPoints: number;
+    description: string;
+  } | null>(null);
 
   // Interaction State
   const [activeCell, setActiveCell] = useState<{sId: string, aId: string} | null>(null);
@@ -131,10 +148,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   
   // Missing Work Modal State
   const [showMissingModal, setShowMissingModal] = useState(false);
-  const [messageComposer, setMessageComposer] = useState<{ studentName: string; assignment: string; parentName: string } | null>(null);
-  const [draftMessage, setDraftMessage] = useState('');
+  const [missingModalMode, setMissingModalMode] = useState<MissingModalMode>('list');
+  const [messageComposer, setMessageComposer] = useState<MessageComposerState | null>(null);
+  const [draftMessages, setDraftMessages] = useState<Record<string, string>>({});
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
+  const [bulkMessageNote, setBulkMessageNote] = useState('');
+  const [isSendingBulkMessage, setIsSendingBulkMessage] = useState(false);
+  const [bulkMessageSent, setBulkMessageSent] = useState(false);
 
   // Refs for keyboard nav
   const gridRef = useRef<HTMLDivElement>(null);
@@ -392,6 +413,42 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     });
   };
 
+  const handleOpenEditAssignment = (assignment: Assignment) => {
+    setEditAssignmentData({
+      id: assignment.id,
+      title: assignment.title,
+      type: assignment.type,
+      date: assignment.date,
+      maxPoints: assignment.maxPoints,
+      description: assignment.description ?? '',
+    });
+    setShowEditAssignmentModal(true);
+    setColumnMenuId(null);
+  };
+
+  const handleUpdateAssignment = () => {
+    if (!editAssignmentData || !editAssignmentData.title.trim()) return;
+
+    setAllAssignments((prev) => {
+      const next = prev.map((assignment) => {
+        if (assignment.id !== editAssignmentData.id) return assignment;
+        return {
+          ...assignment,
+          title: editAssignmentData.title.trim(),
+          type: editAssignmentData.type,
+          date: editAssignmentData.date,
+          maxPoints: editAssignmentData.maxPoints,
+          description: editAssignmentData.description,
+        };
+      });
+      assignmentCollection.replaceMutation.mutate(next);
+      return next;
+    });
+
+    setShowEditAssignmentModal(false);
+    setEditAssignmentData(null);
+  };
+
   const handleDeleteAssignment = (assignmentId: string) => {
     if (window.confirm("Are you sure you want to delete this assignment and all associated grades?")) {
       setAllAssignments(prev => {
@@ -645,13 +702,37 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   };
 
   // --- Composer Handlers ---
-  const handleMessageParent = (studentName: string, assignment: string) => {
+  const closeMissingModal = () => {
+    setShowMissingModal(false);
+    setMissingModalMode('list');
+    setMessageComposer(null);
+    setMessageSent(false);
+    setIsGeneratingMessage(false);
+    setBulkMessageSent(false);
+    setIsSendingBulkMessage(false);
+    setBulkMessageNote('');
+  };
+
+  const openMissingModal = () => {
+    setShowMissingModal(true);
+    setMissingModalMode('list');
+    setMessageComposer(null);
+    setBulkMessageSent(false);
+    setMessageSent(false);
+  };
+
+  const handleMessageParent = (
+    studentId: string,
+    studentName: string,
+    assignment: string,
+  ) => {
       setMessageComposer({
+          studentId,
           studentName,
           assignment,
           parentName: 'Parent/Guardian of ' + studentName
       });
-      setDraftMessage("");
+      setMissingModalMode('composer');
       setMessageSent(false);
   };
 
@@ -660,9 +741,12 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       setIsGeneratingMessage(true);
       try {
           const draft = await generateParentMessage(messageComposer.studentName, messageComposer.assignment, messageComposer.parentName);
-          setDraftMessage(draft);
+          setDraftMessages((prev) => ({ ...prev, [messageComposer.studentId]: draft }));
       } catch {
-          setDraftMessage("I'm writing to inform you that your student has a missing assignment. Please check in with them.");
+          setDraftMessages((prev) => ({
+            ...prev,
+            [messageComposer.studentId]: "I'm writing to inform you that your student has a missing assignment. Please check in with them.",
+          }));
       } finally {
           setIsGeneratingMessage(false);
       }
@@ -672,13 +756,28 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       // Simulate sending
       setMessageSent(true);
       setTimeout(() => {
-          setMessageComposer(null);
+          setMissingModalMode('list');
           setMessageSent(false);
       }, 1500);
   };
 
   const handleMessageAllParents = () => {
-      alert(`Sending bulk notification to parents of ${missingWorkList.length} students regarding missing work.`);
+      setMissingModalMode('bulk');
+      setBulkMessageSent(false);
+      setBulkMessageNote('');
+  };
+
+  const handleConfirmBulkMessage = () => {
+    setIsSendingBulkMessage(true);
+    setTimeout(() => {
+      setIsSendingBulkMessage(false);
+      setBulkMessageSent(true);
+      setTimeout(() => {
+        setMissingModalMode('list');
+        setBulkMessageSent(false);
+        setBulkMessageNote('');
+      }, 1200);
+    }, 900);
   };
 
   const totalTempWeight = useMemo(
@@ -698,6 +797,65 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     () => filteredAndSortedStudents.findIndex((student) => student.id === mobileStudentId),
     [filteredAndSortedStudents, mobileStudentId],
   );
+  const activeComposerDraft = useMemo(
+    () => (messageComposer ? draftMessages[messageComposer.studentId] ?? '' : ''),
+    [draftMessages, messageComposer],
+  );
+  const mobileScore = useMemo(
+    () => (mobileStudent && mobileAssignment ? getScore(mobileStudent.id, mobileAssignment.id) : null),
+    [mobileAssignment, mobileStudent, grades],
+  );
+  const mobileCellKey = useMemo(
+    () => (mobileStudent && mobileAssignment ? toCellKey(mobileStudent.id, mobileAssignment.id) : null),
+    [mobileAssignment, mobileStudent],
+  );
+  const mobileCellSaveState = useMemo<CellSaveState>(
+    () => (mobileCellKey ? cellSaveState[mobileCellKey] ?? 'idle' : 'idle'),
+    [cellSaveState, mobileCellKey],
+  );
+  const mobileMissingCount = useMemo(() => {
+    if (!mobileStudent) return 0;
+    return grades.filter(
+      (grade) =>
+        grade.studentId === mobileStudent.id &&
+        grade.score === 'M' &&
+        assignmentIdsInScope.has(grade.assignmentId),
+    ).length;
+  }, [assignmentIdsInScope, grades, mobileStudent]);
+  const mobileStudentAverage = useMemo(() => {
+    if (!mobileStudent) return 0;
+    return calculateWeightedAverage(mobileStudent.id, filteredAssignments);
+  }, [calculateWeightedAverage, filteredAssignments, mobileStudent]);
+  const mobileTrend = useMemo(() => {
+    if (!mobileStudent || filteredAssignments.length < 2) {
+      return { label: 'Trend unavailable', className: 'text-slate-500 bg-slate-100' };
+    }
+    const orderedAssignments = [...filteredAssignments].sort(
+      (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime(),
+    );
+    const numericScores = orderedAssignments
+      .map((assignment) => getScore(mobileStudent.id, assignment.id))
+      .map((score) => {
+        if (score === null || score === 'E') return null;
+        if (score === 'M' || score === 'L') return 0;
+        const parsed = Number(score);
+        return Number.isNaN(parsed) ? null : parsed;
+      })
+      .filter((score): score is number => score !== null);
+
+    if (numericScores.length < 2) {
+      return { label: 'Trend unavailable', className: 'text-slate-500 bg-slate-100' };
+    }
+
+    const delta = numericScores[numericScores.length - 1] - numericScores[0];
+    if (delta >= 5) {
+      return { label: `Improving (${delta >= 0 ? '+' : ''}${Math.round(delta)})`, className: 'text-emerald-700 bg-emerald-100' };
+    }
+    if (delta <= -5) {
+      return { label: `${Math.round(delta)} change`, className: 'text-rose-700 bg-rose-100' };
+    }
+    return { label: 'Stable', className: 'text-slate-700 bg-slate-200' };
+  }, [filteredAssignments, grades, mobileStudent]);
 
   const normalizeWeights = () => {
     const entries = Object.entries(tempWeights) as Array<[AssignmentType, number]>;
@@ -741,13 +899,25 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     setSearchQuery('');
   };
 
+  const activeFilters = useMemo(() => {
+    const filters = [
+      { id: 'subject', label: `Subject: ${selectedSubject}` },
+      { id: 'term', label: `Term: ${selectedTerm}` },
+      { id: 'window', label: `Window: ${dateFilter === 'All' ? 'All Time' : dateFilter === '30Days' ? 'Last 30 Days' : 'Last 7 Days'}` },
+    ];
+    if (searchQuery.trim().length > 0) {
+      filters.push({ id: 'search', label: `Search: "${searchQuery.trim()}"` });
+    }
+    return filters;
+  }, [dateFilter, searchQuery, selectedSubject, selectedTerm]);
+
   return (
     <div className="app-responsive-pane relative flex h-[calc(100vh-40px)] min-w-0 flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* --- Missing Work Modal (Draggable) --- */}
       <DraggableModal
         isOpen={showMissingModal}
-        onClose={() => setShowMissingModal(false)}
+        onClose={closeMissingModal}
         title={
             <div className="flex items-center gap-2">
                 <div className="p-2 bg-rose-100 text-rose-600 rounded-lg">
@@ -767,13 +937,25 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     Last synced: Just now
                 </span>
                 <div className="flex gap-3">
+                    {missingModalMode !== 'list' && (
+                        <button
+                            onClick={() => {
+                              setMissingModalMode('list');
+                              setMessageSent(false);
+                              setBulkMessageSent(false);
+                            }}
+                            className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                        >
+                            Back to list
+                        </button>
+                    )}
                     <button 
-                        onClick={() => setShowMissingModal(false)} 
+                        onClick={closeMissingModal}
                         className="px-5 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
                     >
                         Close
                     </button>
-                    {missingWorkList.length > 0 && (
+                    {missingModalMode === 'list' && missingWorkList.length > 0 && (
                         <button 
                             onClick={handleMessageAllParents}
                             className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-all active:scale-95"
@@ -781,75 +963,131 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                             <MessageSquare size={16} /> Message All Parents
                         </button>
                     )}
+                    {missingModalMode === 'bulk' && missingWorkList.length > 0 && (
+                      <button
+                        onClick={handleConfirmBulkMessage}
+                        disabled={isSendingBulkMessage || bulkMessageSent}
+                        className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                      >
+                        {isSendingBulkMessage ? <Loader2 size={16} className="animate-spin" /> : bulkMessageSent ? <CheckCircle2 size={16} /> : <Send size={16} />}
+                        {isSendingBulkMessage ? 'Sending...' : bulkMessageSent ? 'Sent to families' : `Send to ${missingWorkList.length} families`}
+                      </button>
+                    )}
                 </div>
             </div>
         }
       >
-            {/* Overlay Composer inside modal if needed, but DraggableModal doesn't support nested full-overlay well without portal. 
-                For simplicity, we'll keep the composer logic inline or as a separate modal if complex.
-                Here, let's keep it simple and just show the list or composer inside content.
-            */}
-            
-            {/* Overlay Composer Logic */}
-            {messageComposer ? (
-                <div className="flex flex-col h-full bg-white animate-in fade-in duration-200 absolute inset-0 z-10">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-indigo-50/50 flex justify-between items-center">
-                        <h3 className="font-bold text-lg text-indigo-900 flex items-center gap-2">
-                            <MessageSquare size={20} className="text-indigo-600" />
-                            Draft Message
-                        </h3>
-                        <button onClick={() => setMessageComposer(null)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded-full">
-                            <X size={20} />
-                        </button>
-                    </div>
-                    
-                    {messageSent ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-emerald-600 gap-3 animate-in zoom-in">
-                            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
-                                <Send size={32} />
-                            </div>
-                            <p className="font-bold text-lg">Message Sent Successfully!</p>
-                        </div>
-                    ) : (
-                        <div className="flex-1 p-6 flex flex-col gap-4">
-                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-sm">
-                                <p><span className="font-bold text-slate-600">To:</span> {messageComposer.parentName}</p>
-                                <p><span className="font-bold text-slate-600">Subject:</span> Missing Assignment: {messageComposer.assignment}</p>
-                            </div>
-                            
-                            <div className="flex-1 relative">
-                                <textarea 
-                                    value={draftMessage}
-                                    onChange={(e) => setDraftMessage(e.target.value)}
-                                    placeholder="Type your message here or use AI to generate a draft..."
-                                    className="w-full h-full p-4 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm leading-relaxed"
-                                />
-                                {isGeneratingMessage && (
-                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center text-indigo-600">
-                                        <Sparkles className="animate-spin mb-2" size={24} />
-                                        <span className="font-bold text-sm">Drafting with AI...</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={handleGenerateDraft}
-                                    className="flex-1 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
-                                >
-                                    <Sparkles size={16} /> {draftMessage ? 'Regenerate Draft' : 'Generate with AI'}
-                                </button>
-                                <button 
-                                    onClick={handleSendMessage}
-                                    disabled={!draftMessage.trim()}
-                                    className="flex-[2] py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex items-center justify-center gap-2 text-sm"
-                                >
-                                    Send Message <Send size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
+            {missingModalMode === 'composer' && messageComposer ? (
+              <div className="flex h-full flex-col bg-white animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50/50 px-6 py-4">
+                  <h3 className="flex items-center gap-2 text-lg font-bold text-indigo-900">
+                    <MessageSquare size={20} className="text-indigo-600" />
+                    Draft Message
+                  </h3>
+                  <button
+                    onClick={() => setMissingModalMode('list')}
+                    className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
+
+                {messageSent ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-emerald-600 animate-in zoom-in">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+                      <Send size={32} />
+                    </div>
+                    <p className="text-lg font-bold">Message sent successfully</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-1 flex-col gap-4 p-6">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <p><span className="font-bold text-slate-600">To:</span> {messageComposer.parentName}</p>
+                      <p><span className="font-bold text-slate-600">Subject:</span> Missing Assignment: {messageComposer.assignment}</p>
+                    </div>
+
+                    <div className="relative flex-1">
+                      <textarea
+                        value={activeComposerDraft}
+                        onChange={(event) =>
+                          setDraftMessages((prev) => ({ ...prev, [messageComposer.studentId]: event.target.value }))
+                        }
+                        placeholder="Type your message here or use AI to generate a draft..."
+                        className="h-full w-full resize-none rounded-xl border border-slate-200 p-4 text-sm leading-relaxed outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                      />
+                      {isGeneratingMessage && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 text-indigo-600 backdrop-blur-sm">
+                          <Sparkles className="mb-2 animate-spin" size={24} />
+                          <span className="text-sm font-bold">Drafting with AI...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleGenerateDraft}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 py-2.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+                      >
+                        <Sparkles size={16} /> {activeComposerDraft ? 'Regenerate Draft' : 'Generate with AI'}
+                      </button>
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!activeComposerDraft.trim()}
+                        className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Send Message <Send size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : missingModalMode === 'bulk' ? (
+              <div className="flex h-full flex-col gap-4 overflow-y-auto bg-white p-6">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-indigo-500">Bulk Family Message</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-800">
+                    Send one aligned update to {missingWorkList.length} families with students currently missing work.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Optional Note
+                  </label>
+                  <textarea
+                    value={bulkMessageNote}
+                    onChange={(event) => setBulkMessageNote(event.target.value)}
+                    rows={3}
+                    placeholder="Add a short note to include with each message..."
+                    className="w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-100 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Recipient Preview
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {missingWorkList.slice(0, 5).map((item, idx) => (
+                      <div key={`${item.studentId}-${idx}`} className="flex items-center justify-between px-4 py-3 text-sm">
+                        <span className="font-semibold text-slate-800">{item.studentName}</span>
+                        <span className="text-xs text-slate-500">{item.assignmentTitle}</span>
+                      </div>
+                    ))}
+                    {missingWorkList.length > 5 ? (
+                      <div className="px-4 py-3 text-xs text-slate-500">
+                        +{missingWorkList.length - 5} more recipients
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {bulkMessageSent ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                    Messages sent to all selected families.
+                  </div>
+                ) : null}
+              </div>
             ) : (
                 <div className="p-0 overflow-y-auto flex-1 bg-white h-full">
                     {missingWorkList.length === 0 ? (
@@ -874,7 +1112,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                         </div>
                                     </div>
                                     <button 
-                                        onClick={() => handleMessageParent(item.studentName, item.assignmentTitle)}
+                                        onClick={() => handleMessageParent(item.studentId, item.studentName, item.assignmentTitle)}
                                         className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 shadow-sm"
                                     >
                                         <Mail size={14} /> Message Parent
@@ -898,7 +1136,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                 </div>
                 <div>
                     <span className="font-bold text-lg text-slate-900 block">New Assignment</span>
-                    <span className="text-xs text-slate-500 font-medium">Adding to <span className="text-indigo-600 font-bold">{selectedSubject}</span> • {selectedTerm}</span>
+                    <span className="text-xs text-slate-500 font-medium">Adding to <span className="text-indigo-600 font-bold">{selectedSubject}</span> | {selectedTerm}</span>
                 </div>
             </div>
         }
@@ -1006,6 +1244,129 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     />
                 </div>
             </div>
+      </DraggableModal>
+
+      {/* --- Edit Assignment Modal (Draggable) --- */}
+      <DraggableModal
+        isOpen={showEditAssignmentModal}
+        onClose={() => {
+          setShowEditAssignmentModal(false);
+          setEditAssignmentData(null);
+        }}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600">
+              <Settings size={20} />
+            </div>
+            <div>
+              <span className="block text-lg font-bold text-slate-900">Edit Assignment</span>
+              <span className="text-xs font-medium text-slate-500">Update assignment details for this class.</span>
+            </div>
+          </div>
+        }
+        initialWidth={600}
+        initialHeight={500}
+        footer={
+          <div className="flex w-full items-center justify-end gap-3">
+            <button
+              onClick={() => {
+                setShowEditAssignmentModal(false);
+                setEditAssignmentData(null);
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpdateAssignment}
+              disabled={!editAssignmentData?.title.trim()}
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Save size={18} /> Save Changes
+            </button>
+          </div>
+        }
+      >
+        {editAssignmentData ? (
+          <div className="h-full space-y-5 p-6">
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                Assignment Title <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={editAssignmentData.title}
+                onChange={(event) =>
+                  setEditAssignmentData((prev) => (prev ? { ...prev, title: event.target.value } : prev))
+                }
+                className="w-full rounded-xl border border-slate-200 p-3 text-sm font-medium shadow-sm outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Assignment Type</label>
+                <div className="relative">
+                  <select
+                    value={editAssignmentData.type}
+                    onChange={(event) =>
+                      setEditAssignmentData((prev) =>
+                        prev ? { ...prev, type: event.target.value as AssignmentType } : prev,
+                      )
+                    }
+                    className="w-full appearance-none rounded-xl border border-slate-200 bg-white p-3 pr-10 text-sm font-medium shadow-sm outline-none transition-all focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {['Homework', 'Quiz', 'Test', 'Project'].map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+              <div>
+                <CustomDatePicker
+                  label="Due Date"
+                  value={editAssignmentData.date}
+                  onChange={(value) =>
+                    setEditAssignmentData((prev) => (prev ? { ...prev, date: value } : prev))
+                  }
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Max Points</label>
+              <div className="relative max-w-[180px]">
+                <input
+                  type="number"
+                  min="0"
+                  value={editAssignmentData.maxPoints}
+                  onChange={(event) =>
+                    setEditAssignmentData((prev) => (prev ? { ...prev, maxPoints: parseInt(event.target.value) || 0 } : prev))
+                  }
+                  className="w-full rounded-xl border border-slate-200 p-3 pl-9 text-sm font-bold text-slate-700 shadow-sm outline-none transition-all focus:ring-2 focus:ring-indigo-500"
+                />
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm italic text-slate-400">#</div>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Description / Notes</label>
+              <textarea
+                rows={4}
+                value={editAssignmentData.description}
+                onChange={(event) =>
+                  setEditAssignmentData((prev) => (prev ? { ...prev, description: event.target.value } : prev))
+                }
+                className="w-full resize-none rounded-xl border border-slate-200 p-3 text-sm shadow-sm outline-none transition-all focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        ) : null}
       </DraggableModal>
 
       {/* --- Weight Configuration Modal (Draggable) --- */}
@@ -1145,7 +1506,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Gradebook</h2>
               <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">
                 <span className="font-medium text-indigo-600">Class 4-B</span>
-                <span className="text-slate-300">•</span>
+                <span className="text-slate-300">|</span>
                 {assignments.length} Assignments
               </p>
             </div>
@@ -1207,19 +1568,18 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500">Filters:</span>
-          <button onClick={() => setSelectedSubject('Mathematics')} className="px-2 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold">
-            {selectedSubject}
-          </button>
-          <button onClick={() => setSelectedTerm('Q1')} className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-            {selectedTerm}
-          </button>
-          <button onClick={() => setDateFilter('All')} className="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-            {dateFilter === 'All' ? 'All Time' : dateFilter === '30Days' ? 'Last 30 Days' : 'Last 7 Days'}
-          </button>
-          <button onClick={resetFiltersToDefault} className="ml-auto text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg px-2 py-1">
-            Reset Filters
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+          <span className="text-xs font-semibold text-slate-500">Active filters</span>
+          {activeFilters.map((filter) => (
+            <span
+              key={filter.id}
+              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600"
+            >
+              {filter.label}
+            </span>
+          ))}
+          <button onClick={resetFiltersToDefault} className="ml-auto rounded-lg px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+            Reset all
           </button>
         </div>
       </div>
@@ -1247,7 +1607,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         </div>
 
         <div
-          onClick={() => setShowMissingModal(true)}
+          onClick={openMissingModal}
           className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
         >
           <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ring-4 transition-transform group-hover:scale-110 ${missingCountInScope > 5 ? 'bg-rose-50 text-rose-600 ring-rose-50/50' : 'bg-emerald-50 text-emerald-600 ring-emerald-50/50'}`}>
@@ -1369,7 +1729,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
          </div>
 
          {/* Scrollable Grid Container */}
-         <div className="hidden md:flex-1 overflow-auto relative" ref={gridRef}>
+         <div className="hidden md:block md:flex-1 overflow-auto relative" ref={gridRef}>
             <table className="w-full border-collapse text-sm min-w-max">
                 <thead className="bg-slate-50 sticky top-0 z-20 shadow-sm">
                     <tr>
@@ -1429,7 +1789,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                 {columnMenuId === asn.id && (
                                     <div className="absolute top-full right-2 mt-1 w-48 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 animate-in fade-in zoom-in-95 text-left">
                                         <div className="px-3 py-2 text-[10px] text-slate-400 font-bold uppercase border-b border-slate-50 mb-1">Assignment Options</div>
-                                        <button onClick={() => alert("Edit Assignment details")} className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 hover:text-indigo-600 flex items-center gap-2">
+                                        <button onClick={() => handleOpenEditAssignment(asn)} className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 hover:text-indigo-600 flex items-center gap-2">
                                             <Settings size={12} /> Edit Details
                                         </button>
                                         <button onClick={() => handleBulkMissing(asn.id)} className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 hover:text-amber-600 flex items-center gap-2">
@@ -1482,7 +1842,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                                             {student.tier}
                                         </span>
                                         <div className="text-[10px] font-medium text-slate-500 leading-tight">
-                                            GPA: <span className="text-slate-700 font-bold">{student.gpa}</span> • Read: <span className="text-slate-700 font-bold">{student.readingLevel}</span>
+                                            GPA: <span className="text-slate-700 font-bold">{student.gpa}</span> | Read: <span className="text-slate-700 font-bold">{student.readingLevel}</span>
                                         </div>
                                         {student.activeInterventions > 0 && (
                                             <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600">
@@ -1697,28 +2057,87 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-slate-900">{mobileStudent.name}</p>
-                      <p className="text-xs text-slate-500">{mobileAssignment.title} • {new Date(mobileAssignment.date).toLocaleDateString()}</p>
+                      <p className="text-xs text-slate-500">{mobileAssignment.title} | {new Date(mobileAssignment.date).toLocaleDateString()}</p>
                     </div>
                     <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${getTierBadgeColor(mobileStudent.tier)}`}>
                       {mobileStudent.tier}
                     </span>
                   </div>
 
+                  <div className="grid grid-cols-3 gap-2 rounded-lg border border-slate-100 bg-slate-50 p-2">
+                    <div className="rounded-md bg-white px-2 py-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Average</p>
+                      <p className="text-sm font-bold text-slate-800">{mobileStudentAverage}%</p>
+                    </div>
+                    <div className="rounded-md bg-white px-2 py-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Missing</p>
+                      <p className="text-sm font-bold text-rose-700">{mobileMissingCount}</p>
+                    </div>
+                    <div className="rounded-md bg-white px-2 py-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Trend</p>
+                      <p className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold ${mobileTrend.className}`}>{mobileTrend.label}</p>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Score</label>
                     <input
                       type="text"
-                      value={getScore(mobileStudent.id, mobileAssignment.id) === null ? '' : String(getScore(mobileStudent.id, mobileAssignment.id))}
+                      value={mobileScore === null ? '' : String(mobileScore)}
                       onChange={(e) => handleScoreChange(mobileStudent.id, mobileAssignment.id, e.target.value)}
-                      className={`w-full rounded-lg border border-slate-200 px-3 py-3 text-lg font-bold text-center ${getScoreColor(getScore(mobileStudent.id, mobileAssignment.id))}`}
+                      className={`w-full rounded-lg border border-slate-200 px-3 py-3 text-lg font-bold text-center ${getScoreColor(mobileScore)}`}
                       placeholder="-"
                     />
+                    <p className={`mt-1 text-[11px] font-medium ${
+                      mobileCellSaveState === 'saving'
+                        ? 'text-amber-600'
+                        : mobileCellSaveState === 'saved'
+                          ? 'text-emerald-600'
+                          : mobileCellSaveState === 'error'
+                            ? 'text-rose-600'
+                            : 'text-slate-500'
+                    }`}>
+                      {mobileCellSaveState === 'saving'
+                        ? 'Saving score...'
+                        : mobileCellSaveState === 'saved'
+                          ? 'Saved just now'
+                          : mobileCellSaveState === 'error'
+                            ? 'Save failed, try again'
+                            : 'Score updates sync automatically'}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
-                    <button onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'M')} className="py-2 rounded-lg bg-rose-100 text-rose-700 text-xs font-bold">Missing</button>
-                    <button onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'E')} className="py-2 rounded-lg bg-amber-100 text-amber-700 text-xs font-bold">Excused</button>
-                    <button onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'L')} className="py-2 rounded-lg bg-yellow-100 text-yellow-700 text-xs font-bold">Late</button>
+                    <button
+                      onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'M')}
+                      className={`py-2 rounded-lg text-xs font-bold border transition-colors ${
+                        mobileScore === 'M'
+                          ? 'bg-rose-600 text-white border-rose-700'
+                          : 'bg-rose-100 text-rose-700 border-rose-200'
+                      }`}
+                    >
+                      Missing
+                    </button>
+                    <button
+                      onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'E')}
+                      className={`py-2 rounded-lg text-xs font-bold border transition-colors ${
+                        mobileScore === 'E'
+                          ? 'bg-amber-600 text-white border-amber-700'
+                          : 'bg-amber-100 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      Excused
+                    </button>
+                    <button
+                      onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, 'L')}
+                      className={`py-2 rounded-lg text-xs font-bold border transition-colors ${
+                        mobileScore === 'L'
+                          ? 'bg-yellow-600 text-white border-yellow-700'
+                          : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                      }`}
+                    >
+                      Late
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
@@ -1726,7 +2145,11 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                       <button
                         key={value}
                         onClick={() => applyParsedScore(mobileStudent.id, mobileAssignment.id, value)}
-                        className="py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold"
+                        className={`py-2 rounded-lg border text-xs font-bold transition-colors ${
+                          mobileScore === value
+                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                            : 'border-slate-200 bg-slate-50 text-slate-700'
+                        }`}
                       >
                         {value}
                       </button>

@@ -44,4 +44,11 @@ describe("Responsive layout containment guardrails", () => {
     expect(source).toContain("min-w-[900px] lg:min-w-[1100px]");
     expect(source).toContain("min-w-[640px] md:min-w-[760px]");
   });
+
+  it("keeps gradebook desktop and mobile entry panes mutually exclusive", () => {
+    const source = readSource("src/components/GradebookView.tsx");
+
+    expect(source).toContain("hidden md:block md:flex-1 overflow-auto relative");
+    expect(source).toContain("md:hidden flex-1 overflow-auto p-3 space-y-3");
+  });
 });
