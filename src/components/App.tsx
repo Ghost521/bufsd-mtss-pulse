@@ -6,8 +6,6 @@ import {
   Zap, 
   AlertCircle, 
   Users, 
-  RefreshCw,
-  Plus,
   Bot,
   Calendar,
   ThumbsUp,
@@ -15,8 +13,6 @@ import {
   MessageSquare,
   X,
   Send,
-  CalendarPlus,
-  BarChart2,
   Loader2,
   ChevronDown,
   CheckCircle2
@@ -42,6 +38,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useTenantBranding } from '../hooks/useTenantBranding';
 import { useSidebarState } from '../hooks/useSidebarState';
+import { ACTION_ICON_BY_ID, getRouteIcon, iconSize } from '../lib/ui/icons';
 
 const StudentDetailModal = lazy(() => import('./StudentDetailModal').then((m) => ({ default: m.StudentDetailModal })));
 const StudentProfile = lazy(() => import('./StudentProfile').then((m) => ({ default: m.StudentProfile })));
@@ -709,7 +706,7 @@ const App: React.FC = () => {
         label: 'Message Teacher',
         enabled: true,
         onClick: () => handleNavigateToMessages('Mr. Davis'),
-        icon: MessageSquare,
+        icon: getRouteIcon('messages'),
       };
     }
     if (currentRole === UserRole.DISTRICT) {
@@ -718,7 +715,7 @@ const App: React.FC = () => {
         label: 'Open Reports',
         enabled: true,
         onClick: () => navigateToPage('reports'),
-        icon: BarChart2,
+        icon: getRouteIcon('reports'),
       };
     }
     return {
@@ -726,7 +723,7 @@ const App: React.FC = () => {
       label: 'Create Referral',
       enabled: true,
       onClick: () => setIsReferralModalOpen(true),
-      icon: Plus,
+      icon: ACTION_ICON_BY_ID.createReferral,
     };
   })();
 
@@ -737,7 +734,7 @@ const App: React.FC = () => {
         label: isRefreshing ? 'Refreshing...' : 'Refresh Data',
         enabled: !isRefreshing,
         onClick: handleRefresh,
-        icon: RefreshCw,
+        icon: ACTION_ICON_BY_ID.refreshData,
       },
       {
         id: 'ai-brief',
@@ -746,7 +743,7 @@ const App: React.FC = () => {
         onClick: () => {
           void handleGenerateInsight();
         },
-        icon: Bot,
+        icon: ACTION_ICON_BY_ID.aiSummary,
       },
     ];
 
@@ -756,7 +753,7 @@ const App: React.FC = () => {
         label: 'Schedule MTSS',
         enabled: true,
         onClick: () => navigateToPage('calendar'),
-        icon: CalendarPlus,
+        icon: getRouteIcon('calendar'),
       });
     }
     if (currentRole === UserRole.TEACHER) {
@@ -765,7 +762,7 @@ const App: React.FC = () => {
         label: 'View Roster',
         enabled: true,
         onClick: () => navigateToPage('class_roster'),
-        icon: Users,
+        icon: getRouteIcon('class_roster'),
       });
     }
     if (currentRole === UserRole.DISTRICT) {
@@ -774,7 +771,7 @@ const App: React.FC = () => {
         label: 'Open Schools Map',
         enabled: true,
         onClick: () => navigateToPage('map'),
-        icon: Users,
+        icon: getRouteIcon('map'),
       });
     }
     return actions;
@@ -885,7 +882,7 @@ const App: React.FC = () => {
               title={primaryAction.tooltip}
               className="app-button-primary flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors"
             >
-              <primaryAction.icon size={16} />
+              <primaryAction.icon size={iconSize("md")} />
               {primaryAction.label}
             </button>
           ) : null}
@@ -899,7 +896,7 @@ const App: React.FC = () => {
               aria-haspopup="menu"
             >
               Actions
-              <ChevronDown size={16} className={`transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={iconSize("md")} className={`transition-transform ${isMoreMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isMoreMenuOpen ? (
@@ -917,7 +914,7 @@ const App: React.FC = () => {
                     title={action.tooltip}
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <action.icon size={14} />
+                    <action.icon size={iconSize("sm")} />
                     {action.label}
                   </button>
                 ))}

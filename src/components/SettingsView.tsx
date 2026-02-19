@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Bell, Camera, CheckCircle2, Database, Globe, Loader2, LogOut, Mail, Palette, RotateCcw, Save, School, Shield, User } from "lucide-react";
 import { UserRole } from "../types";
 import { applyTenantBrandingTheme } from "../lib/branding-theme";
+import { iconSize } from "../lib/ui/icons";
 import {
   DEFAULT_DISTRICT_BRANDING,
   districtBrandingEditableSchema,
@@ -601,7 +602,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
           onClick={() => setReloadToken((value) => value + 1)}
           className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
         >
-          <RotateCcw size={15} /> Retry
+          <RotateCcw size={iconSize("sm")} /> Retry
         </button>
       </div>
     );
@@ -701,7 +702,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUserRole, cur
                   activeTab === section.id ? "border-indigo-600 bg-indigo-50 text-indigo-700" : "border-transparent text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <section.icon size={17} />
+                <section.icon size={iconSize("md")} />
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{section.label}</span>
                   {isSectionDirty(section.id) ? <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" /> : null}

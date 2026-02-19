@@ -1,23 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  BarChart2,
-  BookCopy,
-  BookOpen,
-  Calendar,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Database,
-  FileText,
   GraduationCap,
-  HardDriveUpload,
-  LayoutDashboard,
-  MessageCircle,
-  School,
   Search,
-  Settings,
-  Users,
   X,
 } from "lucide-react";
 import { UserRole } from "../types";
@@ -25,6 +13,7 @@ import { TenantContextSwitcher } from "./TenantContextSwitcher";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { buildWorkspacePath } from "../lib/workspaceRoutes";
 import type { SidebarGroupState } from "../hooks/useSidebarState";
+import { getRouteIcon, iconSize } from "../lib/ui/icons";
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -48,7 +37,6 @@ interface SidebarProps {
 
 type WorkspaceNavItem = {
   id: WorkspacePageId;
-  icon: React.ComponentType<{ size?: number }>;
   label: string;
 };
 
@@ -64,63 +52,63 @@ const showSidebarTestControls =
 
 const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
   const dashboardByRole: Record<UserRole, WorkspaceNavItem> = {
-    [UserRole.PRINCIPAL]: { id: "dashboard", icon: LayoutDashboard, label: "School Dashboard" },
-    [UserRole.TEACHER]: { id: "dashboard", icon: LayoutDashboard, label: "Class Dashboard" },
-    [UserRole.DISTRICT]: { id: "dashboard", icon: LayoutDashboard, label: "District Dashboard" },
-    [UserRole.PARENT]: { id: "dashboard", icon: LayoutDashboard, label: "Student Overview" },
+    [UserRole.PRINCIPAL]: { id: "dashboard", label: "School Dashboard" },
+    [UserRole.TEACHER]: { id: "dashboard", label: "Class Dashboard" },
+    [UserRole.DISTRICT]: { id: "dashboard", label: "District Dashboard" },
+    [UserRole.PARENT]: { id: "dashboard", label: "Student Overview" },
   };
 
   const workItemsByRole: Record<UserRole, WorkspaceNavItem[]> = {
     [UserRole.PRINCIPAL]: [
       dashboardByRole[UserRole.PRINCIPAL],
-      { id: "rosters", icon: Users, label: "Student Rosters" },
-      { id: "interventions", icon: FileText, label: "Intervention Plans" },
-      { id: "reports", icon: BarChart2, label: "School Reports" },
+      { id: "rosters", label: "Student Rosters" },
+      { id: "interventions", label: "Intervention Plans" },
+      { id: "reports", label: "School Reports" },
     ],
     [UserRole.TEACHER]: [
       dashboardByRole[UserRole.TEACHER],
-      { id: "class_roster", icon: Users, label: "Student Roster" },
-      { id: "gradebook", icon: BookOpen, label: "Gradebook" },
-      { id: "interventions", icon: FileText, label: "Interventions" },
+      { id: "class_roster", label: "Student Roster" },
+      { id: "gradebook", label: "Gradebook" },
+      { id: "interventions", label: "Interventions" },
     ],
     [UserRole.DISTRICT]: [
       dashboardByRole[UserRole.DISTRICT],
-      { id: "map", icon: School, label: "School Map" },
-      { id: "reports", icon: BarChart2, label: "District Reports" },
+      { id: "map", label: "School Map" },
+      { id: "reports", label: "District Reports" },
     ],
     [UserRole.PARENT]: [
       dashboardByRole[UserRole.PARENT],
-      { id: "reports", icon: FileText, label: "Progress Reports" },
+      { id: "reports", label: "Progress Reports" },
     ],
   };
 
   const planningItemsByRole: Record<UserRole, WorkspaceNavItem[]> = {
     [UserRole.PRINCIPAL]: [
-      { id: "lesson_plans", icon: BookCopy, label: "Lesson Plans" },
-      { id: "calendar", icon: Calendar, label: "School Calendar" },
+      { id: "lesson_plans", label: "Lesson Plans" },
+      { id: "calendar", label: "School Calendar" },
     ],
     [UserRole.TEACHER]: [
-      { id: "lesson_plans", icon: BookCopy, label: "Lesson Plans" },
-      { id: "calendar", icon: Calendar, label: "Class Calendar" },
+      { id: "lesson_plans", label: "Lesson Plans" },
+      { id: "calendar", label: "Class Calendar" },
     ],
-    [UserRole.DISTRICT]: [{ id: "calendar", icon: Calendar, label: "District Calendar" }],
-    [UserRole.PARENT]: [{ id: "calendar", icon: Calendar, label: "School Calendar" }],
+    [UserRole.DISTRICT]: [{ id: "calendar", label: "District Calendar" }],
+    [UserRole.PARENT]: [{ id: "calendar", label: "School Calendar" }],
   };
 
   return [
     { id: "work", label: "Instruction", defaultExpanded: true, items: workItemsByRole[role] },
     { id: "planning", label: "Planning & Calendar", defaultExpanded: true, items: planningItemsByRole[role] },
-    { id: "communication", label: "Communication", defaultExpanded: true, items: [{ id: "messages", icon: MessageCircle, label: "Messages" }] },
+    { id: "communication", label: "Communication", defaultExpanded: true, items: [{ id: "messages", label: "Messages" }] },
     {
       id: "administration",
       label: "Operations",
       defaultExpanded: true,
       items:
         role === UserRole.PARENT
-          ? [{ id: "documents", icon: Database, label: "Family Resources" }]
+          ? [{ id: "documents", label: "Family Resources" }]
           : [
-              { id: "documents", icon: Database, label: "Resource Library" },
-              { id: "import", icon: HardDriveUpload, label: "Integrations" },
+              { id: "documents", label: "Resource Library" },
+              { id: "import", label: "Integrations" },
             ],
     },
   ];
@@ -209,6 +197,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const displayName = userName.trim() || "MTSS User";
   const showAvatarImage = Boolean(userAvatarUrl && userAvatarUrl.trim().length > 0 && !avatarLoadFailed);
   const showBrandLogo = Boolean(brandLogoUrl && brandLogoUrl.trim().length > 0 && !brandLogoLoadFailed);
+  const SettingsIcon = getRouteIcon("settings");
 
   useEffect(() => {
     setAvatarLoadFailed(false);
@@ -232,7 +221,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onError={() => setBrandLogoLoadFailed(true)}
                 />
               ) : (
-                <GraduationCap size={22} className="text-white" />
+                <GraduationCap size={iconSize("xl")} className="text-white" />
               )}
             </div>
             {isDesktopCollapsed && !isMobile ? null : (
@@ -257,7 +246,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
               aria-label="Close workspace menu"
             >
-              <X size={18} />
+              <X size={iconSize("lg")} />
             </button>
           ) : (
             <button
@@ -271,7 +260,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {isDesktopCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+              {isDesktopCollapsed ? <ChevronRight size={iconSize("md")} /> : <ChevronLeft size={iconSize("md")} />}
             </button>
           )}
         </div>
@@ -286,7 +275,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 Search navigation
               </label>
               <div className="relative">
-                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={iconSize("sm")} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   id={`sidebar-search-${mode}`}
                   ref={searchInputRef}
@@ -319,11 +308,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                     aria-expanded={isExpanded}
                   >
                     {group.label}
-                    <ChevronDown size={12} className={`transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
+                    <ChevronDown size={iconSize("xs")} className={`transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
                   </button>
                 )}
                 {isExpanded || (isDesktopCollapsed && !isMobile)
-                  ? group.items.map((item) => {
+                    ? group.items.map((item) => {
+                      const ItemIcon = getRouteIcon(item.id);
                       const isActive = activePage === item.id;
                       const isHighlighted = highlightedItemId === item.id && normalizedQuery.length > 0;
                       const itemClasses = isDesktopCollapsed && !isMobile
@@ -348,7 +338,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                           aria-label={isDesktopCollapsed && !isMobile ? `Open ${item.label}` : undefined}
                           title={isDesktopCollapsed && !isMobile ? item.label : undefined}
                         >
-                          <item.icon size={18} />
+                          <ItemIcon size={iconSize("lg")} />
                           {isDesktopCollapsed && !isMobile ? <span className="sr-only">{item.label}</span> : <span>{item.label}</span>}
                         </Link>
                       );
@@ -393,7 +383,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               aria-label="Open settings"
               title="Settings"
             >
-              <Settings size={18} />
+              <SettingsIcon size={iconSize("lg")} />
             </Link>
           </div>
         ) : (
@@ -453,7 +443,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
-                  <Settings size={16} />
+                  <SettingsIcon size={iconSize("md")} />
                   <span className="text-sm font-medium">Settings</span>
                 </span>
               </Link>

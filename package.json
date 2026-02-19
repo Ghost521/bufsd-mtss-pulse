@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --react-plugin --vitest-plugin --ignore-pattern dist/** --ignore-pattern node_modules/** --ignore-pattern convex/_generated/** .",
+    "lint:icons": "node scripts/check-icon-consistency.mjs",
     "test": "vitest run",
     "test:sidebar-bounds": "vitest run tests/sidebar-layout.containment.test.ts",
     "test:watch": "vitest",
