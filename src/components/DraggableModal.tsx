@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useId } from 'react';
+import React, { useState, useEffect, useRef, useId, useCallback } from 'react';
 import { X, GripHorizontal, Scaling } from 'lucide-react';
 
 interface DraggableModalProps {
@@ -71,9 +71,13 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
   
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+  const dragSize = useRef({ w: 0, h: 0 });
+  const isDraggingRef = useRef(false);
+  const isResizingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
+  const pointerCaptureElementRef = useRef<HTMLElement | null>(null);
 
   const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const useResponsiveMobileLayout = mobileMode !== 'desktop-only-drag' && isCompactViewport;
   const dragEnabled = allowDrag && !useResponsiveMobileLayout;
@@ -191,51 +195,73 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
     };
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    if (!dragEnabled && isDragging) setIsDragging(false);
-    if (!resizeEnabled && isResizing) setIsResizing(false);
-  }, [dragEnabled, isDragging, isResizing, resizeEnabled]);
+  const releasePointerCapture = useCallback(() => {
+    const pointerId = activePointerIdRef.current;
+    const element = pointerCaptureElementRef.current;
+    if (pointerId === null || !element) return;
+    try {
+      if (typeof element.hasPointerCapture === 'function' && element.hasPointerCapture(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Ignore browser-specific pointer capture release errors.
+    }
+  }, []);
+
+  const stopInteractions = useCallback(() => {
+    releasePointerCapture();
+    isDraggingRef.current = false;
+    isResizingRef.current = false;
+    setIsDragging(false);
+    activePointerIdRef.current = null;
+    pointerCaptureElementRef.current = null;
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }, [releasePointerCapture]);
 
   useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging && !isResizing) return;
+    if ((isDraggingRef.current && !dragEnabled) || (isResizingRef.current && !resizeEnabled)) {
+      stopInteractions();
+    }
+  }, [dragEnabled, resizeEnabled, stopInteractions]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDraggingRef.current && !isResizingRef.current) return;
+      if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
       if (!modalRef.current) return;
 
-      // Direct update in event loop removes the "lag behind cursor" feel
-      // caused by requestAnimationFrame latency
-      if (isDragging) {
+      if (isDraggingRef.current && dragEnabled) {
         let newX = e.clientX - dragOffset.current.x;
         let newY = e.clientY - dragOffset.current.y;
-        
-        // Bounds checking
-        const maxX = window.innerWidth - modalRef.current.offsetWidth;
-        const maxY = window.innerHeight - modalRef.current.offsetHeight;
 
-        // Clamp values
+        const maxX = Math.max(0, window.innerWidth - dragSize.current.w);
+        const maxY = Math.max(0, window.innerHeight - dragSize.current.h);
+
         newX = Math.max(0, Math.min(newX, maxX));
         newY = Math.max(0, Math.min(newY, maxY));
-        
+
         position.current = { x: newX, y: newY };
         modalRef.current.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
       }
 
-      if (isResizing) {
+      if (isResizingRef.current && resizeEnabled) {
         const deltaX = e.clientX - resizeStart.current.x;
         const deltaY = e.clientY - resizeStart.current.y;
-        
-        // Calculate new dimensions
+
         let newW = Math.max(minWidth, resizeStart.current.w + deltaX);
         let newH = Math.max(minHeight, resizeStart.current.h + deltaY);
-        
-        // Bound resizing to window dimensions
+
         const currentX = position.current.x;
         const currentY = position.current.y;
-        
+
         if (currentX + newW > window.innerWidth) {
-            newW = window.innerWidth - currentX;
+          newW = window.innerWidth - currentX;
         }
         if (currentY + newH > window.innerHeight) {
-            newH = window.innerHeight - currentY;
+          newH = window.innerHeight - currentY;
         }
 
         size.current = { w: newW, h: newH };
@@ -244,49 +270,56 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       }
     };
 
-    const onMouseUp = () => {
-      if (isDragging || isResizing) {
-        setIsDragging(false);
-        setIsResizing(false);
-        document.body.style.userSelect = '';
-        document.body.style.cursor = '';
-      }
+    const onPointerEnd = (e: PointerEvent) => {
+      if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
+      if (!isDraggingRef.current && !isResizingRef.current) return;
+      stopInteractions();
     };
 
-    if ((isDragging || isResizing) && (dragEnabled || resizeEnabled)) {
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = isResizing ? 'nwse-resize' : 'grabbing';
-    }
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerEnd);
+    window.addEventListener('pointercancel', onPointerEnd);
 
     return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerEnd);
+      window.removeEventListener('pointercancel', onPointerEnd);
     };
-  }, [dragEnabled, isDragging, isResizing, minHeight, minWidth, resizeEnabled]);
+  }, [dragEnabled, isOpen, minHeight, minWidth, resizeEnabled, stopInteractions]);
 
-  const handleDragStart = (e: React.MouseEvent) => {
+  const handleDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragEnabled) return;
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button')) return; // Prevent dragging when clicking buttons in header
-    
+
     if (modalRef.current) {
       const rect = modalRef.current.getBoundingClientRect();
       dragOffset.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
       };
+      dragSize.current = { w: rect.width, h: rect.height };
+      activePointerIdRef.current = e.pointerId;
+      pointerCaptureElementRef.current = e.currentTarget;
+      if (typeof e.currentTarget.setPointerCapture === 'function') {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // Ignore unsupported pointer capture environments.
+        }
+      }
+      isDraggingRef.current = true;
+      isResizingRef.current = false;
       setIsDragging(true);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
     }
   };
 
-  const handleResizeStart = (e: React.MouseEvent) => {
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!resizeEnabled) return;
     e.stopPropagation();
-    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     if (modalRef.current) {
       const rect = modalRef.current.getBoundingClientRect();
@@ -296,7 +329,20 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         w: rect.width,
         h: rect.height
       };
-      setIsResizing(true);
+      activePointerIdRef.current = e.pointerId;
+      pointerCaptureElementRef.current = e.currentTarget;
+      if (typeof e.currentTarget.setPointerCapture === 'function') {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // Ignore unsupported pointer capture environments.
+        }
+      }
+      isResizingRef.current = true;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'nwse-resize';
     }
   };
 
@@ -333,8 +379,8 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         <div
           className={`flex justify-between items-center p-4 border-b border-slate-100 bg-white select-none transition-colors ${
             dragEnabled ? (isDragging ? 'cursor-grabbing bg-slate-50' : 'cursor-grab') : 'cursor-default'
-          } ${headerClassName}`}
-          onMouseDown={handleDragStart}
+          } touch-none ${headerClassName}`}
+          onPointerDown={handleDragStart}
         >
           <div id={resolvedTitleId} className="flex items-center gap-2 font-bold text-slate-800 text-lg truncate pr-4 pointer-events-none">
             {dragEnabled ? <GripHorizontal size={20} className="text-slate-300 shrink-0" /> : null}
@@ -365,7 +411,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         {showResizeHandle && resizeEnabled ? (
           <div
             className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-center justify-center z-20 hover:bg-slate-100 rounded-tl transition-colors group"
-            onMouseDown={handleResizeStart}
+            onPointerDown={handleResizeStart}
           >
             <Scaling size={14} className="text-slate-300 group-hover:text-indigo-500" />
           </div>
