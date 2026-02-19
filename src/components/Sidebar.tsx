@@ -231,6 +231,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   const displayName = userName.trim() || "MTSS User";
   const showAvatarImage = Boolean(userAvatarUrl && userAvatarUrl.trim().length > 0 && !avatarLoadFailed);
   const showBrandLogo = Boolean(brandLogoUrl && brandLogoUrl.trim().length > 0 && !brandLogoLoadFailed);
+  const isCollapsedDesktop = isDesktopCollapsed && !isMobile;
   const SettingsIcon = getRouteIcon("settings");
 
   useEffect(() => {
@@ -243,10 +244,10 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-      <div className={`sticky top-0 z-10 border-b border-slate-800 bg-slate-900 ${isDesktopCollapsed && !isMobile ? "p-3" : "p-4"}`}>
-        <div className={isDesktopCollapsed && !isMobile ? "flex flex-col items-center gap-2" : "flex items-center justify-between gap-2"}>
-          <div className={`flex items-center gap-3 ${isDesktopCollapsed && !isMobile ? "justify-center" : ""}`}>
-            <div className="rounded-lg bg-brand-600 p-1.5">
+      <div className={`sticky top-0 z-10 border-b border-slate-800 bg-slate-900 ${isCollapsedDesktop ? "p-3" : "p-4"}`}>
+        <div className={isCollapsedDesktop ? "flex flex-col items-center gap-2" : "flex items-start justify-between gap-2"}>
+          <div className={`flex gap-3 ${isCollapsedDesktop ? "items-center justify-center" : "min-w-0 items-start"}`}>
+            <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-600">
               {showBrandLogo ? (
                 <img
                   src={brandLogoUrl ?? undefined}
@@ -258,8 +259,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <GraduationCap size={iconSize("xl")} className="text-white" />
               )}
             </div>
-            {isDesktopCollapsed && !isMobile ? null : (
-              <div className="overflow-hidden">
+            {isCollapsedDesktop ? null : (
+              <div className="min-w-0 overflow-hidden pt-0.5">
                 <h1 id={isMobile ? "workspace-menu-title" : undefined} className="whitespace-nowrap text-lg font-bold leading-tight text-white">
                   MTSS Pulse
                 </h1>
@@ -277,7 +278,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
               aria-label="Close workspace menu"
             >
               <X size={iconSize("lg")} />
@@ -286,7 +287,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             <button
               type="button"
               onClick={onDesktopCollapseToggle}
-              className="hidden rounded-md border border-slate-700 p-1.5 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-700 p-0 text-slate-300 transition-colors hover:border-slate-500 hover:text-white lg:inline-flex"
               aria-label={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={isDesktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
