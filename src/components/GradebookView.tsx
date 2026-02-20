@@ -1660,34 +1660,38 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
           </div>
 
           <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[180px_minmax(0,1fr)]">
-            <div className="relative h-40 w-40 shrink-0 justify-self-center">
-              <PieChart width={160} height={160}>
-                <Pie
-                  data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
-                  innerRadius={35}
-                  outerRadius={55}
-                  paddingAngle={5}
-                  dataKey="value"
-                  cx={80}
-                  cy={80}
-                >
-                  {Object.entries(tempWeights).map((entry, index) => (
-                    <Cell key={`cell-${entry[0]}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                  ))}
-                </Pie>
-              </PieChart>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[10px] font-bold uppercase text-slate-400">Total</span>
-                <span
-                  className={`text-xl font-bold transition-colors duration-300 ${
-                    totalTempWeight !== 100 ? 'text-rose-500' : 'text-slate-800'
-                  }`}
-                >
-                  {totalTempWeight}%
-                </span>
-                <span className={`text-[10px] font-bold ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                  {remainingWeight === 0 ? 'Balanced' : `${remainingWeight > 0 ? '+' : ''}${remainingWeight}% remaining`}
-                </span>
+            <div className="flex w-full justify-center">
+              <div className="relative grid h-40 w-40 shrink-0 place-items-center overflow-hidden">
+                <PieChart width={160} height={160} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} className="block">
+                  <Pie
+                    data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
+                    innerRadius={42}
+                    outerRadius={55}
+                    paddingAngle={5}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                  >
+                    {Object.entries(tempWeights).map((entry, index) => (
+                      <Cell key={`cell-${entry[0]}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+                    ))}
+                  </Pie>
+                </PieChart>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="flex w-[76px] flex-col items-center justify-center text-center leading-tight">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Total</span>
+                    <span
+                      className={`text-lg font-bold transition-colors duration-300 ${
+                        totalTempWeight !== 100 ? 'text-rose-500' : 'text-slate-800'
+                      }`}
+                    >
+                      {totalTempWeight}%
+                    </span>
+                    <span className={`text-[10px] font-bold ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                      {remainingWeight === 0 ? 'Balanced' : remainingWeight > 0 ? `${remainingWeight}% left` : `${Math.abs(remainingWeight)}% over`}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
