@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildLoginRedirectHref, getRouteAuthStatus, shouldBypassRouteAuth } from "../src/lib/route-auth";
+import {
+  buildLoginRedirectHref,
+  getAvailableUserRoles,
+  getRouteAuthStatus,
+  mapSessionRoleToUserRole,
+  resolveRouteUserRole,
+  shouldBypassRouteAuth,
+} from "../src/lib/route-auth";
+import { UserRole } from "../src/types";
 
 const asFetch = (impl: () => Promise<Response>): typeof fetch =>
   impl as unknown as typeof fetch;
@@ -10,6 +18,13 @@ describe("route auth helpers", () => {
       asFetch(async () =>
         new Response(
           JSON.stringify({
+            session: {
+              user: {
+                id: "u-principal-ne",
+                primaryRole: "principal",
+              },
+              effectiveRoles: ["principal", "teacher"],
+            },
             auth: {
               signedIn: true,
               workosEnabled: true,
@@ -24,6 +39,9 @@ describe("route auth helpers", () => {
       signedIn: true,
       workosEnabled: true,
       reason: null,
+      userId: "u-principal-ne",
+      primaryRole: "principal",
+      effectiveRoles: ["principal", "teacher"],
     });
   });
 
@@ -35,8 +53,22 @@ describe("route auth helpers", () => {
       })
     );
 
-    expect(nonOk).toEqual({ signedIn: false, workosEnabled: false, reason: null });
-    expect(thrown).toEqual({ signedIn: false, workosEnabled: false, reason: null });
+    expect(nonOk).toEqual({
+      signedIn: false,
+      workosEnabled: false,
+      reason: null,
+      userId: null,
+      primaryRole: null,
+      effectiveRoles: [],
+    });
+    expect(thrown).toEqual({
+      signedIn: false,
+      workosEnabled: false,
+      reason: null,
+      userId: null,
+      primaryRole: null,
+      effectiveRoles: [],
+    });
   });
 
   it("preserves workos mode for signed-out sessions", async () => {
@@ -58,6 +90,9 @@ describe("route auth helpers", () => {
       signedIn: false,
       workosEnabled: true,
       reason: null,
+      userId: null,
+      primaryRole: null,
+      effectiveRoles: [],
     });
   });
 
@@ -81,7 +116,50 @@ describe("route auth helpers", () => {
       signedIn: false,
       workosEnabled: true,
       reason: "IDLE_TIMEOUT",
+      userId: null,
+      primaryRole: null,
+      effectiveRoles: [],
     });
+  });
+
+  it("maps session roles to UserRole values", () => {
+    expect(mapSessionRoleToUserRole("principal")).toBe(UserRole.PRINCIPAL);
+    expect(mapSessionRoleToUserRole("teacher")).toBe(UserRole.TEACHER);
+    expect(mapSessionRoleToUserRole("district_admin")).toBe(UserRole.DISTRICT);
+    expect(mapSessionRoleToUserRole("parent")).toBe(UserRole.PARENT);
+    expect(mapSessionRoleToUserRole("unknown")).toBeNull();
+  });
+
+  it("derives deduped available roles from primary and effective role keys", () => {
+    const roles = getAvailableUserRoles({
+      primaryRole: "teacher",
+      effectiveRoles: ["teacher", "principal", "teacher"],
+    });
+
+    expect(roles).toEqual([UserRole.TEACHER, UserRole.PRINCIPAL]);
+  });
+
+  it("resolves route role using primary role by default", () => {
+    const resolved = resolveRouteUserRole({
+      signedIn: true,
+      primaryRole: "principal",
+      effectiveRoles: ["teacher", "principal"],
+    });
+
+    expect(resolved).toBe(UserRole.PRINCIPAL);
+  });
+
+  it("resolves route role using valid dev override", () => {
+    const resolved = resolveRouteUserRole(
+      {
+        signedIn: true,
+        primaryRole: "principal",
+        effectiveRoles: ["principal", "teacher"],
+      },
+      { devRoleOverride: UserRole.TEACHER }
+    );
+
+    expect(resolved).toBe(UserRole.TEACHER);
   });
 
   it("builds encoded login redirect urls", () => {

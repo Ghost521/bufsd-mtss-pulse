@@ -39,6 +39,14 @@ import {
   slugToPage,
   type WorkspacePageId,
 } from '../lib/workspaceRoutes';
+import {
+  clearDevRoleOverrideInStorage,
+  getAvailableUserRoles,
+  getDevRoleOverrideFromStorage,
+  getRouteAuthStatus,
+  resolveRouteUserRole,
+  setDevRoleOverrideInStorage,
+} from '../lib/route-auth';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useTenantBranding } from '../hooks/useTenantBranding';
@@ -95,16 +103,6 @@ type FlashMessage = {
   text: string;
 };
 
-type HealthSessionResponse = {
-  session: {
-    user?: {
-      id?: string;
-      primaryRole?: string;
-    };
-    effectiveRoles?: string[];
-  } | null;
-};
-
 type ReferralNotificationSource = {
   id: string;
   studentName: string;
@@ -144,14 +142,6 @@ const DEFAULT_SIDEBAR_GROUP_STATE = {
 
 const ALLOW_ROLE_SWITCHING =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
-
-const mapSessionRoleToUserRole = (role: string | null | undefined): UserRole | null => {
-  if (role === 'principal' || role === 'school_admin') return UserRole.PRINCIPAL;
-  if (role === 'teacher') return UserRole.TEACHER;
-  if (role === 'district_admin' || role === 'org_admin') return UserRole.DISTRICT;
-  if (role === 'parent') return UserRole.PARENT;
-  return null;
-};
 
 const createEmptyDashboardData = (role: UserRole): DashboardData => ({
   role,
@@ -298,33 +288,30 @@ const App: React.FC = () => {
 
     const loadSessionRoles = async () => {
       try {
-        const response = await fetch('/api/health');
-        if (!response.ok) return;
-        const payload = (await response.json()) as HealthSessionResponse;
-        const session = payload.session;
-        if (!session) return;
-        setSessionUserId(session.user?.id ?? null);
+        const auth = await getRouteAuthStatus();
+        if (!auth.signedIn) return;
+        setSessionUserId(auth.userId);
 
-        const mappedRoles = (session.effectiveRoles ?? [])
-          .map((role) => mapSessionRoleToUserRole(role))
-          .filter((role): role is UserRole => role !== null);
-        const primaryRole = mapSessionRoleToUserRole(session.user?.primaryRole);
-        const nextRoles = Array.from(
-          new Set<UserRole>([
-            ...mappedRoles,
-            ...(primaryRole ? [primaryRole] : []),
-          ])
-        );
+        const nextRoles = getAvailableUserRoles(auth);
 
         if (!isMounted || nextRoles.length === 0) return;
 
-        const lockedRole = primaryRole ?? nextRoles[0];
+        const devRoleOverride = getDevRoleOverrideFromStorage();
+        const lockedRole = resolveRouteUserRole(auth) ?? nextRoles[0];
         if (ALLOW_ROLE_SWITCHING) {
           setAvailableRoles(nextRoles);
-          setCurrentRole((previous) => (nextRoles.includes(previous) ? previous : nextRoles[0]));
+          if (devRoleOverride && !nextRoles.includes(devRoleOverride)) {
+            clearDevRoleOverrideInStorage();
+          }
+          setCurrentRole((previous) => {
+            if (devRoleOverride && nextRoles.includes(devRoleOverride)) return devRoleOverride;
+            if (nextRoles.includes(previous)) return previous;
+            return lockedRole;
+          });
           return;
         }
 
+        clearDevRoleOverrideInStorage();
         setAvailableRoles([lockedRole]);
         setCurrentRole(lockedRole);
       } catch {
@@ -643,6 +630,7 @@ const App: React.FC = () => {
   const handleRoleChange = (nextRole: UserRole) => {
     if (!ALLOW_ROLE_SWITCHING) return;
     if (!availableRoles.includes(nextRole)) return;
+    setDevRoleOverrideInStorage(nextRole);
     const targetPage = normalizePageForRole(nextRole, currentViewPage === 'profile' ? 'dashboard' : currentViewPage);
     setCurrentRole(nextRole);
     setActivePage(targetPage);
