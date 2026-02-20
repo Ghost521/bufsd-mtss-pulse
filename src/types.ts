@@ -307,6 +307,16 @@ export interface ReadingAssessment {
   updatedAt: string; // ISO datetime
 }
 
+export interface AcademicProgressPoint {
+  id: string;
+  date: string; // YYYY-MM-DD
+  mathScore: number; // 0-100
+  readingScore: number; // 0-100
+  notes?: string;
+  createdAt: string; // ISO datetime
+  updatedAt: string; // ISO datetime
+}
+
 export interface AiRecommendation {
   id: string;
   name: string;
@@ -343,6 +353,7 @@ export interface StudentDetails {
   readingLevel: string;
   interventions: Intervention[];
   recentActivity: ActivityLog[];
+  academicProgress?: AcademicProgressPoint[];
   readingAssessments?: ReadingAssessment[];
   notes?: StudentNote[];
   aiRecommendations: AiRecommendation[];

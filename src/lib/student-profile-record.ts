@@ -11,6 +11,7 @@ export type StudentProfileRecord = Omit<StudentDetails, "name"> & {
   id: string;
   name: string;
   avatarUrl?: string;
+  academicProgress: NonNullable<StudentDetails["academicProgress"]>;
   readingAssessments: NonNullable<StudentDetails["readingAssessments"]>;
   notes: NonNullable<StudentDetails["notes"]>;
   updatedAt: string;
@@ -40,6 +41,13 @@ const shiftedDateLabel = (offsetDays: number): string => {
 const isoDateWithOffset = (offsetDays: number): string => {
   const next = new Date();
   next.setDate(next.getDate() + offsetDays);
+  return next.toISOString().slice(0, 10);
+};
+
+const isoDateWithMonthOffset = (offsetMonths: number): string => {
+  const next = new Date();
+  next.setMonth(next.getMonth() + offsetMonths);
+  next.setDate(1);
   return next.toISOString().slice(0, 10);
 };
 
@@ -83,6 +91,32 @@ const buildIntervention = (
   };
 };
 
+const clampScore = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
+
+const buildAcademicProgress = (studentId: string, seed: number): NonNullable<StudentDetails["academicProgress"]> => {
+  const baseMath = percentFromSeed(seed + 71, 58, 76);
+  const baseReading = percentFromSeed(seed + 83, 55, 74);
+  const mathGrowth = percentFromSeed(seed + 109, 12, 20);
+  const readingGrowth = percentFromSeed(seed + 127, 10, 18);
+  const steps = 7;
+  const createdAt = new Date().toISOString();
+
+  return Array.from({ length: steps }, (_, index) => {
+    const ratio = index / (steps - 1);
+    const trendSwing = Math.sin(index * 0.8);
+    const mathScore = clampScore(baseMath + mathGrowth * ratio + trendSwing * 2.2);
+    const readingScore = clampScore(baseReading + readingGrowth * ratio + Math.cos(index * 0.7) * 2);
+    return {
+      id: `${studentId}-academic-${index + 1}`,
+      date: isoDateWithMonthOffset(index - (steps - 1)),
+      mathScore,
+      readingScore,
+      createdAt,
+      updatedAt: createdAt,
+    };
+  });
+};
+
 export const buildStudentProfileRecord = (student: StudentRosterLike): StudentProfileRecord => {
   const seed = hashString(`${student.id}:${student.name}`);
   const firstName = student.name.split(" ")[0] ?? student.name;
@@ -124,6 +158,7 @@ export const buildStudentProfileRecord = (student: StudentRosterLike): StudentPr
         tags: ["Attendance"],
       },
     ],
+    academicProgress: buildAcademicProgress(student.id, seed),
     readingAssessments: [
       {
         id: `${student.id}-reading-initial`,
@@ -203,6 +238,7 @@ export const syncProfileWithRoster = (
   attendance: student.attendance,
   gpa: student.gpa,
   readingLevel: student.readingLevel,
+  academicProgress: profile.academicProgress ?? [],
   readingAssessments: profile.readingAssessments ?? [],
   interventions: (profile.interventions ?? []).map((intervention) => ({
     ...intervention,

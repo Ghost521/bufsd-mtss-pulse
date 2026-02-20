@@ -389,6 +389,16 @@ const readingAssessmentSchema = z.object({
   updatedAt: z.string().datetime("Reading assessment updated timestamp must be an ISO datetime."),
 });
 
+const academicProgressPointSchema = z.object({
+  id: nonEmptyTrimmedString("Academic progress point id", 160),
+  date: nonEmptyTrimmedString("Academic progress date", 32),
+  mathScore: z.number().min(0).max(100),
+  readingScore: z.number().min(0).max(100),
+  notes: z.string().trim().max(4_000).optional(),
+  createdAt: z.string().datetime("Academic progress created timestamp must be an ISO datetime."),
+  updatedAt: z.string().datetime("Academic progress updated timestamp must be an ISO datetime."),
+});
+
 const studentNoteRevisionSchema = z.object({
   id: nonEmptyTrimmedString("Student note revision id", 160),
   contentHtml: nonEmptyTrimmedString("Student note revision HTML", 500_000),
@@ -461,6 +471,7 @@ export const studentProfileRowSchema = z.object({
   readingLevel: nonEmptyTrimmedString("Reading level", 24),
   interventions: z.array(profileInterventionSchema),
   recentActivity: z.array(profileActivitySchema),
+  academicProgress: z.array(academicProgressPointSchema).default([]),
   readingAssessments: z.array(readingAssessmentSchema).default([]),
   notes: z.array(studentNoteSchema).default([]),
   aiRecommendations: z.array(profileRecommendationSchema),

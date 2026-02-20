@@ -25,8 +25,6 @@ import {
   X,
 } from 'lucide-react';
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -87,11 +85,12 @@ type SummarySections = {
   risks: string[];
   actions: string[];
 };
-
-type CustomChartTooltipProps = {
-  active?: boolean;
-  label?: string | number;
-  payload?: Array<{ value?: string | number }>;
+type AcademicChartPoint = {
+  id: string;
+  date: string;
+  label: string;
+  mathScore: number;
+  readingScore: number;
 };
 
 interface StudentProfileProps {
@@ -114,14 +113,14 @@ const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
   { id: 'notes', label: 'Notes' },
   { id: 'documents', label: 'Documents' },
 ];
-const ACADEMIC_PROGRESS_DATA = [
-  { name: 'Sep', value: 65 },
-  { name: 'Oct', value: 72 },
-  { name: 'Nov', value: 68 },
-  { name: 'Dec', value: 75 },
-  { name: 'Jan', value: 82 },
-  { name: 'Feb', value: 80 },
-  { name: 'Mar', value: 88 },
+const ACADEMIC_PROGRESS_FALLBACK: Array<{ label: string; mathScore: number; readingScore: number }> = [
+  { label: 'Sep', mathScore: 64, readingScore: 61 },
+  { label: 'Oct', mathScore: 70, readingScore: 66 },
+  { label: 'Nov', mathScore: 73, readingScore: 69 },
+  { label: 'Dec', mathScore: 75, readingScore: 71 },
+  { label: 'Jan', mathScore: 79, readingScore: 74 },
+  { label: 'Feb', mathScore: 81, readingScore: 77 },
+  { label: 'Mar', mathScore: 84, readingScore: 80 },
 ];
 const READING_STAGE_BANDS: Array<{
   stage: ReadingStage;
@@ -234,14 +233,12 @@ const getDocumentStatusColor = (status: ProfileDocument['status']): string => {
   return 'bg-slate-100 text-slate-700 border-slate-200';
 };
 
-const CustomChartTooltip = ({ active, payload, label }: CustomChartTooltipProps) => {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg">
-      <p className="mb-1 font-bold text-slate-700">{String(label ?? '')}</p>
-      <p className="font-bold text-indigo-600">Score: {payload[0]?.value}%</p>
-    </div>
-  );
+const toAcademicLabel = (value: string): string => {
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString(undefined, { month: 'short' });
+  }
+  return value.trim().slice(0, 3) || value;
 };
 
 const toLocalTimestamp = (value: Date | null): string =>
@@ -590,6 +587,34 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       ),
     [],
   );
+
+  const academicProgress = useMemo(
+    () => currentStudent?.academicProgress ?? [],
+    [currentStudent?.academicProgress],
+  );
+  const academicChartData = useMemo<AcademicChartPoint[]>(() => {
+    if (academicProgress.length === 0) {
+      return ACADEMIC_PROGRESS_FALLBACK.map((point, index) => ({
+        id: `fallback-${index + 1}`,
+        date: point.label,
+        label: point.label,
+        mathScore: point.mathScore,
+        readingScore: point.readingScore,
+      }));
+    }
+
+    return [...academicProgress]
+      .sort((left, right) => left.date.localeCompare(right.date))
+      .map((point) => ({
+        id: point.id,
+        date: point.date,
+        label: toAcademicLabel(point.date),
+        mathScore: Math.max(0, Math.min(100, Math.round(point.mathScore))),
+        readingScore: Math.max(0, Math.min(100, Math.round(point.readingScore))),
+      }));
+  }, [academicProgress]);
+  const showMathSeries = academicFilter !== 'Reading';
+  const showReadingSeries = academicFilter !== 'Math';
 
   const academicNotes = useMemo(() => {
     if (!currentStudent) return [];
@@ -2004,7 +2029,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-bold text-slate-800">Academic Progression</h3>
-              <p className="text-sm text-slate-500">Select a point to filter notes by month.</p>
+              <p className="text-sm text-slate-500">Math and Reading are charted separately. Select a point to filter notes by month.</p>
             </div>
             <div className="flex rounded-lg bg-slate-100 p-1">
               {ACADEMIC_FILTERS.map((filter) => (
@@ -2020,13 +2045,23 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               ))}
             </div>
           </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 ${showMathSeries ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              <span className={`inline-block h-2 w-2 rounded-full ${showMathSeries ? 'bg-blue-500' : 'bg-slate-300'}`} />
+              Math
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 ${showReadingSeries ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              <span className={`inline-block h-2 w-2 rounded-full ${showReadingSeries ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+              Reading
+            </span>
+          </div>
 
           <div ref={chartContainerRef} className="min-h-[260px] w-full min-w-0">
             {chartWidth > 0 ? (
-              <AreaChart
+              <LineChart
                 width={chartWidth}
                 height={260}
-                data={ACADEMIC_PROGRESS_DATA}
+                data={academicChartData}
                 onClick={(event) => {
                   if (event?.activeLabel) {
                     setSelectedMonth((previous) => (previous === event.activeLabel ? null : String(event.activeLabel)));
@@ -2034,26 +2069,51 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                 }}
                 style={{ cursor: 'pointer' }}
               >
-                <defs>
-                  <linearGradient id="profileScoreGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis hide domain={[0, 100]} />
-                <Tooltip cursor={{ stroke: '#6366f1', strokeWidth: 2 }} content={<CustomChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#6366f1"
-                  strokeWidth={3}
-                  fillOpacity={1}
-                  fill="url(#profileScoreGradient)"
-                  activeDot={{ r: 6, strokeWidth: 0 }}
+                <XAxis dataKey="label" axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} width={34} />
+                <Tooltip
+                  cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const point = payload[0]?.payload as AcademicChartPoint | undefined;
+                    if (!point) return null;
+                    return (
+                      <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg">
+                        <p className="font-bold text-slate-700">{String(label ?? point.label)}</p>
+                        {showMathSeries ? (
+                          <p className="mt-1 font-semibold text-blue-700">Math: {point.mathScore}%</p>
+                        ) : null}
+                        {showReadingSeries ? (
+                          <p className="font-semibold text-emerald-700">Reading: {point.readingScore}%</p>
+                        ) : null}
+                      </div>
+                    );
+                  }}
                 />
-              </AreaChart>
+                {showMathSeries ? (
+                  <Line
+                    type="monotone"
+                    dataKey="mathScore"
+                    stroke="#2563eb"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: '#2563eb' }}
+                    activeDot={{ r: 6 }}
+                    name="Math"
+                  />
+                ) : null}
+                {showReadingSeries ? (
+                  <Line
+                    type="monotone"
+                    dataKey="readingScore"
+                    stroke="#059669"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: '#059669' }}
+                    activeDot={{ r: 6 }}
+                    name="Reading"
+                  />
+                ) : null}
+              </LineChart>
             ) : (
               <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">
                 Chart is loading...
