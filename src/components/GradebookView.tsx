@@ -1611,29 +1611,30 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               ) : null}
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {WEIGHT_PRESET_META.map((preset) => (
-                <button
-                  key={preset.name}
-                  onClick={() => {
-                    setTempWeights({ ...preset.values });
-                    setLockedWeightTypes(new Set());
-                  }}
-                  className={`rounded-lg border px-3 py-2 text-left transition-all ${
-                    activeWeightPresetName === preset.name
-                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700'
-                  }`}
-                >
-                  <p className="text-sm font-bold">{preset.name}</p>
-                  <p
-                    className={`mt-1 text-[11px] ${
-                      activeWeightPresetName === preset.name ? 'text-indigo-100' : 'text-slate-500'
+              {WEIGHT_PRESET_META.map((preset) => {
+                const isPresetActive = activeWeightPresetName === preset.name;
+                return (
+                  <button
+                    key={preset.name}
+                    onClick={() => {
+                      setTempWeights({ ...preset.values });
+                      setLockedWeightTypes(new Set());
+                    }}
+                    aria-pressed={isPresetActive}
+                    className={`rounded-lg border px-3 py-2 text-left transition-all ${
+                      isPresetActive
+                        ? 'border-indigo-900 bg-indigo-900 text-white shadow-md'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700'
                     }`}
+                    style={isPresetActive ? { color: '#ffffff' } : undefined}
                   >
-                    {preset.description}
-                  </p>
-                </button>
-              ))}
+                    <span className={`block text-sm font-bold ${isPresetActive ? 'text-white' : 'text-slate-800'}`}>{preset.name}</span>
+                    <span className={`mt-1 block text-[11px] ${isPresetActive ? 'text-indigo-50' : 'text-slate-500'}`}>
+                      {preset.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
