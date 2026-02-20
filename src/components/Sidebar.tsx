@@ -137,8 +137,6 @@ const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
           { id: "calendar", label: "School Calendar" },
           { id: "documents", label: "Resource Library" },
           { id: "import", label: "Integrations" },
-          { id: "settings", label: "Settings" },
-          { id: "profile", label: "Profile" },
         ],
       },
       {
