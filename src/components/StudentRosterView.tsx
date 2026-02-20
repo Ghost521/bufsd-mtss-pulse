@@ -23,7 +23,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { Tier, UserRole, type StudentRosterItem } from "../types";
+import { Tier, UserRole, type StaffRosterItem, type StudentRosterItem } from "../types";
 import { useStudentHierarchy } from "../hooks/useStudentHierarchy";
 import { useStudents, type StudentFilters } from "../hooks/useStudents";
 import { useTenantCollection } from "../hooks/useTenantCollection";
@@ -34,13 +34,14 @@ import {
   riskToneLabel,
   type RiskTone,
 } from "../lib/student-risk";
-import { evaluateReadingRisk, mergeReadingBenchmarks } from "../lib/reading-benchmarks";
+import { evaluateReadingRisk, mergeReadingBenchmarks, normalizeGrade } from "../lib/reading-benchmarks";
 import type { SettingsRecord } from "../lib/schemas/settings";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { ReferralModal } from "./ReferralModal";
 import { DraggableModal } from "./DraggableModal";
 import { SidebarToggleButton } from "./SidebarToggleButton";
 import { Button } from "./ui/Button";
+import { STAFF_ROSTER_DATA } from "../constants";
 
 type StudentRosterViewProps = {
   onMenuClick: () => void;
@@ -57,6 +58,18 @@ type AttendanceStatus = "Present" | "Late" | "Absent";
 type SortBy = "name" | "tier" | "attendance" | "gpa" | "alerts" | "reading";
 type StudentLifecycleStatus = "active" | "monitoring" | "completed" | "unknown";
 type HierarchyLevel = "district" | "school" | "principal" | "grade" | "teacher";
+type PrincipalRosterStage = "grades" | "staff" | "class";
+type PrincipalStaffCardSource = "class-roster" | "staff-directory" | "merged";
+
+type PrincipalStaffCard = {
+  key: string;
+  teacherName: string;
+  teacherUserId?: string;
+  source: PrincipalStaffCardSource;
+  roleLabel: string;
+  studentCount: number;
+  canOpenRoster: boolean;
+};
 
 type LocalStudent = StudentRosterItem & {
   teacherName: string;
@@ -159,6 +172,26 @@ const activateWithKeyboard = (event: React.KeyboardEvent, callback: () => void) 
   callback();
 };
 
+const normalizeNameKey = (value: string): string => value.trim().toLowerCase();
+
+const toGradeToken = (gradeLabel?: string): string | null => {
+  if (!gradeLabel) return null;
+  return normalizeGrade(gradeLabel);
+};
+
+const isMatchingGrade = (left?: string, right?: string): boolean => {
+  const leftToken = toGradeToken(left);
+  const rightToken = toGradeToken(right);
+  if (!leftToken || !rightToken) return false;
+  return leftToken === rightToken;
+};
+
+const displayGrade = (gradeLabel: string): string => {
+  const token = toGradeToken(gradeLabel);
+  if (!token) return `Grade ${gradeLabel}`;
+  return token === "K" ? "Kindergarten" : `Grade ${token}`;
+};
+
 const csvName = (scope: "master" | "class") => {
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -178,10 +211,17 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   const scope = viewType === "master" ? "master" : "class";
   const isMasterScope = scope === "master";
   const showHierarchyPanel = isMasterScope && currentUserRole !== UserRole.TEACHER && currentUserRole !== UserRole.PARENT;
+  const isPrincipalDrilldown = embedded && isMasterScope && currentUserRole === UserRole.PRINCIPAL;
+  const canTakeAttendance = currentUserRole !== UserRole.PRINCIPAL;
+  const showHierarchyTreePanel = showHierarchyPanel && !isPrincipalDrilldown;
   const hierarchyQuery = useStudentHierarchy(showHierarchyPanel);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [hierarchySelection, setHierarchySelection] = useState<HierarchySelection | null>(null);
   const [hasHydratedHierarchySelection, setHasHydratedHierarchySelection] = useState(false);
+  const [principalStage, setPrincipalStage] = useState<PrincipalRosterStage>("grades");
+  const [principalSchoolId, setPrincipalSchoolId] = useState<string | null>(null);
+  const [principalGrade, setPrincipalGrade] = useState<string | null>(null);
+  const [principalStaff, setPrincipalStaff] = useState<{ teacherName: string; teacherUserId?: string } | null>(null);
 
   const studentFilters = useMemo<StudentFilters | undefined>(() => {
     if (!showHierarchyPanel || !hierarchySelection) return undefined;
@@ -198,6 +238,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   }, [hierarchySelection, showHierarchyPanel]);
 
   const studentsApi = useStudents(scope, { filters: studentFilters });
+  const staffCollection = useTenantCollection<StaffRosterItem>("staff");
   const settingsCollection = useTenantCollection<SettingsRecord>("settings");
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -223,7 +264,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   const [editDraft, setEditDraft] = useState<DraftStudent | null>(null);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [newStudentDraft, setNewStudentDraft] = useState<DraftStudent>(DEFAULT_DRAFT);
-  const hierarchySchools = hierarchyQuery.data?.schools ?? [];
+  const hierarchySchools = useMemo(() => hierarchyQuery.data?.schools ?? [], [hierarchyQuery.data?.schools]);
   const isDistrictHierarchy = isDistrictUser(currentUserRole);
   const hierarchyError = hierarchyQuery.error instanceof Error ? hierarchyQuery.error.message : null;
 
@@ -232,6 +273,13 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
     setHierarchySelection(null);
     setExpandedNodes(new Set());
     setHasHydratedHierarchySelection(false);
+    setWorkflowMode("none");
+    setAttendanceMap({});
+    setSelectedIds(new Set());
+    setPrincipalStage("grades");
+    setPrincipalSchoolId(null);
+    setPrincipalGrade(null);
+    setPrincipalStaff(null);
   }, [showHierarchyPanel]);
 
   useEffect(() => {
@@ -239,6 +287,13 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
     if (!showHierarchyPanel) return;
     setHierarchySelection(null);
     setExpandedNodes(new Set());
+    setWorkflowMode("none");
+    setAttendanceMap({});
+    setSelectedIds(new Set());
+    setPrincipalStage("grades");
+    setPrincipalSchoolId(null);
+    setPrincipalGrade(null);
+    setPrincipalStaff(null);
   }, [currentUserRole, showHierarchyPanel, viewType]);
 
   useEffect(() => {
@@ -249,6 +304,18 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
 
     const firstSchool = hierarchySchools[0];
     if (!firstSchool) return;
+
+    if (isPrincipalDrilldown) {
+      setPrincipalSchoolId(firstSchool.schoolId);
+      setHierarchySelection({
+        level: "school",
+        schoolId: firstSchool.schoolId,
+        schoolName: firstSchool.schoolName,
+      });
+      setExpandedNodes(new Set([`school:${firstSchool.schoolId}`]));
+      setHasHydratedHierarchySelection(true);
+      return;
+    }
 
     if (isDistrictHierarchy) {
       const firstPrincipal = firstSchool.principals[0];
@@ -285,7 +352,14 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
     }
 
     setHasHydratedHierarchySelection(true);
-  }, [hasHydratedHierarchySelection, hierarchyQuery.isSuccess, hierarchySchools, isDistrictHierarchy, showHierarchyPanel]);
+  }, [
+    hasHydratedHierarchySelection,
+    hierarchyQuery.isSuccess,
+    hierarchySchools,
+    isDistrictHierarchy,
+    isPrincipalDrilldown,
+    showHierarchyPanel,
+  ]);
 
   const loadError = studentsApi.studentsQuery.error instanceof Error ? studentsApi.studentsQuery.error.message : null;
   const mutationError = studentsApi.mutationError instanceof Error ? studentsApi.mutationError.message : null;
@@ -352,6 +426,109 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
 
     return { present, late, absent, total: filteredStudents.length };
   }, [attendanceMap, filteredStudents]);
+
+  const directoryStaff = useMemo(() => {
+    const rows = staffCollection.query.data?.rows;
+    if (rows && rows.length > 0) return rows;
+    return STAFF_ROSTER_DATA;
+  }, [staffCollection.query.data?.rows]);
+
+  const principalActiveSchool = useMemo(() => {
+    if (!isPrincipalDrilldown) return null;
+    if (hierarchySchools.length === 0) return null;
+    if (!principalSchoolId) return hierarchySchools[0];
+    return hierarchySchools.find((school) => school.schoolId === principalSchoolId) ?? hierarchySchools[0];
+  }, [hierarchySchools, isPrincipalDrilldown, principalSchoolId]);
+
+  const principalGradeCards = useMemo(() => {
+    if (!principalActiveSchool) return [];
+    return principalActiveSchool.grades.map((gradeNode) => ({
+      grade: gradeNode.grade,
+      teacherCount: gradeNode.teachers.length,
+      studentCount: gradeNode.teachers.reduce((sum, teacher) => sum + teacher.studentCount, 0),
+    }));
+  }, [principalActiveSchool]);
+
+  const gradeScopedTeacherCounts = useMemo(() => {
+    const next = new Map<string, number>();
+    if (!principalGrade) return next;
+    for (const student of students) {
+      if (!isMatchingGrade(student.grade, principalGrade)) continue;
+      const key = normalizeNameKey(student.teacherName);
+      if (!key) continue;
+      next.set(key, (next.get(key) ?? 0) + 1);
+    }
+    return next;
+  }, [principalGrade, students]);
+
+  const principalStaffCards = useMemo<PrincipalStaffCard[]>(() => {
+    if (!principalActiveSchool || !principalGrade) return [];
+    const gradeNode = principalActiveSchool.grades.find((item) => item.grade === principalGrade);
+    if (!gradeNode) return [];
+
+    const byKey = new Map<string, PrincipalStaffCard>();
+    const byName = new Map<string, string>();
+
+    for (const teacher of gradeNode.teachers) {
+      const normalizedName = normalizeNameKey(teacher.teacherName);
+      const key = teacher.teacherUserId ? `teacher:${teacher.teacherUserId}` : `teacher-name:${normalizedName}`;
+      byKey.set(key, {
+        key,
+        teacherName: teacher.teacherName,
+        teacherUserId: teacher.teacherUserId ?? undefined,
+        source: "class-roster",
+        roleLabel: "Teacher",
+        studentCount: teacher.studentCount,
+        canOpenRoster: teacher.studentCount > 0,
+      });
+      byName.set(normalizedName, key);
+    }
+
+    const matchingStaff = directoryStaff.filter((staff) => isMatchingGrade(staff.grade, principalGrade));
+    for (const staff of matchingStaff) {
+      const normalizedName = normalizeNameKey(staff.name);
+      const existingKey = byName.get(normalizedName);
+      const rosterCount = gradeScopedTeacherCounts.get(normalizedName) ?? 0;
+      if (existingKey) {
+        const existing = byKey.get(existingKey);
+        if (!existing) continue;
+        byKey.set(existingKey, {
+          ...existing,
+          source: "merged",
+          roleLabel: staff.role,
+          studentCount: Math.max(existing.studentCount, rosterCount),
+          canOpenRoster: Math.max(existing.studentCount, rosterCount) > 0,
+        });
+        continue;
+      }
+
+      const key = `staff:${staff.id}`;
+      byKey.set(key, {
+        key,
+        teacherName: staff.name,
+        source: "staff-directory",
+        roleLabel: staff.role,
+        studentCount: rosterCount,
+        canOpenRoster: rosterCount > 0,
+      });
+      byName.set(normalizedName, key);
+    }
+
+    return [...byKey.values()].sort((left, right) => {
+      if (left.canOpenRoster !== right.canOpenRoster) return left.canOpenRoster ? -1 : 1;
+      if (left.studentCount !== right.studentCount) return right.studentCount - left.studentCount;
+      return left.teacherName.localeCompare(right.teacherName);
+    });
+  }, [directoryStaff, gradeScopedTeacherCounts, principalActiveSchool, principalGrade]);
+
+  const principalRosterContext = useMemo(() => {
+    if (!principalActiveSchool) return null;
+    if (!principalGrade) return { label: principalActiveSchool.schoolName };
+    if (!principalStaff) return { label: `${principalActiveSchool.schoolName} -> ${displayGrade(principalGrade)}` };
+    return {
+      label: `${principalActiveSchool.schoolName} -> ${displayGrade(principalGrade)} -> ${principalStaff.teacherName}`,
+    };
+  }, [principalActiveSchool, principalGrade, principalStaff]);
 
   const hierarchyContextLabel = useMemo(() => {
     if (!showHierarchyPanel || !hierarchySelection) {
@@ -644,6 +821,237 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
     );
   };
 
+  const openPrincipalGrade = (grade: string) => {
+    if (!principalActiveSchool) return;
+    setPrincipalGrade(grade);
+    setPrincipalStaff(null);
+    setPrincipalStage("staff");
+    setSearchQuery("");
+    setTierFilter("All");
+    setStatusFilter("All");
+    setTeacherFilter("All");
+    setHierarchySelection({
+      level: "grade",
+      schoolId: principalActiveSchool.schoolId,
+      schoolName: principalActiveSchool.schoolName,
+      grade,
+    });
+  };
+
+  const openPrincipalStaffRoster = (staff: PrincipalStaffCard) => {
+    if (!principalActiveSchool || !principalGrade) return;
+    if (!staff.canOpenRoster) return;
+    setPrincipalStaff({
+      teacherName: staff.teacherName,
+      teacherUserId: staff.teacherUserId,
+    });
+    setPrincipalStage("class");
+    setSearchQuery("");
+    setTierFilter("All");
+    setStatusFilter("All");
+    setTeacherFilter("All");
+    setWorkflowMode("none");
+    setAttendanceMap({});
+    setHierarchySelection({
+      level: "teacher",
+      schoolId: principalActiveSchool.schoolId,
+      schoolName: principalActiveSchool.schoolName,
+      grade: principalGrade,
+      teacherName: staff.teacherName,
+      teacherUserId: staff.teacherUserId,
+    });
+  };
+
+  const backToPrincipalGrades = () => {
+    if (!principalActiveSchool) return;
+    setPrincipalStage("grades");
+    setPrincipalGrade(null);
+    setPrincipalStaff(null);
+    setSearchQuery("");
+    setTierFilter("All");
+    setStatusFilter("All");
+    setTeacherFilter("All");
+    setWorkflowMode("none");
+    setAttendanceMap({});
+    setHierarchySelection({
+      level: "school",
+      schoolId: principalActiveSchool.schoolId,
+      schoolName: principalActiveSchool.schoolName,
+    });
+  };
+
+  const backToPrincipalStaff = () => {
+    if (!principalActiveSchool || !principalGrade) return;
+    setPrincipalStage("staff");
+    setPrincipalStaff(null);
+    setSearchQuery("");
+    setTierFilter("All");
+    setStatusFilter("All");
+    setTeacherFilter("All");
+    setWorkflowMode("none");
+    setAttendanceMap({});
+    setHierarchySelection({
+      level: "grade",
+      schoolId: principalActiveSchool.schoolId,
+      schoolName: principalActiveSchool.schoolName,
+      grade: principalGrade,
+    });
+  };
+
+  const sourceLabel = (source: PrincipalStaffCardSource): string => {
+    if (source === "class-roster") return "Class roster";
+    if (source === "staff-directory") return "Staff directory";
+    return "Merged";
+  };
+
+  const renderPrincipalDrilldown = () => {
+    if (!isPrincipalDrilldown) return null;
+
+    return (
+      <section className="app-card rounded-xl border border-brand-200/70 bg-gradient-to-br from-white via-brand-50/40 to-emerald-50/50 p-4 md:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-700">Principal Roster Drilldown</p>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">
+              {principalStage === "grades" ? "Select a grade" : principalStage === "staff" ? "Select teacher or staff" : "Class roster"}
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              {principalRosterContext?.label ?? "Use grade cards to reach teacher-level class rosters."}
+            </p>
+          </div>
+
+          {hierarchySchools.length > 1 ? (
+            <label className="text-xs font-semibold text-slate-600">
+              School
+              <select
+                value={principalActiveSchool?.schoolId ?? ""}
+                onChange={(event) => {
+                  const nextSchool = hierarchySchools.find((school) => school.schoolId === event.target.value);
+                  if (!nextSchool) return;
+                  setPrincipalSchoolId(nextSchool.schoolId);
+                  setPrincipalStage("grades");
+                  setPrincipalGrade(null);
+                  setPrincipalStaff(null);
+                  setSearchQuery("");
+                  setTierFilter("All");
+                  setStatusFilter("All");
+                  setTeacherFilter("All");
+                  setWorkflowMode("none");
+                  setAttendanceMap({});
+                  setHierarchySelection({
+                    level: "school",
+                    schoolId: nextSchool.schoolId,
+                    schoolName: nextSchool.schoolName,
+                  });
+                }}
+                className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm"
+              >
+                {hierarchySchools.map((school) => (
+                  <option key={school.schoolId} value={school.schoolId}>
+                    {school.schoolName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
+
+        {principalStage !== "grades" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={backToPrincipalGrades}>
+              Back to grades
+            </Button>
+            {principalStage === "class" ? (
+              <Button variant="secondary" size="sm" onClick={backToPrincipalStaff}>
+                Back to teacher/staff
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {hierarchyQuery.isLoading ? (
+          <p className="mt-4 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">Loading grade cards...</p>
+        ) : null}
+        {hierarchyError && !hierarchyQuery.isLoading ? (
+          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{hierarchyError}</p>
+        ) : null}
+
+        {principalStage === "grades" && !hierarchyQuery.isLoading && !hierarchyError ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {principalGradeCards.length === 0 ? (
+              <p className="col-span-full rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                No grade data is available for this school yet.
+              </p>
+            ) : (
+              principalGradeCards.map((card) => (
+                <button
+                  key={card.grade}
+                  type="button"
+                  onClick={() => openPrincipalGrade(card.grade)}
+                  className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{displayGrade(card.grade)}</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900">{card.studentCount}</p>
+                  <p className="text-xs text-slate-500">
+                    {card.teacherCount} teacher/staff {card.teacherCount === 1 ? "card" : "cards"}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+
+        {principalStage === "staff" && !hierarchyQuery.isLoading && !hierarchyError ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {principalStaffCards.length === 0 ? (
+              <p className="col-span-full rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                No teacher or staff cards were found for this grade.
+              </p>
+            ) : (
+              principalStaffCards.map((card) => (
+                <button
+                  key={card.key}
+                  type="button"
+                  onClick={() => openPrincipalStaffRoster(card)}
+                  disabled={!card.canOpenRoster}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    card.canOpenRoster
+                      ? "border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50/40"
+                      : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold">{card.teacherName}</p>
+                      <p className="text-xs">{card.roleLabel}</p>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      {sourceLabel(card.source)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xl font-bold">{card.studentCount}</p>
+                  <p className="text-xs">
+                    {card.canOpenRoster ? "Open class roster" : "No class roster"}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+
+        {principalStage === "class" ? (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Class Context</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {principalStaff?.teacherName ?? "Selected teacher/staff"} - {principalGrade ? displayGrade(principalGrade) : "Grade"}
+            </p>
+            <p className="mt-1 text-xs text-slate-600">{filteredStudents.length} students currently visible in this roster.</p>
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
   const clearFilters = () => {
     setSearchQuery("");
     setTierFilter("All");
@@ -663,6 +1071,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   };
 
   const toggleAttendanceMode = () => {
+    if (!canTakeAttendance) return;
     if (isAttendanceMode) {
       setWorkflowMode("none");
       setAttendanceMap({});
@@ -807,6 +1216,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
   };
 
   const hasActiveFilters = searchQuery.trim().length > 0 || tierFilter !== "All" || statusFilter !== "All" || teacherFilter !== "All";
+  const showRosterSections = !isPrincipalDrilldown || principalStage === "class";
 
   const sortIcon = (column: SortBy) => {
     if (sortBy !== column) return <ArrowUpDown size={14} className="text-slate-400" />;
@@ -959,9 +1369,13 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
         </section>
       ) : null}
 
-      <div className={showHierarchyPanel ? "grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]" : ""}>
-        {showHierarchyPanel ? renderHierarchyPanel() : null}
-        <div className={showHierarchyPanel ? "space-y-5" : ""}>
+      {isPrincipalDrilldown ? renderPrincipalDrilldown() : null}
+
+      <div className={showHierarchyTreePanel ? "grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]" : ""}>
+        {showHierarchyTreePanel ? renderHierarchyPanel() : null}
+        <div className={showHierarchyTreePanel ? "space-y-5" : ""}>
+      {showRosterSections ? (
+        <>
 
       {!embedded && !isAttendanceMode && !isBulkMode ? (
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -1003,7 +1417,11 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
               <Button variant="ghost" size="icon-sm" onClick={() => setViewMode("list")} className={viewMode === "list" ? "bg-white" : ""}><ListIcon size={15} /></Button>
             </div>
             <Button variant={isBulkMode ? "primary" : "secondary"} size="sm" onClick={toggleBulkMode}>{isBulkMode ? "Done" : "Select"}</Button>
-            <Button variant={isAttendanceMode ? "primary" : "secondary"} size="sm" onClick={toggleAttendanceMode}>Take attendance</Button>
+            {canTakeAttendance ? (
+              <Button variant={isAttendanceMode ? "primary" : "secondary"} size="sm" onClick={toggleAttendanceMode}>
+                Take attendance
+              </Button>
+            ) : null}
             <Button variant="secondary" size="sm" onClick={() => void runExport()} loading={isExporting} className="gap-1"><Download size={14} /> Export</Button>
             {isMasterScope ? <Button variant="secondary" size="sm" onClick={() => setIsAddStudentOpen(true)} className="gap-1"><UserPlus size={14} /> Add student</Button> : null}
           </div>
@@ -1062,7 +1480,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
         </section>
       ) : null}
 
-      {isAttendanceMode ? (
+      {isAttendanceMode && canTakeAttendance ? (
         <section className="app-card rounded-xl border-emerald-200 bg-emerald-50 p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
             <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-emerald-700">Present {attendanceSummary.present}</span>
@@ -1317,6 +1735,8 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
             </table>
           </div>
         </section>
+      ) : null}
+        </>
       ) : null}
         </div>
       </div>
