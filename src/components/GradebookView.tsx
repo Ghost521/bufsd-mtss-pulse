@@ -1620,14 +1620,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         </div>
 
         <button
-          className="bg-gradient-to-r from-indigo-500 to-violet-600 rounded-xl shadow-md p-4 flex items-center justify-between text-white relative overflow-hidden group cursor-pointer text-left"
+          className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-xl shadow-md p-4 flex items-center justify-between text-white relative overflow-hidden group cursor-pointer text-left"
           onClick={() => setShowAiAnalysis(true)}
         >
           <div className="relative z-10">
             <h3 className="font-bold text-lg flex items-center gap-2">
               <BrainCircuit size={20} /> Grade Analysis
             </h3>
-            <p className="text-indigo-100 text-sm">Open actionable AI insights for current filters.</p>
+            <p className="text-sm text-white">Open actionable AI insights for current filters.</p>
           </div>
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm group-hover:bg-white/30 transition-colors relative z-10">
             <TrendingUp size={24} />
