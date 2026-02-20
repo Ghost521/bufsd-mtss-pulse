@@ -122,7 +122,7 @@ export const MonitoringPulse: React.FC<MonitoringPulseProps> = ({ students, onSt
         <button
           type="button"
           onClick={onViewAll}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-transparent py-2.5 text-xs font-bold text-slate-600 shadow-sm transition-all hover:border-slate-200 hover:bg-white hover:text-indigo-600 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-transparent py-2.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-200 hover:bg-white hover:text-indigo-600 hover:shadow disabled:cursor-not-allowed disabled:opacity-50"
         >
           Open Monitoring Queue
           <ArrowRight size={14} />

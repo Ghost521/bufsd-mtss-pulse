@@ -1126,7 +1126,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                     )}
                     <button 
                         onClick={closeMissingModal}
-                        className="px-5 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                        className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
                     >
                         Close
                     </button>
@@ -1572,14 +1572,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               )}
               <button
                 onClick={closeWeightsModal}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
               >
                 Cancel
               </button>
               <button
                 onClick={saveWeightsConfiguration}
                 disabled={weightValidationState !== 'balanced' || !hasUnsavedWeightChanges}
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save size={16} /> Save Configuration
               </button>
