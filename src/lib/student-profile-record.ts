@@ -11,6 +11,7 @@ export type StudentProfileRecord = Omit<StudentDetails, "name"> & {
   id: string;
   name: string;
   avatarUrl?: string;
+  notes: NonNullable<StudentDetails["notes"]>;
   updatedAt: string;
 };
 
@@ -115,6 +116,7 @@ export const buildStudentProfileRecord = (student: StudentRosterLike): StudentPr
         tags: ["Attendance"],
       },
     ],
+    notes: [],
     aiRecommendations: [
       {
         id: `${student.id}-rec-1`,
@@ -182,5 +184,6 @@ export const syncProfileWithRoster = (
   attendance: student.attendance,
   gpa: student.gpa,
   readingLevel: student.readingLevel,
+  notes: profile.notes ?? [],
   updatedAt: new Date().toISOString(),
 });

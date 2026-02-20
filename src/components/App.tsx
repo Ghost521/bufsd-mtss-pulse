@@ -1357,6 +1357,9 @@ const App: React.FC = () => {
             onBack={handleBackToDashboard} 
             onMenuClick={openMobileMenu}
             onMessageClick={() => handleNavigateToMessages('Mrs. Martinez')}
+            currentUserRole={currentRole}
+            currentUserName={data.userName}
+            currentUserId={sessionUserId}
           />
         ) : renderDashboard();
       case 'rosters':
@@ -1516,6 +1519,9 @@ const App: React.FC = () => {
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)} 
           studentName={selectedStudent} 
+          currentUserRole={currentRole}
+          currentUserName={data.userName}
+          currentUserId={sessionUserId}
           onViewFullProfile={handleNavigateToProfile}
           onMessageParents={() => handleNavigateToMessages('Mrs. Martinez')} // Mock parent name
         />

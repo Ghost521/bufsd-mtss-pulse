@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { Tier, type StudentDetails, type StudentRosterItem } from '../types';
+import { Tier, UserRole, type StudentDetails, type StudentRosterItem } from '../types';
 import { generateStudentProfileSummaryStream } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { ReferralModal } from './ReferralModal';
@@ -33,8 +33,10 @@ import { SidebarToggleButton } from './SidebarToggleButton';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useStudents } from '../hooks/useStudents';
 import { buildStudentProfileRecord, syncProfileWithRoster, type StudentProfileRecord } from '../lib/student-profile-record';
+import { canAccessStudentNotes } from '../lib/role-access';
+import { StudentNotesPanel } from './notes/StudentNotesPanel';
 
-type ProfileTab = 'overview' | 'interventions' | 'academics' | 'documents';
+type ProfileTab = 'overview' | 'interventions' | 'academics' | 'notes' | 'documents';
 type AcademicFilter = 'All' | 'Math' | 'Reading';
 
 type ProfileDocument = {
@@ -62,6 +64,9 @@ interface StudentProfileProps {
   onBack: () => void;
   onMenuClick: () => void;
   onMessageClick?: () => void;
+  currentUserRole: UserRole;
+  currentUserName: string;
+  currentUserId?: string | null;
 }
 
 const READING_LEVELS = Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index));
@@ -70,6 +75,7 @@ const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'interventions', label: 'Interventions' },
   { id: 'academics', label: 'Academics' },
+  { id: 'notes', label: 'Notes' },
   { id: 'documents', label: 'Documents' },
 ];
 const ACADEMIC_PROGRESS_DATA = [
@@ -188,7 +194,15 @@ const toLocalTimestamp = (value: Date | null): string =>
     ? value.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : 'Not yet generated';
 
-export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onBack, onMenuClick, onMessageClick }) => {
+export const StudentProfile: React.FC<StudentProfileProps> = ({
+  studentName,
+  onBack,
+  onMenuClick,
+  onMessageClick,
+  currentUserRole,
+  currentUserName,
+  currentUserId,
+}) => {
   const profileCollection = useTenantCollection<StudentProfileRecord>('student-profiles');
   const seedProfile = profileCollection.createMutation.mutate;
   const masterStudentsApi = useStudents('master');
@@ -212,6 +226,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
+  const canViewStudentNotes = canAccessStudentNotes(currentUserRole);
+  const staffDisplayName = currentUserName.trim().length > 0 ? currentUserName : 'Staff Member';
 
   const loadProfileSummary = useCallback(async (details: StudentProfileRecord) => {
     setIsLoadingSummary(true);
@@ -242,6 +258,21 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
       return true;
     });
   }, [classStudentsApi.studentsQuery.data?.rows, masterStudentsApi.studentsQuery.data?.rows]);
+
+  const persistProfile = useCallback(
+    (nextProfile: StudentProfileRecord) => {
+      const exists = profileCollection.query.data?.rows?.some((row) => row.id === nextProfile.id) ?? false;
+      if (exists) {
+        profileCollection.updateMutation.mutate({
+          id: nextProfile.id,
+          patch: nextProfile,
+        });
+        return;
+      }
+      profileCollection.createMutation.mutate(nextProfile);
+    },
+    [profileCollection.createMutation, profileCollection.query.data?.rows, profileCollection.updateMutation],
+  );
 
   useEffect(() => {
     if (!studentName) return;
@@ -329,6 +360,12 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
     return () => window.removeEventListener('resize', updateWidth);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (!canViewStudentNotes && activeTab === 'notes') {
+      setActiveTab('overview');
+    }
+  }, [activeTab, canViewStudentNotes]);
+
   const hasUnsavedChanges = useMemo(() => {
     if (!isEditing || !student || !draftStudent) return false;
     return (
@@ -413,7 +450,11 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
     return docs;
   }, [currentStudent]);
 
-  const tabIds = PROFILE_TABS.map((tab) => tab.id);
+  const profileTabs = useMemo(
+    () => (canViewStudentNotes ? PROFILE_TABS : PROFILE_TABS.filter((tab) => tab.id !== 'notes')),
+    [canViewStudentNotes],
+  );
+  const tabIds = profileTabs.map((tab) => tab.id);
 
   const resetEditState = useCallback(() => {
     setIsEditing(false);
@@ -438,16 +479,20 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
     };
     setStudent(nextStudent);
     setAvatarUrl(draftAvatarUrl);
-    const exists = profileCollection.query.data?.rows?.some((row) => row.id === nextStudent.id) ?? false;
-    if (exists) {
-      profileCollection.updateMutation.mutate({
-        id: nextStudent.id,
-        patch: nextStudent,
-      });
-    } else {
-      profileCollection.createMutation.mutate(nextStudent);
-    }
+    persistProfile(nextStudent);
     resetEditState();
+  };
+
+  const handleNotesChange = (nextNotes: StudentProfileRecord['notes']) => {
+    if (!student) return;
+    const nextStudent: StudentProfileRecord = {
+      ...student,
+      notes: nextNotes,
+      updatedAt: new Date().toISOString(),
+    };
+    setStudent(nextStudent);
+    setDraftStudent((previous) => (previous ? { ...previous, notes: nextNotes } : previous));
+    persistProfile(nextStudent);
   };
 
   const handleCancelEdit = () => {
@@ -769,7 +814,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
 
       <div className="border-b border-slate-200">
         <div role="tablist" aria-label="Student profile sections" className="flex gap-2 overflow-x-auto pb-1">
-          {PROFILE_TABS.map((tab) => {
+          {profileTabs.map((tab) => {
             const selected = activeTab === tab.id;
             return (
               <button
@@ -1145,6 +1190,23 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentName, onB
             </div>
           )}
         </div>
+      </section>
+      )}
+
+      {activeTab === 'notes' && canViewStudentNotes && (
+      <section
+        id="student-profile-panel-notes"
+        role="tabpanel"
+        aria-labelledby="student-profile-tab-notes"
+      >
+        <StudentNotesPanel
+          notes={currentStudent.notes ?? []}
+          canEdit={canViewStudentNotes}
+          currentUserName={staffDisplayName}
+          currentUserId={currentUserId}
+          onChange={handleNotesChange}
+          emptyState="No staff notes yet. Add one to capture interventions, family outreach, and follow-ups."
+        />
       </section>
       )}
 

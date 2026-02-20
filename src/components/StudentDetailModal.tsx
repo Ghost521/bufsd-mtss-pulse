@@ -2,17 +2,22 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, BookOpen, Activity, Clock, FileText, Calendar, Sparkles, Plus, Mail, Smartphone, Loader2, BrainCircuit, Upload, FileUp, CheckCircle2, Eye, Ear, ShieldAlert, FileBadge, Pencil, Save } from 'lucide-react';
 import type { ActivityLog, StudentRosterItem } from '../types';
-import { Tier } from '../types';
+import { Tier, UserRole } from '../types';
 import type { AnalyzedDocumentResult } from '../services/geminiService';
 import { analyzeUploadedDocument } from '../services/geminiService';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { useStudents } from '../hooks/useStudents';
 import { buildStudentProfileRecord, syncProfileWithRoster, type StudentProfileRecord } from '../lib/student-profile-record';
+import { canAccessStudentNotes } from '../lib/role-access';
+import { StudentNotesPanel } from './notes/StudentNotesPanel';
 
 interface StudentDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   studentName: string | null;
+  currentUserRole: UserRole;
+  currentUserName: string;
+  currentUserId?: string | null;
   onViewFullProfile?: (studentName: string) => void;
   onMessageParents?: () => void;
 }
@@ -23,6 +28,9 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   isOpen, 
   onClose, 
   studentName, 
+  currentUserRole,
+  currentUserName,
+  currentUserId,
   onViewFullProfile,
   onMessageParents
 }) => {
@@ -45,6 +53,8 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const canViewStudentNotes = canAccessStudentNotes(currentUserRole);
+  const staffDisplayName = currentUserName.trim().length > 0 ? currentUserName : 'Staff Member';
 
   const students = useMemo(
     () =>
@@ -160,6 +170,17 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
       setDetails(next);
       upsertProfile(next);
       setIsEditing(false);
+  };
+
+  const handleNotesChange = (nextNotes: StudentProfileRecord['notes']) => {
+    if (!details) return;
+    const next = {
+      ...details,
+      notes: nextNotes,
+      updatedAt: new Date().toISOString(),
+    };
+    setDetails(next);
+    upsertProfile(next);
   };
 
   const loadOlderHistory = () => {
@@ -439,6 +460,19 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {canViewStudentNotes ? (
+            <div className="mb-8">
+              <StudentNotesPanel
+                notes={details.notes ?? []}
+                canEdit={canViewStudentNotes}
+                currentUserName={staffDisplayName}
+                currentUserId={currentUserId}
+                onChange={handleNotesChange}
+                emptyState="No staff notes yet. Add one to track observations, interventions, and follow-up actions."
+              />
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
             

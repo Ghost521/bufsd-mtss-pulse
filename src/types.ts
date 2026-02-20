@@ -263,6 +263,37 @@ export interface ActivityLog {
   tags?: string[];
 }
 
+export type StudentNoteVisibility = 'staff';
+
+export interface StudentNoteRevision {
+  id: string;
+  contentHtml: string;
+  contentText: string;
+  editedAt: string;
+  editedByUserId?: string;
+  editedByName: string;
+}
+
+export interface StudentNote {
+  id: string;
+  title?: string;
+  contentHtml: string;
+  contentText: string;
+  createdAt: string;
+  createdByUserId?: string;
+  createdByName: string;
+  updatedAt: string;
+  updatedByUserId?: string;
+  updatedByName: string;
+  visibility: StudentNoteVisibility;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: string;
+  deletedByName?: string;
+  revisionCount: number;
+  revisions: StudentNoteRevision[];
+}
+
 export interface AiRecommendation {
   id: string;
   name: string;
@@ -299,6 +330,7 @@ export interface StudentDetails {
   readingLevel: string;
   interventions: Intervention[];
   recentActivity: ActivityLog[];
+  notes?: StudentNote[];
   aiRecommendations: AiRecommendation[];
   medical: MedicalInfo;
   support: SupportProfile;

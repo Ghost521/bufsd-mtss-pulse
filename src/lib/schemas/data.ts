@@ -244,6 +244,35 @@ const profileActivitySchema = z.object({
   tags: z.array(nonEmptyTrimmedString("Activity tag", 120)).optional(),
 });
 
+const studentNoteRevisionSchema = z.object({
+  id: nonEmptyTrimmedString("Student note revision id", 160),
+  contentHtml: nonEmptyTrimmedString("Student note revision HTML", 500_000),
+  contentText: z.string().trim().max(200_000),
+  editedAt: z.string().datetime("Student note revision edited timestamp must be an ISO datetime."),
+  editedByUserId: z.string().trim().max(160).optional(),
+  editedByName: nonEmptyTrimmedString("Student note revision editor name", 200),
+});
+
+const studentNoteSchema = z.object({
+  id: nonEmptyTrimmedString("Student note id", 160),
+  title: z.string().trim().max(300).optional(),
+  contentHtml: nonEmptyTrimmedString("Student note HTML", 500_000),
+  contentText: z.string().trim().max(200_000),
+  createdAt: z.string().datetime("Student note created timestamp must be an ISO datetime."),
+  createdByUserId: z.string().trim().max(160).optional(),
+  createdByName: nonEmptyTrimmedString("Student note creator name", 200),
+  updatedAt: z.string().datetime("Student note updated timestamp must be an ISO datetime."),
+  updatedByUserId: z.string().trim().max(160).optional(),
+  updatedByName: nonEmptyTrimmedString("Student note editor name", 200),
+  visibility: z.literal("staff"),
+  isDeleted: z.boolean().optional(),
+  deletedAt: z.string().datetime("Student note deleted timestamp must be an ISO datetime.").optional(),
+  deletedByUserId: z.string().trim().max(160).optional(),
+  deletedByName: z.string().trim().max(200).optional(),
+  revisionCount: z.number().int().min(0),
+  revisions: z.array(studentNoteRevisionSchema),
+});
+
 const profileRecommendationSchema = z.object({
   id: nonEmptyTrimmedString("Recommendation id", 160),
   name: nonEmptyTrimmedString("Recommendation name", 200),
@@ -287,6 +316,7 @@ export const studentProfileRowSchema = z.object({
   readingLevel: nonEmptyTrimmedString("Reading level", 24),
   interventions: z.array(profileInterventionSchema),
   recentActivity: z.array(profileActivitySchema),
+  notes: z.array(studentNoteSchema).default([]),
   aiRecommendations: z.array(profileRecommendationSchema),
   medical: profileMedicalSchema,
   support: profileSupportSchema,
