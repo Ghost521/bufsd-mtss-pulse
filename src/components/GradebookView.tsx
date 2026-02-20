@@ -38,6 +38,8 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  Lock,
+  LockOpen,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -54,17 +56,47 @@ interface GradebookViewProps {
 
 // --- Constants ---
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899']; // Indigo, Emerald, Amber, Pink
+const WEIGHT_TYPES: AssignmentType[] = ['Homework', 'Quiz', 'Test', 'Project'];
 
-const WEIGHT_PRESETS: Record<string, Record<AssignmentType, number>> = {
-  'Standard': { 'Homework': 20, 'Quiz': 30, 'Test': 30, 'Project': 20 },
-  'Test Heavy': { 'Homework': 10, 'Quiz': 20, 'Test': 60, 'Project': 10 },
-  'Project Based': { 'Homework': 10, 'Quiz': 10, 'Test': 20, 'Project': 60 }
+type WeightPresetMeta = {
+  name: string;
+  description: string;
+  values: Record<AssignmentType, number>;
+};
+
+const WEIGHT_PRESET_META: WeightPresetMeta[] = [
+  {
+    name: 'Standard',
+    description: 'Balanced daily practice and assessments.',
+    values: { Homework: 20, Quiz: 30, Test: 30, Project: 20 },
+  },
+  {
+    name: 'Test Heavy',
+    description: 'Emphasizes formal assessments.',
+    values: { Homework: 10, Quiz: 20, Test: 60, Project: 10 },
+  },
+  {
+    name: 'Project Based',
+    description: 'Prioritizes long-form project work.',
+    values: { Homework: 10, Quiz: 10, Test: 20, Project: 60 },
+  },
+];
+
+const areWeightsEqual = (
+  left: Record<AssignmentType, number>,
+  right: Record<AssignmentType, number>,
+): boolean => WEIGHT_TYPES.every((type) => left[type] === right[type]);
+
+const clampWeightPercent = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
 };
 
 type PersistedGradeEntry = GradeEntry & { id: string };
 type CellSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type MissingModalMode = 'list' | 'composer' | 'bulk';
+type WeightValidationState = 'balanced' | 'under' | 'over';
 
 type MessageComposerState = {
   studentId: string;
@@ -111,6 +143,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
   });
   const [showWeightsModal, setShowWeightsModal] = useState(false);
   const [tempWeights, setTempWeights] = useState(weights);
+  const [lockedWeightTypes, setLockedWeightTypes] = useState<Set<AssignmentType>>(() => new Set());
 
   // Add Assignment State
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
@@ -785,6 +818,175 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     [tempWeights],
   );
   const remainingWeight = 100 - totalTempWeight;
+  const weightDelta = totalTempWeight - 100;
+  const hasUnsavedWeightChanges = useMemo(
+    () => !areWeightsEqual(tempWeights, weights),
+    [tempWeights, weights],
+  );
+  const activeWeightPresetName = useMemo(
+    () => WEIGHT_PRESET_META.find((preset) => areWeightsEqual(tempWeights, preset.values))?.name ?? null,
+    [tempWeights],
+  );
+  const weightValidationState = useMemo<WeightValidationState>(() => {
+    if (totalTempWeight === 100) return 'balanced';
+    if (totalTempWeight < 100) return 'under';
+    return 'over';
+  }, [totalTempWeight]);
+  const weightStatusCopy = useMemo(() => {
+    if (weightValidationState === 'balanced') {
+      return {
+        title: 'Balanced at 100%',
+        description: 'All categories are properly weighted.',
+        badgeClassName: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        detailClassName: 'text-emerald-700',
+      };
+    }
+    if (weightValidationState === 'under') {
+      return {
+        title: `${Math.abs(weightDelta)}% unassigned`,
+        description: 'Add weight or use Auto-balance to reach 100%.',
+        badgeClassName: 'border-amber-200 bg-amber-50 text-amber-700',
+        detailClassName: 'text-amber-700',
+      };
+    }
+    return {
+      title: `${Math.abs(weightDelta)}% over target`,
+      description: 'Reduce one or more categories to reach 100%.',
+      badgeClassName: 'border-rose-200 bg-rose-50 text-rose-700',
+      detailClassName: 'text-rose-700',
+    };
+  }, [weightDelta, weightValidationState]);
+
+  const openWeightsModal = () => {
+    setTempWeights(weights);
+    setLockedWeightTypes(new Set());
+    setShowWeightsModal(true);
+  };
+
+  const closeWeightsModal = () => {
+    setShowWeightsModal(false);
+    setLockedWeightTypes(new Set());
+  };
+
+  const setWeightValue = (type: AssignmentType, value: number) => {
+    setTempWeights((current) => ({ ...current, [type]: clampWeightPercent(value) }));
+  };
+
+  const saveWeightsConfiguration = () => {
+    if (totalTempWeight !== 100) return;
+    setWeights(tempWeights);
+    closeWeightsModal();
+  };
+
+  const resetWeightsToSaved = () => {
+    setTempWeights(weights);
+    setLockedWeightTypes(new Set());
+  };
+
+  const toggleWeightLock = (type: AssignmentType) => {
+    setLockedWeightTypes((current) => {
+      const next = new Set(current);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  };
+
+  const autoBalanceWeights = () => {
+    setTempWeights((current) => {
+      const unlockedTypes = WEIGHT_TYPES.filter((type) => !lockedWeightTypes.has(type));
+      if (unlockedTypes.length === 0) return current;
+
+      const lockedTotal = WEIGHT_TYPES.reduce((total, type) => {
+        if (!lockedWeightTypes.has(type)) return total;
+        return total + current[type];
+      }, 0);
+      const targetForUnlocked = Math.max(0, 100 - lockedTotal);
+      const evenBase = Math.floor(targetForUnlocked / unlockedTypes.length);
+      let remainder = targetForUnlocked - evenBase * unlockedTypes.length;
+
+      const next: Record<AssignmentType, number> = { ...current };
+      unlockedTypes.forEach((type) => {
+        next[type] = evenBase + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder -= 1;
+      });
+
+      return next;
+    });
+  };
+
+  const normalizeWeights = () => {
+    setTempWeights((current) => {
+      const unlockedTypes = WEIGHT_TYPES.filter((type) => !lockedWeightTypes.has(type));
+      if (unlockedTypes.length === 0) return current;
+
+      const lockedTotal = WEIGHT_TYPES.reduce((total, type) => {
+        if (!lockedWeightTypes.has(type)) return total;
+        return total + current[type];
+      }, 0);
+      const targetForUnlocked = Math.max(0, 100 - lockedTotal);
+      const unlockedTotal = unlockedTypes.reduce((total, type) => total + current[type], 0);
+
+      const next: Record<AssignmentType, number> = { ...current };
+      if (targetForUnlocked === 0) {
+        unlockedTypes.forEach((type) => {
+          next[type] = 0;
+        });
+        return next;
+      }
+
+      const weightedValues = unlockedTypes.map((type) => {
+        const rawValue = unlockedTotal === 0
+          ? targetForUnlocked / unlockedTypes.length
+          : (current[type] / unlockedTotal) * targetForUnlocked;
+        const flooredValue = Math.floor(rawValue);
+        return {
+          type,
+          value: flooredValue,
+          fractional: rawValue - flooredValue,
+        };
+      });
+
+      let allocated = 0;
+      weightedValues.forEach(({ type, value }) => {
+        next[type] = value;
+        allocated += value;
+      });
+
+      let remainder = targetForUnlocked - allocated;
+      if (remainder > 0) {
+        const sortedByFraction = [...weightedValues].sort((left, right) => {
+          if (right.fractional !== left.fractional) {
+            return right.fractional - left.fractional;
+          }
+          return WEIGHT_TYPES.indexOf(left.type) - WEIGHT_TYPES.indexOf(right.type);
+        });
+        for (const entry of sortedByFraction) {
+          if (remainder <= 0) break;
+          next[entry.type] += 1;
+          remainder -= 1;
+        }
+      }
+
+      return next;
+    });
+  };
+
+  const handleWeightsModalKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter') return;
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const tagName = target.tagName.toLowerCase();
+    if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return;
+    if (target.closest('button')) return;
+    if (weightValidationState !== 'balanced') return;
+    event.preventDefault();
+    saveWeightsConfiguration();
+  };
+
   const mobileStudent = useMemo(
     () => filteredAndSortedStudents.find((student) => student.id === mobileStudentId) ?? null,
     [filteredAndSortedStudents, mobileStudentId],
@@ -856,33 +1058,6 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
     }
     return { label: 'Stable', className: 'text-slate-700 bg-slate-200' };
   }, [filteredAssignments, grades, mobileStudent]);
-
-  const normalizeWeights = () => {
-    const entries = Object.entries(tempWeights) as Array<[AssignmentType, number]>;
-    const sum = entries.reduce((total, [, value]) => total + value, 0);
-    if (sum === 0) {
-      setTempWeights(WEIGHT_PRESETS.Standard);
-      return;
-    }
-
-    let distributed = 0;
-    const normalized: Record<AssignmentType, number> = {
-      Homework: 0,
-      Quiz: 0,
-      Test: 0,
-      Project: 0,
-    };
-    entries.forEach(([key, value], index) => {
-      if (index === entries.length - 1) {
-        normalized[key] = 100 - distributed;
-      } else {
-        const nextValue = Math.max(0, Math.round((value / sum) * 100));
-        normalized[key] = nextValue;
-        distributed += nextValue;
-      }
-    });
-    setTempWeights(normalized);
-  };
 
   const retrySavingGrades = () => {
     setSaveStatus('saving');
@@ -1372,126 +1547,215 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       {/* --- Weight Configuration Modal (Draggable) --- */}
       <DraggableModal
         isOpen={showWeightsModal}
-        onClose={() => setShowWeightsModal(false)}
+        onClose={closeWeightsModal}
+        mobileMode="sheet"
+        allowResize={false}
         title={
-            <div className="flex items-center gap-2">
-                <Calculator size={20} className="text-indigo-600" />
-                <span className="font-bold text-lg text-slate-900">Grade Weights</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <Calculator size={20} className="text-indigo-600" />
+            <span className="font-bold text-lg text-slate-900">Grade Weights</span>
+          </div>
         }
-        initialWidth={500}
-        initialHeight={600}
+        initialWidth={560}
+        initialHeight={640}
         footer={
-            <div className="flex justify-end gap-3 w-full">
-              <button onClick={() => setShowWeightsModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">Cancel</button>
-              <button 
-                onClick={() => { setWeights(tempWeights); setShowWeightsModal(false); }}
-                disabled={totalTempWeight !== 100}
-                className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-slate-500">
+              <span>Esc to close.</span>
+              <span className="ml-1">Enter to save when balanced.</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {hasUnsavedWeightChanges && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+                  Unsaved changes
+                </span>
+              )}
+              <button
+                onClick={closeWeightsModal}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveWeightsConfiguration}
+                disabled={weightValidationState !== 'balanced' || !hasUnsavedWeightChanges}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save size={16} /> Save Configuration
               </button>
             </div>
+          </div>
         }
       >
-            <div className="p-6 space-y-6 overflow-y-auto h-full">
-              {/* Presets Section */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                 <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
-                    <LayoutTemplate size={14} /> Quick Presets
-                 </div>
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {Object.entries(WEIGHT_PRESETS).map(([name, presetWeights]) => (
-                        <button
-                            key={name}
-                            onClick={() => setTempWeights(presetWeights)}
-                            className={`py-2 px-2 rounded-lg text-xs font-bold border transition-all ${
-                                JSON.stringify(tempWeights) === JSON.stringify(presetWeights)
-                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50'
-                            }`}
-                        >
-                            {name}
-                        </button>
-                    ))}
-                    <button
-                      onClick={normalizeWeights}
-                      className="py-2 px-2 rounded-lg text-xs font-semibold border bg-white text-slate-600 border-slate-200 hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                    >
-                      Normalize
-                    </button>
-                 </div>
-              </div>
-
-              <div className="flex flex-col gap-8 items-center">
-                {/* Visual Donut */}
-                <div className="w-40 h-40 relative shrink-0">
-                    <PieChart width={160} height={160}>
-                      <Pie
-                          data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
-                          innerRadius={35}
-                          outerRadius={55}
-                          paddingAngle={5}
-                          dataKey="value"
-                          cx={80}
-                          cy={80}
-                      >
-                          {Object.entries(tempWeights).map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                          ))}
-                      </Pie>
-                    </PieChart>
-                    <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Total</span>
-                        <span className={`text-xl font-bold transition-colors duration-300 ${totalTempWeight !== 100 ? 'text-rose-500 animate-pulse' : 'text-slate-800'}`}>
-                        {totalTempWeight}%
-                        </span>
-                        <span className={`text-[10px] font-bold ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                          {remainingWeight === 0 ? 'Balanced' : `${remainingWeight > 0 ? '+' : ''}${remainingWeight}% remaining`}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Sliders */}
-                <div className="space-y-4 flex-1 w-full">
-                    {(['Homework', 'Quiz', 'Test', 'Project'] as AssignmentType[]).map((type, idx) => (
-                    <div key={type} className="space-y-1.5">
-                        <div className="flex justify-between text-sm items-center">
-                            <span className="font-bold text-slate-700 flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx] }} />
-                                {type}
-                            </span>
-                            <div className="relative w-16">
-                                <input 
-                                    type="number"
-                                    value={tempWeights[type]}
-                                    onChange={(e) => setTempWeights({...tempWeights, [type]: Math.min(100, Math.max(0, parseInt(e.target.value) || 0))})}
-                                    className="w-full p-1 text-right text-xs font-bold border border-slate-200 rounded bg-slate-50 focus:outline-none focus:border-indigo-400"
-                                />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
-                            </div>
-                        </div>
-                        <input 
-                            type="range" 
-                            min="0" 
-                            max="100" 
-                            step="5"
-                            value={tempWeights[type]}
-                            onChange={(e) => setTempWeights({...tempWeights, [type]: parseInt(e.target.value)})}
-                            style={{ accentColor: COLORS[idx] }}
-                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                        />
-                    </div>
-                    ))}
-                </div>
-              </div>
-
-              {totalTempWeight !== 100 && (
-                <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-lg flex items-center justify-center gap-2 border border-rose-100 font-bold">
-                  <AlertCircle size={16} /> Weights must total exactly 100%.
-                </div>
-              )}
+        <div onKeyDown={handleWeightsModalKeyDown} className="h-full space-y-5 overflow-y-auto p-5 sm:p-6">
+          <div
+            aria-live="polite"
+            className={`rounded-xl border px-3 py-2 text-sm ${weightStatusCopy.badgeClassName}`}
+          >
+            <div className="flex items-center gap-2 font-semibold">
+              {weightValidationState === 'balanced' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+              <span>{weightStatusCopy.title}</span>
             </div>
+            <p className={`mt-1 text-xs ${weightStatusCopy.detailClassName}`}>{weightStatusCopy.description}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <LayoutTemplate size={14} /> Quick Presets
+              </div>
+              {activeWeightPresetName ? (
+                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+                  {activeWeightPresetName}
+                </span>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {WEIGHT_PRESET_META.map((preset) => (
+                <button
+                  key={preset.name}
+                  onClick={() => {
+                    setTempWeights({ ...preset.values });
+                    setLockedWeightTypes(new Set());
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left transition-all ${
+                    activeWeightPresetName === preset.name
+                      ? 'border-indigo-600 bg-indigo-600 text-white shadow-md'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700'
+                  }`}
+                >
+                  <p className="text-sm font-bold">{preset.name}</p>
+                  <p
+                    className={`mt-1 text-[11px] ${
+                      activeWeightPresetName === preset.name ? 'text-indigo-100' : 'text-slate-500'
+                    }`}
+                  >
+                    {preset.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={resetWeightsToSaved}
+                disabled={!hasUnsavedWeightChanges}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reset to saved
+              </button>
+              <button
+                onClick={autoBalanceWeights}
+                className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+              >
+                Auto-balance
+              </button>
+              <button
+                onClick={normalizeWeights}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+              >
+                Normalize
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[180px_minmax(0,1fr)]">
+            <div className="relative h-40 w-40 shrink-0 justify-self-center">
+              <PieChart width={160} height={160}>
+                <Pie
+                  data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
+                  innerRadius={35}
+                  outerRadius={55}
+                  paddingAngle={5}
+                  dataKey="value"
+                  cx={80}
+                  cy={80}
+                >
+                  {Object.entries(tempWeights).map((entry, index) => (
+                    <Cell key={`cell-${entry[0]}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+                  ))}
+                </Pie>
+              </PieChart>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[10px] font-bold uppercase text-slate-400">Total</span>
+                <span
+                  className={`text-xl font-bold transition-colors duration-300 ${
+                    totalTempWeight !== 100 ? 'text-rose-500' : 'text-slate-800'
+                  }`}
+                >
+                  {totalTempWeight}%
+                </span>
+                <span className={`text-[10px] font-bold ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                  {remainingWeight === 0 ? 'Balanced' : `${remainingWeight > 0 ? '+' : ''}${remainingWeight}% remaining`}
+                </span>
+              </div>
+            </div>
+
+            <div className="w-full space-y-4">
+              {WEIGHT_TYPES.map((type, idx) => {
+                const isLocked = lockedWeightTypes.has(type);
+                return (
+                  <div key={type} className="space-y-2 rounded-lg border border-slate-100 bg-white p-2.5">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 font-bold text-slate-700">
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[idx] }} />
+                        {type}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleWeightLock(type)}
+                          aria-pressed={isLocked}
+                          aria-label={`${isLocked ? 'Unlock' : 'Lock'} ${type} for auto-balance and normalize`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                            isLocked
+                              ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                          }`}
+                        >
+                          {isLocked ? <Lock size={12} /> : <LockOpen size={12} />}
+                          {isLocked ? 'Locked' : 'Unlocked'}
+                        </button>
+                        <div className="relative w-16">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            data-autofocus={type === WEIGHT_TYPES[0] ? 'true' : undefined}
+                            value={tempWeights[type]}
+                            onChange={(event) => setWeightValue(type, Number(event.target.value))}
+                            aria-label={`${type} weight percentage`}
+                            className="w-full rounded border border-slate-200 bg-slate-50 p-1 pr-4 text-right text-xs font-bold text-slate-700 focus:border-indigo-400 focus:outline-none"
+                          />
+                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={tempWeights[type]}
+                      onChange={(event) => setWeightValue(type, Number(event.target.value))}
+                      aria-label={`Adjust ${type} weight`}
+                      style={{ accentColor: COLORS[idx] }}
+                      className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-200"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {totalTempWeight !== 100 && (
+            <div className="flex items-center justify-center gap-2 rounded-lg border border-rose-100 bg-rose-50 p-3 text-xs font-bold text-rose-700">
+              <AlertCircle size={16} /> Weights must total exactly 100%.
+            </div>
+          )}
+        </div>
       </DraggableModal>
 
       {/* --- Header --- */}
@@ -1520,7 +1784,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               <Plus size={18} /> New Assignment
             </button>
             <button
-              onClick={() => { setTempWeights(weights); setShowWeightsModal(true); }}
+              onClick={openWeightsModal}
               className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
               title="Configure grade weights"
             >
