@@ -147,6 +147,121 @@ const aiInterventionPlanSchema = z.object({
   }),
 });
 
+const interventionGoalStatusSchema = z.enum(["active", "met", "unmet"]);
+const interventionMilestoneStatusSchema = z.enum(["pending", "met", "missed"]);
+const interventionWorkflowStatusSchema = z.enum([
+  "draft",
+  "pending_review",
+  "approved_provisional",
+  "approved",
+  "denied",
+  "active",
+  "completed_success",
+  "completed_unsuccessful",
+  "needs_reassessment",
+]);
+const interventionDecisionSchema = z.enum(["pending", "approved", "denied"]);
+const interventionMeetingStatusSchema = z.enum(["draft", "confirmed", "expired", "declined"]);
+const interventionOutcomeEvaluatorSchema = z.enum(["auto", "manual"]);
+const interventionRecommendationSourceSchema = z.enum(["reading", "math", "composite"]);
+const interventionAuditTypeSchema = z.enum([
+  "created",
+  "recommended",
+  "approved",
+  "denied",
+  "cosigned",
+  "meeting_proposed",
+  "meeting_confirmed",
+  "goal_updated",
+  "milestone_updated",
+  "outcome_updated",
+]);
+const interventionVisibilityRoleSchema = z.enum(["Teacher", "Principal", "District Admin", "Interventionist"]);
+
+const interventionAuditEntrySchema = z.object({
+  id: nonEmptyTrimmedString("Intervention audit id", 160),
+  type: interventionAuditTypeSchema,
+  at: z.string().datetime("Intervention audit timestamp must be an ISO datetime."),
+  actorName: nonEmptyTrimmedString("Intervention audit actor name", 200),
+  summary: nonEmptyTrimmedString("Intervention audit summary", 2_000),
+});
+
+const interventionMeetingProposalSchema = z.object({
+  proposedStart: z.string().datetime("Meeting proposal start must be an ISO datetime."),
+  proposedEnd: z.string().datetime("Meeting proposal end must be an ISO datetime."),
+  timezone: nonEmptyTrimmedString("Meeting proposal timezone", 120),
+  participants: z.array(nonEmptyTrimmedString("Meeting proposal participant", 200)).min(1),
+  source: z.literal("availability-engine"),
+  status: interventionMeetingStatusSchema,
+  expiresAt: z.string().datetime("Meeting proposal expiry must be an ISO datetime."),
+  reason: nonEmptyTrimmedString("Meeting proposal reason", 1_000),
+});
+
+const interventionGoalSchema = z.object({
+  id: nonEmptyTrimmedString("Intervention goal id", 160),
+  title: nonEmptyTrimmedString("Intervention goal title", 300),
+  description: nonEmptyTrimmedString("Intervention goal description", 4_000),
+  durationMonths: z.number().int().min(1).max(24),
+  startDate: nonEmptyTrimmedString("Intervention goal start date", 80),
+  targetDate: nonEmptyTrimmedString("Intervention goal target date", 80),
+  status: interventionGoalStatusSchema,
+  successCriteria: nonEmptyTrimmedString("Intervention success criteria", 2_000),
+  aiSuggested: z.boolean(),
+  progressTarget: z.number().int().min(0).max(100),
+  currentProgress: z.number().int().min(0).max(100),
+  editedAt: z.string().datetime("Intervention goal edited timestamp must be an ISO datetime."),
+  editedByName: nonEmptyTrimmedString("Intervention goal editor name", 200),
+});
+
+const interventionMilestoneSchema = z.object({
+  id: nonEmptyTrimmedString("Intervention milestone id", 160),
+  goalId: nonEmptyTrimmedString("Intervention milestone goal id", 160),
+  title: nonEmptyTrimmedString("Intervention milestone title", 300),
+  dueDate: nonEmptyTrimmedString("Intervention milestone due date", 80),
+  status: interventionMilestoneStatusSchema,
+  evidenceNoteId: z.string().trim().max(160).optional(),
+  aiSuggested: z.boolean(),
+  editedAt: z.string().datetime("Intervention milestone edited timestamp must be an ISO datetime."),
+});
+
+const interventionNoteRevisionSchema = z.object({
+  id: nonEmptyTrimmedString("Intervention note revision id", 160),
+  contentHtml: nonEmptyTrimmedString("Intervention note revision HTML", 500_000),
+  contentText: z.string().trim().max(200_000),
+  editedAt: z.string().datetime("Intervention note revision edited timestamp must be an ISO datetime."),
+  editedByName: nonEmptyTrimmedString("Intervention note revision editor", 200),
+});
+
+const interventionNoteSchema = z.object({
+  id: nonEmptyTrimmedString("Intervention note id", 160),
+  title: z.string().trim().max(300).optional(),
+  contentHtml: nonEmptyTrimmedString("Intervention note HTML", 500_000),
+  contentText: z.string().trim().max(200_000),
+  createdAt: z.string().datetime("Intervention note created timestamp must be an ISO datetime."),
+  createdByName: nonEmptyTrimmedString("Intervention note creator", 200),
+  updatedAt: z.string().datetime("Intervention note updated timestamp must be an ISO datetime."),
+  updatedByName: nonEmptyTrimmedString("Intervention note editor", 200),
+  visibility: z.literal("staff"),
+  visibilityRoles: z.array(interventionVisibilityRoleSchema).min(1),
+  revisionCount: z.number().int().min(0),
+  revisions: z.array(interventionNoteRevisionSchema),
+});
+
+const interventionOutcomeSchema = z.object({
+  met: z.boolean().nullable(),
+  evaluatedAt: z.string().datetime("Intervention outcome timestamp must be an ISO datetime.").optional(),
+  evaluatorType: interventionOutcomeEvaluatorSchema.optional(),
+  summaryNoteId: z.string().trim().max(160).optional(),
+});
+
+const interventionAutoRecommendationSchema = z.object({
+  source: interventionRecommendationSourceSchema,
+  belowSince: nonEmptyTrimmedString("Recommendation below-since date", 80),
+  consecutiveWeeks: z.number().int().min(1).max(104),
+  triggerThresholdId: nonEmptyTrimmedString("Recommendation threshold id", 200),
+  generatedAt: z.string().datetime("Recommendation generated timestamp must be an ISO datetime."),
+});
+
 export const interventionRowSchema = z.object({
   id: nonEmptyTrimmedString("Record id", 160),
   studentName: nonEmptyTrimmedString("Student name", 160),
@@ -164,6 +279,24 @@ export const interventionRowSchema = z.object({
   status: z.enum(["On Track", "At Risk", "Critical"]),
   avatarSeed: nonEmptyTrimmedString("Avatar seed", 256),
   lessonPlan: aiInterventionPlanSchema.optional(),
+  workflowStatus: interventionWorkflowStatusSchema.optional(),
+  decision: interventionDecisionSchema.optional(),
+  decisionByName: z.string().trim().max(200).optional(),
+  decisionByRole: z.nativeEnum(UserRole).optional(),
+  decisionAt: z.string().datetime("Decision timestamp must be an ISO datetime.").optional(),
+  decisionReason: z.string().trim().max(2_000).optional(),
+  requiresPrincipalCosign: z.boolean().optional(),
+  principalCosignAt: z.string().datetime("Principal cosign timestamp must be an ISO datetime.").optional(),
+  principalCosignByName: z.string().trim().max(200).optional(),
+  principalCosignByUserId: z.string().trim().max(160).optional(),
+  meetingProposal: interventionMeetingProposalSchema.optional(),
+  meetingEventId: z.string().trim().max(160).optional(),
+  goals: z.array(interventionGoalSchema).optional(),
+  milestones: z.array(interventionMilestoneSchema).optional(),
+  outcome: interventionOutcomeSchema.optional(),
+  autoRecommendation: interventionAutoRecommendationSchema.optional(),
+  notes: z.array(interventionNoteSchema).optional(),
+  auditTrail: z.array(interventionAuditEntrySchema).optional(),
 });
 
 export const lessonPlanRowSchema = aiInterventionPlanSchema.extend({

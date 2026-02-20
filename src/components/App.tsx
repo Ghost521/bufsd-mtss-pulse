@@ -1481,6 +1481,8 @@ const App: React.FC = () => {
           <InterventionManager
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
             onMenuClick={openMobileMenu}
+            currentUserRole={currentRole}
+            currentUserName={data.userName}
             onComposeMessage={handleNavigateToMessages}
             highlightedReferralId={referralQueueFocusId}
             onReferralHighlightConsumed={() => setReferralQueueFocusId(null)}

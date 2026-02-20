@@ -21,37 +21,58 @@ import {
   Share2,
   Bot,
   Loader2,
-  Send
+  Send,
+  CheckCircle2,
+  CalendarClock,
+  CalendarCheck2,
+  XCircle,
+  ClipboardList,
+  ListChecks
 } from 'lucide-react';
-import { Tier, UserRole, type MessagesLaunchContext, type StaffRosterItem } from '../types';
+import { Tier, UserRole, type CalendarEvent, type MessagesLaunchContext, type StaffRosterItem } from '../types';
 import { DraggableModal } from './DraggableModal';
 import type { AIInterventionPlan } from '../services/geminiService';
 import { generateStructuredIntervention } from '../services/geminiService';
 import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { getInterventionistRecipients, resolveInterventionFocus } from '../lib/interventionists';
+import {
+  DEFAULT_MATH_BENCHMARKS,
+  applyGoalOutcomeAutomation,
+  buildAutoRecommendedInterventions,
+  buildCalendarMeetingEventFromProposal,
+  buildMeetingProposalFromAvailability,
+  createInterventionAuditEntry,
+  createInterventionGoal,
+  createInterventionNote,
+  createWeeklyMilestones,
+  normalizeInterventionRecord,
+  type InterventionGoal,
+  type InterventionGoalStatus,
+  type InterventionMeetingProposal,
+  type InterventionMilestone,
+  type InterventionMilestoneStatus,
+  type MathBenchmarkThreshold,
+  type InterventionWorkflowFields,
+  type InterventionWorkflowRecord,
+} from '../lib/intervention-workflow';
 
 const TEACHERS = ["Mr. Davis", "Mrs. Johnson", "Mr. Thompson", "Ms. Lee", "Mrs. Garcia"];
 const PRINCIPAL_CONTACT = "Rosa Cortese";
 
-interface InterventionRecord {
+type InterventionRecord = InterventionWorkflowRecord & InterventionWorkflowFields;
+
+type StudentProfileRiskRecord = {
   id: string;
-  studentName: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   grade: string;
-  teacher: string;
-  tier: Tier;
-  focusArea?: string;
-  planName: string;
-  startDate: string;
-  durationWeeks: number;
-  progress: number; // 0-100
-  attendance: number; // 0-100
-  status: 'On Track' | 'At Risk' | 'Critical';
-  avatarSeed: string;
-  lessonPlan?: AIInterventionPlan; // Optional robust plan
-}
+  teacher?: string;
+  teacherName?: string;
+  readingLevel?: string;
+  gpa?: string;
+  tier?: Tier;
+  avatarUrl?: string;
+};
 
 interface ReferralRecord {
   id: string;
@@ -70,6 +91,8 @@ type SortBy = 'Last Name' | 'First Name' | 'Progress' | 'Attendance' | 'Duration
 interface InterventionManagerProps {
   onStudentClick: (name: string) => void;
   onMenuClick: () => void;
+  currentUserRole: UserRole;
+  currentUserName: string;
   onComposeMessage: (launch: MessagesLaunchContext) => void;
   highlightedReferralId?: string | null;
   onReferralHighlightConsumed?: () => void;
@@ -78,11 +101,15 @@ interface InterventionManagerProps {
 export const InterventionManager: React.FC<InterventionManagerProps> = ({
   onStudentClick,
   onMenuClick,
+  currentUserRole,
+  currentUserName,
   onComposeMessage,
   highlightedReferralId,
   onReferralHighlightConsumed,
 }) => {
   const interventionsCollection = useTenantCollection<InterventionRecord>('interventions');
+  const calendarCollection = useTenantCollection<CalendarEvent>('calendar');
+  const studentProfilesCollection = useTenantCollection<StudentProfileRiskRecord>('student-profiles');
   const referralsCollection = useTenantCollection<ReferralRecord>('referrals');
   const staffCollection = useTenantCollection<StaffRosterItem>('staff');
   const [records, setRecords] = useState<InterventionRecord[]>([]);
@@ -106,6 +133,9 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
   // Modal State
   const [isNewPlanOpen, setIsNewPlanOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [selectedWorkflowRecordId, setSelectedWorkflowRecordId] = useState<string | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
   const [selectedPlanForShare, setSelectedPlanForShare] = useState<InterventionRecord | null>(null);
   const [shareTargets, setShareTargets] = useState({
     family: true,
@@ -128,17 +158,44 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
   // Monitoring Agent State
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [scanCreatedCount, setScanCreatedCount] = useState(0);
+  const [mathBenchmarks, setMathBenchmarks] = useState<Record<string, MathBenchmarkThreshold>>(DEFAULT_MATH_BENCHMARKS);
   const hasHydratedRef = useRef(false);
   const lastPersistedRef = useRef("");
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("mtss.math-benchmarks");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, MathBenchmarkThreshold>;
+      if (!parsed || typeof parsed !== "object") return;
+      setMathBenchmarks((previous) => ({ ...previous, ...parsed }));
+    } catch {
+      // Ignore parse failures and keep defaults.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("mtss.math-benchmarks", JSON.stringify(mathBenchmarks));
+    } catch {
+      // Ignore storage write failures in restricted contexts.
+    }
+  }, [mathBenchmarks]);
+
+  useEffect(() => {
     const rows = interventionsCollection.query.data?.rows;
     if (!rows) return;
+    const normalizedRows = rows.map((row) =>
+      applyGoalOutcomeAutomation(normalizeInterventionRecord(row, currentUserName), "Automation"),
+    );
     hasHydratedRef.current = true;
-    const serialized = JSON.stringify(rows);
+    const serialized = JSON.stringify(normalizedRows);
     lastPersistedRef.current = serialized;
-    setRecords(rows);
-  }, [interventionsCollection.query.data]);
+    setRecords(normalizedRows);
+  }, [currentUserName, interventionsCollection.query.data]);
 
   useEffect(() => {
     if (!hasHydratedRef.current) return;
@@ -153,6 +210,60 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     };
   }, [interventionsCollection.replaceMutation, records]);
 
+  useEffect(() => {
+    const runAutomationPass = () => {
+      setRecords((previous) => {
+        const now = new Date();
+        let changed = false;
+        const next = previous.map((record) => {
+          let updated = applyGoalOutcomeAutomation(record, "Automation", now);
+
+          if (
+            updated.workflowStatus === "approved_provisional" &&
+            updated.requiresPrincipalCosign &&
+            updated.decisionAt
+          ) {
+            const decidedAt = new Date(updated.decisionAt);
+            const hoursSinceDecision = (now.getTime() - decidedAt.getTime()) / (1000 * 60 * 60);
+            if (!Number.isNaN(hoursSinceDecision) && hoursSinceDecision >= 48) {
+              const resetNote = createInterventionNote(
+                "Approval acknowledgement timeout",
+                "Principal acknowledgement was not completed within 48 hours. Intervention returned to pending review.",
+                "Automation",
+              );
+              updated = {
+                ...updated,
+                workflowStatus: "pending_review",
+                decision: "pending",
+                requiresPrincipalCosign: false,
+                notes: [...updated.notes, resetNote],
+                auditTrail: [
+                  ...updated.auditTrail,
+                  createInterventionAuditEntry(
+                    "outcome_updated",
+                    "Automation",
+                    "Provisional approval expired after 48 hours without principal acknowledgement.",
+                  ),
+                ],
+              };
+            }
+          }
+
+          if (updated !== record) {
+            changed = true;
+          }
+          return updated;
+        });
+
+        return changed ? next : previous;
+      });
+    };
+
+    runAutomationPass();
+    const interval = window.setInterval(runAutomationPass, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const referrals = useMemo(
     () => referralsCollection.query.data?.rows ?? [],
     [referralsCollection.query.data?.rows],
@@ -161,6 +272,35 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     () => staffCollection.query.data?.rows ?? [],
     [staffCollection.query.data?.rows],
   );
+  const studentProfiles = useMemo(
+    () => studentProfilesCollection.query.data?.rows ?? [],
+    [studentProfilesCollection.query.data?.rows],
+  );
+  const calendarEvents = useMemo(
+    () => calendarCollection.query.data?.rows ?? [],
+    [calendarCollection.query.data?.rows],
+  );
+
+  const selectedWorkflowRecord = useMemo(
+    () => records.find((item) => item.id === selectedWorkflowRecordId) ?? null,
+    [records, selectedWorkflowRecordId],
+  );
+
+  const isCurrentUserInterventionist = useMemo(() => {
+    const currentName = currentUserName.trim().toLowerCase();
+    if (!currentName) return false;
+    return staffRows.some(
+      (row) =>
+        row.isInterventionist &&
+        row.name.trim().toLowerCase() === currentName,
+    );
+  }, [currentUserName, staffRows]);
+
+  const canApproveOrDeny = useMemo(() => {
+    if (currentUserRole === UserRole.PRINCIPAL || currentUserRole === UserRole.DISTRICT) return true;
+    return isCurrentUserInterventionist;
+  }, [currentUserRole, isCurrentUserInterventionist]);
+  const canConfigureMathBenchmarks = currentUserRole === UserRole.PRINCIPAL || currentUserRole === UserRole.DISTRICT;
 
   const recentReferrals = useMemo(() => {
     const toTime = (value?: string) => {
@@ -220,9 +360,20 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
     if (statusFilter !== 'All') {
       if (statusFilter === 'Active') {
-        data = data.filter(r => r.progress < 100);
+        data = data.filter(
+          (r) =>
+            r.workflowStatus === 'active' ||
+            r.workflowStatus === 'approved' ||
+            r.workflowStatus === 'approved_provisional',
+        );
       } else if (statusFilter === 'Completed') {
-        data = data.filter(r => r.progress === 100);
+        data = data.filter(
+          (r) => r.workflowStatus === 'completed_success' || r.workflowStatus === 'completed_unsuccessful',
+        );
+      } else if (statusFilter === 'Pending Review') {
+        data = data.filter((r) => r.workflowStatus === 'pending_review' || r.workflowStatus === 'approved_provisional');
+      } else if (statusFilter === 'Needs Reassessment') {
+        data = data.filter((r) => r.workflowStatus === 'needs_reassessment');
       }
     }
 
@@ -262,7 +413,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
         case 'Teacher': key = item.teacher; break;
         case 'Grade': key = item.grade; break;
         case 'Tier': key = item.tier; break;
-        case 'Status': key = item.status; break;
+        case 'Status': key = item.workflowStatus.replace(/_/g, ' '); break;
       }
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
@@ -292,6 +443,241 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     }
   };
 
+  const updateRecordById = (id: string, updater: (record: InterventionRecord) => InterventionRecord) => {
+    setRecords((previous) =>
+      previous.map((record) => (record.id === id ? updater(record) : record)),
+    );
+  };
+
+  const openWorkflowModal = (record: InterventionRecord) => {
+    setSelectedWorkflowRecordId(record.id);
+    setDecisionReason(record.decisionReason ?? "");
+    setIsWorkflowModalOpen(true);
+  };
+
+  const closeWorkflowModal = () => {
+    setIsWorkflowModalOpen(false);
+    setSelectedWorkflowRecordId(null);
+    setDecisionReason("");
+  };
+
+  const approveIntervention = (record: InterventionRecord) => {
+    if (!canApproveOrDeny) return;
+    const provisional = isCurrentUserInterventionist && currentUserRole !== UserRole.PRINCIPAL && currentUserRole !== UserRole.DISTRICT;
+    updateRecordById(record.id, (current) => {
+      const nextMeetingProposal =
+        current.meetingProposal ??
+        buildMeetingProposalFromAvailability({
+          participants: [current.teacher, PRINCIPAL_CONTACT, "Intervention Team"],
+          events: calendarEvents,
+        });
+
+      return {
+        ...current,
+        workflowStatus: provisional ? "approved_provisional" : "approved",
+        decision: "approved",
+        decisionByName: currentUserName,
+        decisionByRole: currentUserRole,
+        decisionAt: new Date().toISOString(),
+        decisionReason: decisionReason.trim() || undefined,
+        requiresPrincipalCosign: provisional,
+        meetingProposal: nextMeetingProposal,
+        auditTrail: [
+          ...current.auditTrail,
+          createInterventionAuditEntry(
+            "approved",
+            currentUserName,
+            provisional
+              ? "Provisionally approved by interventionist; principal acknowledgement required within 48 hours."
+              : "Intervention approved for activation.",
+          ),
+          createInterventionAuditEntry(
+            "meeting_proposed",
+            currentUserName,
+            "Draft meeting proposal generated from participant availability.",
+          ),
+        ],
+      };
+    });
+  };
+
+  const denyIntervention = (record: InterventionRecord) => {
+    if (!canApproveOrDeny) return;
+    updateRecordById(record.id, (current) => ({
+      ...current,
+      workflowStatus: "denied",
+      decision: "denied",
+      decisionByName: currentUserName,
+      decisionByRole: currentUserRole,
+      decisionAt: new Date().toISOString(),
+      decisionReason: decisionReason.trim() || "No reason provided.",
+      auditTrail: [
+        ...current.auditTrail,
+        createInterventionAuditEntry("denied", currentUserName, `Intervention denied. Reason: ${decisionReason.trim() || "No reason provided."}`),
+      ],
+    }));
+  };
+
+  const principalAcknowledge = (record: InterventionRecord) => {
+    if (currentUserRole !== UserRole.PRINCIPAL) return;
+    updateRecordById(record.id, (current) => ({
+      ...current,
+      workflowStatus: "approved",
+      requiresPrincipalCosign: false,
+      principalCosignAt: new Date().toISOString(),
+      principalCosignByName: currentUserName,
+      principalCosignByUserId: currentUserName,
+      auditTrail: [
+        ...current.auditTrail,
+        createInterventionAuditEntry("cosigned", currentUserName, "Principal acknowledged provisional intervention approval."),
+      ],
+    }));
+  };
+
+  const reproposeMeeting = (record: InterventionRecord) => {
+    updateRecordById(record.id, (current) => ({
+      ...current,
+      meetingProposal: buildMeetingProposalFromAvailability({
+        participants: current.meetingProposal?.participants ?? [current.teacher, PRINCIPAL_CONTACT, "Intervention Team"],
+        events: calendarEvents,
+      }),
+      auditTrail: [
+        ...current.auditTrail,
+        createInterventionAuditEntry("meeting_proposed", currentUserName, "Draft meeting proposal refreshed."),
+      ],
+    }));
+  };
+
+  const declineMeetingProposal = (record: InterventionRecord) => {
+    if (!record.meetingProposal) return;
+    updateRecordById(record.id, (current) => ({
+      ...current,
+      meetingProposal: current.meetingProposal
+        ? {
+            ...current.meetingProposal,
+            status: "declined",
+          }
+        : current.meetingProposal,
+      auditTrail: [
+        ...current.auditTrail,
+        createInterventionAuditEntry("meeting_proposed", currentUserName, "Meeting proposal declined."),
+      ],
+    }));
+  };
+
+  const confirmMeetingProposal = async (record: InterventionRecord) => {
+    if (!record.meetingProposal) return;
+    const proposal = record.meetingProposal;
+    const event = buildCalendarMeetingEventFromProposal({
+      interventionId: record.id,
+      studentName: record.studentName,
+      planName: record.planName,
+      proposal,
+      organizerName: currentUserName || PRINCIPAL_CONTACT,
+    });
+
+    try {
+      await calendarCollection.createMutation.mutateAsync(event);
+      updateRecordById(record.id, (current) => ({
+        ...current,
+        workflowStatus: "active",
+        meetingEventId: event.id,
+        meetingProposal: current.meetingProposal
+          ? {
+              ...current.meetingProposal,
+              status: "confirmed",
+            }
+          : current.meetingProposal,
+        auditTrail: [
+          ...current.auditTrail,
+          createInterventionAuditEntry("meeting_confirmed", currentUserName, "Intervention meeting confirmed and added to calendar."),
+        ],
+      }));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const setGoalProgress = (recordId: string, goalId: string, progress: number) => {
+    updateRecordById(recordId, (current) => {
+      const timestamp = new Date().toISOString();
+      const nextGoals = current.goals.map((goal) =>
+        goal.id === goalId
+          ? {
+              ...goal,
+              currentProgress: Math.max(0, Math.min(100, Math.round(progress))),
+              status: Math.round(progress) >= goal.progressTarget ? ("met" as InterventionGoalStatus) : goal.status,
+              editedAt: timestamp,
+              editedByName: currentUserName,
+            }
+          : goal,
+      );
+      const allGoalsMet = nextGoals.length > 0 && nextGoals.every((goal) => goal.status === "met");
+      return {
+        ...current,
+        goals: nextGoals,
+        progress: Math.max(0, Math.min(100, Math.round(nextGoals.reduce((acc, goal) => acc + goal.currentProgress, 0) / Math.max(1, nextGoals.length)))),
+        workflowStatus: allGoalsMet ? "completed_success" : current.workflowStatus,
+        outcome: allGoalsMet
+          ? {
+              met: true,
+              evaluatedAt: timestamp,
+              evaluatorType: "manual",
+              summaryNoteId: current.outcome.summaryNoteId,
+            }
+          : current.outcome,
+        auditTrail: [
+          ...current.auditTrail,
+          createInterventionAuditEntry("goal_updated", currentUserName, "Goal progress manually updated."),
+        ],
+      };
+    });
+  };
+
+  const updateMilestoneStatus = (recordId: string, milestoneId: string, status: InterventionMilestoneStatus) => {
+    updateRecordById(recordId, (current) => ({
+      ...current,
+      milestones: current.milestones.map((milestone) =>
+        milestone.id === milestoneId
+          ? {
+              ...milestone,
+              status,
+              editedAt: new Date().toISOString(),
+            }
+          : milestone,
+      ),
+      auditTrail: [
+        ...current.auditTrail,
+        createInterventionAuditEntry("milestone_updated", currentUserName, `Milestone marked ${status}.`),
+      ],
+    }));
+  };
+
+  const applyAiMilestoneSuggestions = (record: InterventionRecord) => {
+    updateRecordById(record.id, (current) => ({
+      ...current,
+      milestones: current.milestones.map((milestone, index) => ({
+        ...milestone,
+        title: `Week ${index + 1}: ${current.focusArea || "Intervention"} checkpoint and evidence review`,
+        aiSuggested: true,
+        editedAt: new Date().toISOString(),
+      })),
+      auditTrail: [
+        ...current.auditTrail,
+        createInterventionAuditEntry("milestone_updated", currentUserName, "Applied AI suggested milestone wording."),
+      ],
+    }));
+  };
+
+  const updateMathBenchmark = (grade: string, value: number) => {
+    setMathBenchmarks((previous) => ({
+      ...previous,
+      [grade]: {
+        minimumGpa: Number.isFinite(value) ? Math.max(0, Math.min(4, Number(value.toFixed(2)))) : (previous[grade]?.minimumGpa ?? 2.5),
+      },
+    }));
+  };
+
   const handleGeneratePlan = async () => {
     if (!newPlanData.studentName) return;
     setIsGeneratingPlan(true);
@@ -313,7 +699,16 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
   const handleSaveNewPlan = () => {
     const [first, ...rest] = newPlanData.studentName.split(' ');
-    const newRecord: InterventionRecord = {
+    const goal = createInterventionGoal({
+      title: `${newPlanData.focusArea} growth goal`,
+      description: `Support ${newPlanData.studentName || "student"} in ${newPlanData.focusArea}.`,
+      startDate: new Date().toISOString().slice(0, 10),
+      progress: 0,
+      actorName: currentUserName,
+      durationMonths: 6,
+      aiSuggested: true,
+    });
+    const newRecord = normalizeInterventionRecord({
       id: `new-${Date.now()}`,
       studentName: newPlanData.studentName || 'New Student',
       firstName: first || 'New',
@@ -329,8 +724,16 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       attendance: 100,
       status: 'On Track',
       avatarSeed: (newPlanData.studentName || 'new').replace(/ /g, ''),
-      lessonPlan: generatedPlanDetails || undefined
-    };
+      lessonPlan: generatedPlanDetails || undefined,
+      workflowStatus: "pending_review",
+      decision: "pending",
+      requiresPrincipalCosign: false,
+      goals: [goal],
+      milestones: createWeeklyMilestones(goal),
+      notes: [],
+      outcome: { met: null },
+      auditTrail: [createInterventionAuditEntry("created", currentUserName, "Intervention plan created.")],
+    }, currentUserName);
 
     setRecords([newRecord, ...records]);
     setIsNewPlanOpen(false);
@@ -341,12 +744,39 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
   const handleScanClass = () => {
     setIsScanning(true);
-    // Simulate AI Agent Process
-    setTimeout(() => {
-        setIsScanning(false);
-        setScanResult("Found 3 students with declining attendance and reading scores. Recommended actions added to queue.");
-        setTimeout(() => setScanResult(null), 4000);
-    }, 2000);
+    window.setTimeout(() => {
+      const autoRecommended = buildAutoRecommendedInterventions({
+        students: studentProfiles.map((student) => ({
+          id: student.id,
+          name: student.name,
+          grade: student.grade,
+          teacherName: student.teacherName || student.teacher,
+          readingLevel: student.readingLevel,
+          gpa: student.gpa,
+          tier: student.tier,
+          avatarSeed: student.name.replace(/\s+/g, ""),
+        })),
+        existingInterventions: records,
+        calendarEvents,
+        mathBenchmarks,
+        durationWeeks: 6,
+        actorName: "MTSS Auto Monitor",
+      });
+
+      if (autoRecommended.length > 0) {
+        setRecords((previous) => [...autoRecommended, ...previous]);
+      }
+      setScanCreatedCount(autoRecommended.length);
+      setIsScanning(false);
+      if (autoRecommended.length === 0) {
+        setScanResult("No new students met the 6-week below-benchmark recommendation threshold.");
+      } else {
+        setScanResult(
+          `Queued ${autoRecommended.length} auto-recommended intervention${autoRecommended.length === 1 ? "" : "s"} with draft meeting proposals.`,
+        );
+      }
+      window.setTimeout(() => setScanResult(null), 5000);
+    }, 1200);
   };
 
   type ShareRecipient = {
@@ -473,6 +903,31 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
   // --- Render Helpers ---
 
+  const formatWorkflowStatus = (status: InterventionRecord["workflowStatus"]) =>
+    status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+
+  const getWorkflowBadge = (status: InterventionRecord["workflowStatus"]) => {
+    const tone =
+      status === "completed_success"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : status === "needs_reassessment" || status === "completed_unsuccessful" || status === "denied"
+          ? "bg-rose-50 text-rose-700 border-rose-200"
+          : status === "approved" || status === "active"
+            ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+            : status === "approved_provisional"
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-slate-100 text-slate-700 border-slate-200";
+    return <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${tone}`}>{formatWorkflowStatus(status)}</span>;
+  };
+
+  const formatMeetingTime = (proposal?: InterventionMeetingProposal) => {
+    if (!proposal) return "No meeting draft";
+    const start = new Date(proposal.proposedStart);
+    const end = new Date(proposal.proposedEnd);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "No meeting draft";
+    return `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  };
+
   const getTierBadge = (tier: Tier) => {
     const colors = {
       [Tier.TIER_1]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -507,10 +962,21 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     total: records.length,
     critical: records.filter(r => r.status === 'Critical').length,
     tier3: records.filter(r => r.tier === Tier.TIER_3).length,
+    pendingReview: records.filter((r) => r.workflowStatus === "pending_review" || r.workflowStatus === "approved_provisional").length,
+    needsReassessment: records.filter((r) => r.workflowStatus === "needs_reassessment").length,
     avgProgress: records.length > 0
       ? Math.round(records.reduce((acc, r) => acc + r.progress, 0) / records.length)
       : 0
   };
+
+  const pendingReviewRecords = useMemo(
+    () => records.filter((record) => record.workflowStatus === "pending_review" || record.workflowStatus === "approved_provisional"),
+    [records],
+  );
+  const autoRecommendedRecords = useMemo(
+    () => records.filter((record) => Boolean(record.autoRecommendation)),
+    [records],
+  );
 
   const activeFilterCount = [
     tierFilter !== 'All',
@@ -747,6 +1213,226 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
         </div>
       </DraggableModal>
 
+      <DraggableModal
+        isOpen={isWorkflowModalOpen && Boolean(selectedWorkflowRecord)}
+        onClose={closeWorkflowModal}
+        title="Intervention Workflow"
+        initialWidth={920}
+        initialHeight={760}
+        footer={
+          <div className="flex w-full items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={closeWorkflowModal}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+        }
+      >
+        {selectedWorkflowRecord ? (
+          <div className="space-y-5 p-6">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">{selectedWorkflowRecord.studentName}</h3>
+                  <p className="text-sm text-slate-600">{selectedWorkflowRecord.planName}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Teacher: {selectedWorkflowRecord.teacher} | Grade {selectedWorkflowRecord.grade} | Tier {selectedWorkflowRecord.tier}
+                  </p>
+                </div>
+                <div className="space-y-2 text-right">
+                  {getWorkflowBadge(selectedWorkflowRecord.workflowStatus)}
+                  <p className="text-xs text-slate-500">
+                    Decision: <span className="font-semibold text-slate-700">{selectedWorkflowRecord.decision}</span>
+                  </p>
+                  {selectedWorkflowRecord.requiresPrincipalCosign ? (
+                    <p className="text-xs font-semibold text-amber-700">Principal acknowledgement required within 48 hours.</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <ListChecks size={16} className="text-slate-500" />
+                <h4 className="text-sm font-bold text-slate-900">Review and Approval</h4>
+              </div>
+              <textarea
+                className="mb-3 h-20 w-full resize-none rounded-lg border border-slate-200 p-2.5 text-sm text-slate-700"
+                placeholder="Decision reason or implementation notes"
+                value={decisionReason}
+                onChange={(event) => setDecisionReason(event.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => approveIntervention(selectedWorkflowRecord)}
+                  disabled={!canApproveOrDeny}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 size={14} /> Approve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => denyIntervention(selectedWorkflowRecord)}
+                  disabled={!canApproveOrDeny}
+                  className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <XCircle size={14} /> Deny
+                </button>
+                {selectedWorkflowRecord.workflowStatus === "approved_provisional" && currentUserRole === UserRole.PRINCIPAL ? (
+                  <button
+                    type="button"
+                    onClick={() => principalAcknowledge(selectedWorkflowRecord)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                  >
+                    <CheckCircle2 size={14} /> Principal Acknowledge
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <CalendarClock size={16} className="text-slate-500" />
+                <h4 className="text-sm font-bold text-slate-900">Meeting Proposal</h4>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm font-semibold text-slate-800">{formatMeetingTime(selectedWorkflowRecord.meetingProposal)}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {selectedWorkflowRecord.meetingProposal?.reason ?? "No proposal generated yet."}
+                </p>
+                {selectedWorkflowRecord.meetingProposal?.participants?.length ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Participants: {selectedWorkflowRecord.meetingProposal.participants.join(", ")}
+                  </p>
+                ) : null}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => reproposeMeeting(selectedWorkflowRecord)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                >
+                  <CalendarClock size={14} /> Propose Slot
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmMeetingProposal(selectedWorkflowRecord)}
+                  disabled={!selectedWorkflowRecord.meetingProposal || selectedWorkflowRecord.meetingProposal.status === "confirmed"}
+                  className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CalendarCheck2 size={14} /> Confirm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => declineMeetingProposal(selectedWorkflowRecord)}
+                  disabled={!selectedWorkflowRecord.meetingProposal}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <XCircle size={14} /> Decline
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <ClipboardList size={16} className="text-slate-500" />
+                  <h4 className="text-sm font-bold text-slate-900">Goals</h4>
+                </div>
+                <div className="space-y-3">
+                  {selectedWorkflowRecord.goals.map((goal: InterventionGoal) => (
+                    <div key={goal.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{goal.title}</p>
+                          <p className="text-xs text-slate-500">{goal.description}</p>
+                          <p className="mt-1 text-[11px] text-slate-500">Target: {goal.targetDate}</p>
+                        </div>
+                        <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                          {goal.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="mt-2">
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Progress</label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={goal.currentProgress}
+                          onChange={(event) => setGoalProgress(selectedWorkflowRecord.id, goal.id, Number(event.target.value))}
+                          className="w-full"
+                        />
+                        <p className="text-xs font-semibold text-slate-700">{goal.currentProgress}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ListChecks size={16} className="text-slate-500" />
+                    <h4 className="text-sm font-bold text-slate-900">Weekly Milestones</h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyAiMilestoneSuggestions(selectedWorkflowRecord)}
+                    className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+                  >
+                    AI Suggestions
+                  </button>
+                </div>
+                <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {selectedWorkflowRecord.milestones.map((milestone: InterventionMilestone) => (
+                    <div key={milestone.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                      <p className="text-xs font-semibold text-slate-800">{milestone.title}</p>
+                      <p className="text-[11px] text-slate-500">Due {milestone.dueDate}</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(["pending", "met", "missed"] as InterventionMilestoneStatus[]).map((status) => (
+                          <button
+                            key={`${milestone.id}-${status}`}
+                            type="button"
+                            onClick={() => updateMilestoneStatus(selectedWorkflowRecord.id, milestone.id, status)}
+                            className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
+                              milestone.status === status
+                                ? "bg-indigo-600 text-white"
+                                : "border border-slate-300 bg-white text-slate-700"
+                            }`}
+                          >
+                            {status}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold text-slate-700">
+                Outcome:{" "}
+                <span className="text-slate-900">
+                  {selectedWorkflowRecord.outcome.met === null
+                    ? "Not evaluated"
+                    : selectedWorkflowRecord.outcome.met
+                      ? "Success"
+                      : "Unmet"}
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Notes are visible to Teachers, Principals, District Admins, and Interventionists.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </DraggableModal>
+
       {/* Header & Stats */}
       <div className="bg-white border-b border-slate-200 p-6 pb-0">
         <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
@@ -786,7 +1472,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
             </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
                 <div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Plans</p>
@@ -803,10 +1489,10 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
             </div>
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tier 3 Load</p>
-                    <p className="text-2xl font-bold text-slate-800">{stats.tier3}</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Review</p>
+                    <p className="text-2xl font-bold text-amber-600">{stats.pendingReview}</p>
                 </div>
-                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><Layers size={20} /></div>
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><ClipboardList size={20} /></div>
             </div>
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
                 <div>
@@ -814,6 +1500,120 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                     <p className="text-2xl font-bold text-emerald-600">{stats.avgProgress}%</p>
                 </div>
                 <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp size={20} /></div>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Needs Reassessment</p>
+                    <p className="text-2xl font-bold text-rose-600">{stats.needsReassessment}</p>
+                </div>
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><XCircle size={20} /></div>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tier 3 Load</p>
+                    <p className="text-2xl font-bold text-slate-800">{stats.tier3}</p>
+                </div>
+                <div className="p-2 bg-slate-100 text-slate-700 rounded-lg"><Layers size={20} /></div>
+            </div>
+        </div>
+
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900">Intervention Review Queue</h2>
+                        <p className="text-xs text-slate-600">Approve, deny, or provisionally approve interventions before activation.</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        {pendingReviewRecords.length} pending
+                    </span>
+                </div>
+                {pendingReviewRecords.length === 0 ? (
+                    <p className="text-sm text-slate-600">No interventions currently waiting for review.</p>
+                ) : (
+                    <div className="space-y-2">
+                        {pendingReviewRecords.slice(0, 4).map((record) => (
+                            <div key={`pending-${record.id}`} className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-900">{record.studentName}</p>
+                                        <p className="text-xs text-slate-500">{record.planName}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {getWorkflowBadge(record.workflowStatus)}
+                                        <button
+                                          type="button"
+                                          onClick={() => openWorkflowModal(record)}
+                                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                        >
+                                          Review
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900">Auto Recommendations</h2>
+                        <p className="text-xs text-slate-600">Students below benchmark for 6 weeks are queued with a proposed meeting slot.</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                        {autoRecommendedRecords.length} total
+                    </span>
+                </div>
+                <p className="text-xs text-slate-600 mb-3">
+                  Last scan created <span className="font-semibold text-slate-900">{scanCreatedCount}</span> recommendation{scanCreatedCount === 1 ? "" : "s"}.
+                </p>
+                {canConfigureMathBenchmarks ? (
+                  <div className="mb-3 rounded-lg border border-indigo-200 bg-white p-3">
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Math GPA Thresholds (Admin)</p>
+                    <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+                      {["3", "4", "5", "6", "7", "8"].map((grade) => (
+                        <label key={`math-threshold-${grade}`} className="flex flex-col gap-1">
+                          <span className="text-[10px] font-semibold text-slate-500">Grade {grade}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={4}
+                            step={0.1}
+                            value={mathBenchmarks[grade]?.minimumGpa ?? 2.5}
+                            onChange={(event) => updateMathBenchmark(grade, Number.parseFloat(event.target.value))}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                    {autoRecommendedRecords.slice(0, 3).map((record) => (
+                        <div key={`auto-${record.id}`} className="rounded-lg border border-indigo-200 bg-white px-3 py-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-900">{record.studentName}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {record.autoRecommendation?.source.toUpperCase()} risk since {record.autoRecommendation?.belowSince}
+                                    </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => openWorkflowModal(record)}
+                                  className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                >
+                                  Open
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {autoRecommendedRecords.length === 0 ? (
+                        <p className="text-sm text-slate-600">No benchmark-based recommendations yet.</p>
+                    ) : null}
+                </div>
             </div>
         </div>
 
@@ -998,8 +1798,10 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                             className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                         >
                             <option value="All">All Statuses</option>
+                            <option value="Pending Review">Pending Review</option>
                             <option value="Active">Active</option>
                             <option value="Completed">Completed</option>
+                            <option value="Needs Reassessment">Needs Reassessment</option>
                         </select>
                     </div>
 
@@ -1125,7 +1927,10 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                                         <p className="text-[10px] text-slate-500">{item.grade} • {item.teacher}</p>
                                                     </div>
                                                 </div>
-                                                {getTierBadge(item.tier)}
+                                                <div className="flex flex-col items-end gap-1">
+                                                    {getTierBadge(item.tier)}
+                                                    {getWorkflowBadge(item.workflowStatus)}
+                                                </div>
                                             </div>
                                             
                                             <div className="bg-slate-50 rounded-lg p-2 mb-3 border border-slate-100">
@@ -1158,7 +1963,14 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                             </div>
                                             
                                             {/* Share Button (Cards) */}
-                                            <div className="absolute top-2 right-2">
+                                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openWorkflowModal(item); }}
+                                                    className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm"
+                                                    title="Open intervention workflow"
+                                                >
+                                                    <CalendarClock size={14} />
+                                                </button>
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
                                                     className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm"
@@ -1200,9 +2012,17 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                                     <span className="text-xs font-bold text-slate-700 w-8 text-right">{item.progress}%</span>
                                                 </div>
                                                 <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[120px]">{item.planName}</p>
+                                                <div className="mt-1">{getWorkflowBadge(item.workflowStatus)}</div>
                                             </div>
 
                                             <div className="w-auto shrink-0 text-right flex justify-end gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openWorkflowModal(item); }}
+                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors"
+                                                    title="Open intervention workflow"
+                                                >
+                                                    <CalendarClock size={16} />
+                                                </button>
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
                                                     className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors"
@@ -1227,3 +2047,4 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     </div>
   );
 };
+
