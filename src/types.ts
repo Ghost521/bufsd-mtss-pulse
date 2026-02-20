@@ -252,6 +252,7 @@ export interface Intervention {
   baselineScore: number;
   goalScore: number;
   dataPoints: InterventionDataPoint[];
+  notes?: StudentNote[];
 }
 
 export interface ActivityLog {
@@ -294,6 +295,18 @@ export interface StudentNote {
   revisions: StudentNoteRevision[];
 }
 
+export type ReadingStage = 'Emergent' | 'Early' | 'Transitional' | 'Fluent' | 'Advanced';
+
+export interface ReadingAssessment {
+  id: string;
+  date: string; // YYYY-MM-DD
+  fAndPLevel: string;
+  notes?: string;
+  enteredByName?: string;
+  createdAt: string; // ISO datetime
+  updatedAt: string; // ISO datetime
+}
+
 export interface AiRecommendation {
   id: string;
   name: string;
@@ -330,6 +343,7 @@ export interface StudentDetails {
   readingLevel: string;
   interventions: Intervention[];
   recentActivity: ActivityLog[];
+  readingAssessments?: ReadingAssessment[];
   notes?: StudentNote[];
   aiRecommendations: AiRecommendation[];
   medical: MedicalInfo;

@@ -11,6 +11,7 @@ export type StudentProfileRecord = Omit<StudentDetails, "name"> & {
   id: string;
   name: string;
   avatarUrl?: string;
+  readingAssessments: NonNullable<StudentDetails["readingAssessments"]>;
   notes: NonNullable<StudentDetails["notes"]>;
   updatedAt: string;
 };
@@ -34,6 +35,12 @@ const shiftedDateLabel = (offsetDays: number): string => {
   const next = new Date();
   next.setDate(next.getDate() + offsetDays);
   return next.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+const isoDateWithOffset = (offsetDays: number): string => {
+  const next = new Date();
+  next.setDate(next.getDate() + offsetDays);
+  return next.toISOString().slice(0, 10);
 };
 
 const planTypeForTier = (tier: Tier): "IEP" | "504 Plan" | "None" => {
@@ -72,6 +79,7 @@ const buildIntervention = (
     baselineScore: baseline,
     goalScore: goal,
     dataPoints,
+    notes: [],
   };
 };
 
@@ -114,6 +122,17 @@ export const buildStudentProfileRecord = (student: StudentRosterLike): StudentPr
         type: "Attendance",
         note: student.attendance < 90 ? "Attendance concern flagged for follow-up." : "Attendance remained stable this week.",
         tags: ["Attendance"],
+      },
+    ],
+    readingAssessments: [
+      {
+        id: `${student.id}-reading-initial`,
+        date: isoDateWithOffset(0),
+        fAndPLevel: student.readingLevel,
+        notes: "Initial baseline reading assessment.",
+        enteredByName: "System",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
     ],
     notes: [],
@@ -184,6 +203,11 @@ export const syncProfileWithRoster = (
   attendance: student.attendance,
   gpa: student.gpa,
   readingLevel: student.readingLevel,
+  readingAssessments: profile.readingAssessments ?? [],
+  interventions: (profile.interventions ?? []).map((intervention) => ({
+    ...intervention,
+    notes: intervention.notes ?? [],
+  })),
   notes: profile.notes ?? [],
   updatedAt: new Date().toISOString(),
 });

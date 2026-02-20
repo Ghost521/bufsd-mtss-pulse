@@ -24,8 +24,29 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
-import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { Tier, UserRole, type StudentDetails, type StudentRosterItem } from '../types';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceArea,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  Tier,
+  UserRole,
+  type Intervention,
+  type InterventionDataPoint,
+  type ReadingAssessment,
+  type ReadingStage,
+  type StudentDetails,
+  type StudentRosterItem,
+} from '../types';
 import { generateStudentProfileSummaryStream } from '../services/geminiService';
 import { RichTextRenderer } from './RichTextRenderer';
 import { ReferralModal } from './ReferralModal';
@@ -35,9 +56,23 @@ import { useStudents } from '../hooks/useStudents';
 import { buildStudentProfileRecord, syncProfileWithRoster, type StudentProfileRecord } from '../lib/student-profile-record';
 import { canAccessStudentNotes } from '../lib/role-access';
 import { StudentNotesPanel } from './notes/StudentNotesPanel';
+import { DEFAULT_READING_BENCHMARKS, normalizeGrade } from '../lib/reading-benchmarks';
+import {
+  FP_LEVEL_ORDER,
+  LEXILE_LEVEL_SUMMARIES,
+  fpLevelToIndex,
+  getLexileSummaryForFpLevel,
+  getStageForFpLevel,
+  normalizeFpLevel,
+} from '../lib/lexile-conversion';
 
-type ProfileTab = 'overview' | 'interventions' | 'academics' | 'notes' | 'documents';
+type ProfileTab = 'overview' | 'reading' | 'interventions' | 'academics' | 'notes' | 'documents';
 type AcademicFilter = 'All' | 'Math' | 'Reading';
+type ReadingAssessmentDraft = {
+  date: string;
+  fAndPLevel: string;
+  notes: string;
+};
 
 type ProfileDocument = {
   id: string;
@@ -73,6 +108,7 @@ const READING_LEVELS = Array.from({ length: 26 }, (_, index) => String.fromCharC
 const ACADEMIC_FILTERS: AcademicFilter[] = ['All', 'Math', 'Reading'];
 const PROFILE_TABS: Array<{ id: ProfileTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'reading', label: 'Reading' },
   { id: 'interventions', label: 'Interventions' },
   { id: 'academics', label: 'Academics' },
   { id: 'notes', label: 'Notes' },
@@ -87,6 +123,25 @@ const ACADEMIC_PROGRESS_DATA = [
   { name: 'Feb', value: 80 },
   { name: 'Mar', value: 88 },
 ];
+const READING_STAGE_BANDS: Array<{
+  stage: ReadingStage;
+  minLevel: string;
+  maxLevel: string;
+  fill: string;
+  textClassName: string;
+}> = [
+  { stage: 'Emergent', minLevel: 'A', maxLevel: 'C', fill: '#ecfdf5', textClassName: 'text-emerald-700' },
+  { stage: 'Early', minLevel: 'D', maxLevel: 'I', fill: '#eff6ff', textClassName: 'text-blue-700' },
+  { stage: 'Transitional', minLevel: 'J', maxLevel: 'P', fill: '#fff7ed', textClassName: 'text-orange-700' },
+  { stage: 'Fluent', minLevel: 'Q', maxLevel: 'Z', fill: '#f5f3ff', textClassName: 'text-violet-700' },
+  { stage: 'Advanced', minLevel: 'Z+', maxLevel: 'Z+', fill: '#fdf2f8', textClassName: 'text-pink-700' },
+];
+
+const createReadingAssessmentDraft = (seedLevel = 'M'): ReadingAssessmentDraft => ({
+  date: new Date().toISOString().slice(0, 10),
+  fAndPLevel: normalizeFpLevel(seedLevel) ?? 'M',
+  notes: '',
+});
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeSentence = (value: string): string =>
@@ -194,6 +249,21 @@ const toLocalTimestamp = (value: Date | null): string =>
     ? value.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : 'Not yet generated';
 
+const formatIsoDateLabel = (value: string): string => {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const cloneIntervention = (intervention: Intervention): Intervention => ({
+  ...intervention,
+  dataPoints: intervention.dataPoints.map((point) => ({ ...point })),
+  notes: (intervention.notes ?? []).map((note) => ({
+    ...note,
+    revisions: note.revisions.map((revision) => ({ ...revision })),
+  })),
+});
+
 export const StudentProfile: React.FC<StudentProfileProps> = ({
   studentName,
   onBack,
@@ -224,6 +294,15 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
   const [academicFilter, setAcademicFilter] = useState<AcademicFilter>('All');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
+  const [isReadingAssessmentEditorOpen, setIsReadingAssessmentEditorOpen] = useState(false);
+  const [editingReadingAssessmentId, setEditingReadingAssessmentId] = useState<string | null>(null);
+  const [readingAssessmentDraft, setReadingAssessmentDraft] = useState<ReadingAssessmentDraft>(() =>
+    createReadingAssessmentDraft('M'),
+  );
+  const [selectedInterventionId, setSelectedInterventionId] = useState<number | null>(null);
+  const [isInterventionEditing, setIsInterventionEditing] = useState(false);
+  const [interventionDraft, setInterventionDraft] = useState<Intervention | null>(null);
+  const [interventionOriginal, setInterventionOriginal] = useState<Intervention | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
   const canViewStudentNotes = canAccessStudentNotes(currentUserRole);
@@ -325,11 +404,18 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
     setActiveTab('overview');
     setAcademicFilter('All');
     setSelectedMonth(null);
+    setIsReadingAssessmentEditorOpen(false);
+    setEditingReadingAssessmentId(null);
+    setReadingAssessmentDraft(createReadingAssessmentDraft(nextStudent.readingLevel));
 
     setIsEditing(false);
     setDraftStudent(null);
     setAvatarUrl(nextStudent.avatarUrl ?? null);
     setDraftAvatarUrl(nextStudent.avatarUrl ?? null);
+    setSelectedInterventionId(null);
+    setIsInterventionEditing(false);
+    setInterventionDraft(null);
+    setInterventionOriginal(null);
 
     setShowSummary(true);
     setIsSummaryExpanded(typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true);
@@ -375,20 +461,33 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
     );
   }, [avatarUrl, draftAvatarUrl, draftStudent, isEditing, student]);
 
+  const hasUnsavedInterventionChanges = useMemo(() => {
+    if (!isInterventionEditing || !interventionDraft || !interventionOriginal) return false;
+    return JSON.stringify(interventionDraft) !== JSON.stringify(interventionOriginal);
+  }, [interventionDraft, interventionOriginal, isInterventionEditing]);
+
+  const hasAnyUnsavedChanges = hasUnsavedChanges || hasUnsavedInterventionChanges;
+
   const confirmDiscardEdits = useCallback((): boolean => {
-    if (!hasUnsavedChanges) return true;
+    if (!hasUnsavedChanges && !hasUnsavedInterventionChanges) return true;
+    if (hasUnsavedChanges && hasUnsavedInterventionChanges) {
+      return window.confirm('You have unsaved profile and intervention changes. Discard them?');
+    }
+    if (hasUnsavedInterventionChanges) {
+      return window.confirm('You have unsaved intervention changes. Discard them?');
+    }
     return window.confirm('You have unsaved profile changes. Discard them?');
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, hasUnsavedInterventionChanges]);
 
   useEffect(() => {
-    if (!hasUnsavedChanges) return;
+    if (!hasAnyUnsavedChanges) return;
     const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', beforeUnloadHandler);
     return () => window.removeEventListener('beforeunload', beforeUnloadHandler);
-  }, [hasUnsavedChanges]);
+  }, [hasAnyUnsavedChanges]);
 
   const currentStudent = isEditing && draftStudent ? draftStudent : student;
   const currentAvatar = isEditing ? draftAvatarUrl : avatarUrl;
@@ -399,12 +498,98 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
   const summarySections = useMemo(() => buildSummarySections(cleanedSummary, student), [cleanedSummary, student]);
 
   const interventions = currentStudent?.interventions ?? [];
+  const selectedIntervention =
+    selectedInterventionId === null ? null : interventions.find((item) => item.id === selectedInterventionId) ?? null;
   const activeInterventions = interventions.filter((item) => item.status.toLowerCase() === 'active');
   const completedInterventions = interventions.filter((item) => item.status.toLowerCase() === 'completed');
   const averageInterventionProgress =
     interventions.length > 0
       ? Math.round(interventions.reduce((total, item) => total + item.progress, 0) / interventions.length)
       : 0;
+
+  const readingAssessments = useMemo(
+    () => currentStudent?.readingAssessments ?? [],
+    [currentStudent?.readingAssessments],
+  );
+  const sortedReadingAssessments = useMemo(
+    () => [...readingAssessments].sort((left, right) => left.date.localeCompare(right.date)),
+    [readingAssessments],
+  );
+  const currentReadingSummary = useMemo(
+    () => getLexileSummaryForFpLevel(currentStudent?.readingLevel ?? ''),
+    [currentStudent?.readingLevel],
+  );
+  const readingChartPoints = useMemo(
+    () =>
+      sortedReadingAssessments
+        .map((assessment) => {
+          const normalizedLevel = normalizeFpLevel(assessment.fAndPLevel);
+          const levelIndex = normalizedLevel ? fpLevelToIndex(normalizedLevel) : null;
+          if (!normalizedLevel || levelIndex === null) return null;
+          const summary = getLexileSummaryForFpLevel(normalizedLevel);
+          const stage = getStageForFpLevel(normalizedLevel);
+          const parsedDate = new Date(`${assessment.date}T00:00:00`);
+          const dateLabel = Number.isNaN(parsedDate.getTime())
+            ? assessment.date
+            : parsedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          return {
+            id: assessment.id,
+            date: assessment.date,
+            dateLabel,
+            fAndPLevel: normalizedLevel,
+            levelIndex,
+            stage: stage ?? 'Transitional',
+            lexileLabel: summary?.lexileLabel ?? 'No Lexile mapping',
+            atosLabel: summary?.atosLabel ?? 'N/A',
+            notes: assessment.notes ?? '',
+          };
+        })
+        .filter((point): point is NonNullable<typeof point> => point !== null),
+    [sortedReadingAssessments],
+  );
+  const latestReadingChartPoint =
+    readingChartPoints.length > 0 ? readingChartPoints[readingChartPoints.length - 1] : null;
+  const readingGrowthDelta =
+    readingChartPoints.length > 1
+      ? readingChartPoints[readingChartPoints.length - 1].levelIndex - readingChartPoints[0].levelIndex
+      : null;
+  const gradeTargetBand = useMemo(() => {
+    const normalizedGrade = normalizeGrade(currentStudent?.grade ?? '');
+    if (!normalizedGrade) return null;
+    return DEFAULT_READING_BENCHMARKS[normalizedGrade] ?? null;
+  }, [currentStudent?.grade]);
+  const gradeTargetRange = useMemo(() => {
+    if (!gradeTargetBand) return null;
+    const minIndex = fpLevelToIndex(gradeTargetBand.min);
+    const maxIndex = fpLevelToIndex(gradeTargetBand.max);
+    if (minIndex === null || maxIndex === null) return null;
+    return { minIndex, maxIndex };
+  }, [gradeTargetBand]);
+  const stageRanges = useMemo(
+    () =>
+      READING_STAGE_BANDS.map((band) => {
+        const minIndex = fpLevelToIndex(band.minLevel);
+        const maxIndex = fpLevelToIndex(band.maxLevel);
+        return {
+          ...band,
+          minIndex,
+          maxIndex,
+        };
+      }).filter(
+        (
+          band,
+        ): band is {
+          stage: ReadingStage;
+          minLevel: string;
+          maxLevel: string;
+          fill: string;
+          textClassName: string;
+          minIndex: number;
+          maxIndex: number;
+        } => band.minIndex !== null && band.maxIndex !== null,
+      ),
+    [],
+  );
 
   const academicNotes = useMemo(() => {
     if (!currentStudent) return [];
@@ -462,8 +647,43 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
     setDraftAvatarUrl(null);
   }, []);
 
+  const resetInterventionEditState = useCallback(() => {
+    setIsInterventionEditing(false);
+    setInterventionDraft(null);
+    setInterventionOriginal(null);
+  }, []);
+
+  const applyInterventionUpdate = useCallback(
+    (updatedIntervention: Intervention, shouldPersist = true) => {
+      if (!student) return;
+      const timestamp = new Date().toISOString();
+      const normalizeAndUpdate = (rows: Intervention[]): Intervention[] =>
+        rows.map((item) => (item.id === updatedIntervention.id ? cloneIntervention(updatedIntervention) : item));
+
+      const nextStudent: StudentProfileRecord = {
+        ...student,
+        interventions: normalizeAndUpdate(student.interventions),
+        updatedAt: timestamp,
+      };
+      setStudent(nextStudent);
+      setDraftStudent((previous) =>
+        previous
+          ? {
+              ...previous,
+              interventions: normalizeAndUpdate(previous.interventions),
+              updatedAt: timestamp,
+            }
+          : previous,
+      );
+      if (shouldPersist) persistProfile(nextStudent);
+    },
+    [persistProfile, student],
+  );
+
   const handleStartEdit = () => {
     if (!student) return;
+    if (!confirmDiscardEdits()) return;
+    resetInterventionEditState();
     setDraftStudent({ ...student });
     setDraftAvatarUrl(avatarUrl);
     setIsEditing(true);
@@ -495,6 +715,218 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
     persistProfile(nextStudent);
   };
 
+  const applyReadingAssessmentsUpdate = useCallback(
+    (nextAssessments: NonNullable<StudentProfileRecord['readingAssessments']>) => {
+      if (!student) return;
+      const timestamp = new Date().toISOString();
+      const latestAssessment = [...nextAssessments].sort((left, right) => left.date.localeCompare(right.date)).at(-1);
+      const nextReadingLevel = latestAssessment?.fAndPLevel ?? student.readingLevel;
+      const nextStudent: StudentProfileRecord = {
+        ...student,
+        readingLevel: nextReadingLevel,
+        readingAssessments: nextAssessments,
+        updatedAt: timestamp,
+      };
+      setStudent(nextStudent);
+      setDraftStudent((previous) =>
+        previous
+          ? {
+              ...previous,
+              readingLevel: nextReadingLevel,
+              readingAssessments: nextAssessments,
+              updatedAt: timestamp,
+            }
+          : previous,
+      );
+      persistProfile(nextStudent);
+    },
+    [persistProfile, student],
+  );
+
+  const resetReadingAssessmentEditor = useCallback(
+    (seedLevel: string) => {
+      setEditingReadingAssessmentId(null);
+      setIsReadingAssessmentEditorOpen(false);
+      setReadingAssessmentDraft(createReadingAssessmentDraft(seedLevel));
+    },
+    [],
+  );
+
+  const handleStartReadingAssessmentCreate = () => {
+    setEditingReadingAssessmentId(null);
+    setIsReadingAssessmentEditorOpen(true);
+    setReadingAssessmentDraft(createReadingAssessmentDraft(student?.readingLevel ?? 'M'));
+  };
+
+  const handleStartReadingAssessmentEdit = (assessment: ReadingAssessment) => {
+    setEditingReadingAssessmentId(assessment.id);
+    setIsReadingAssessmentEditorOpen(true);
+    setReadingAssessmentDraft({
+      date: assessment.date,
+      fAndPLevel: normalizeFpLevel(assessment.fAndPLevel) ?? assessment.fAndPLevel,
+      notes: assessment.notes ?? '',
+    });
+  };
+
+  const handleSaveReadingAssessment = () => {
+    if (!student) return;
+    if (!readingAssessmentDraft.date.trim()) {
+      window.alert('Assessment date is required.');
+      return;
+    }
+    const normalizedLevel = normalizeFpLevel(readingAssessmentDraft.fAndPLevel);
+    if (!normalizedLevel) {
+      window.alert('Please select a valid Fountas & Pinnell level from the chart.');
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    if (editingReadingAssessmentId) {
+      const target = readingAssessments.find((item) => item.id === editingReadingAssessmentId);
+      if (!target) return;
+      const nextAssessments = readingAssessments.map((assessment) =>
+        assessment.id === editingReadingAssessmentId
+          ? {
+              ...assessment,
+              date: readingAssessmentDraft.date,
+              fAndPLevel: normalizedLevel,
+              notes: readingAssessmentDraft.notes.trim() || undefined,
+              updatedAt: timestamp,
+            }
+          : assessment,
+      );
+      applyReadingAssessmentsUpdate(nextAssessments);
+      resetReadingAssessmentEditor(normalizedLevel);
+      return;
+    }
+
+    const createdAssessment: ReadingAssessment = {
+      id: `reading-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`,
+      date: readingAssessmentDraft.date,
+      fAndPLevel: normalizedLevel,
+      notes: readingAssessmentDraft.notes.trim() || undefined,
+      enteredByName: staffDisplayName,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    applyReadingAssessmentsUpdate([...readingAssessments, createdAssessment]);
+    resetReadingAssessmentEditor(normalizedLevel);
+  };
+
+  const handleDeleteReadingAssessment = (assessmentId: string) => {
+    const target = readingAssessments.find((item) => item.id === assessmentId);
+    if (!target) return;
+    if (!window.confirm('Remove this reading assessment?')) return;
+    applyReadingAssessmentsUpdate(readingAssessments.filter((assessment) => assessment.id !== assessmentId));
+    if (editingReadingAssessmentId === assessmentId) {
+      resetReadingAssessmentEditor(student?.readingLevel ?? 'M');
+    }
+  };
+
+  const handleSelectIntervention = (interventionId: number) => {
+    if (selectedInterventionId === interventionId) {
+      if (hasUnsavedInterventionChanges && !window.confirm('Discard unsaved intervention changes?')) return;
+      setSelectedInterventionId(null);
+      resetInterventionEditState();
+      return;
+    }
+    if (hasUnsavedInterventionChanges && !window.confirm('Discard unsaved intervention changes?')) return;
+    setSelectedInterventionId(interventionId);
+    resetInterventionEditState();
+  };
+
+  const handleStartInterventionEdit = () => {
+    if (!selectedIntervention) return;
+    const source = cloneIntervention(selectedIntervention);
+    setInterventionOriginal(source);
+    setInterventionDraft(cloneIntervention(source));
+    setIsInterventionEditing(true);
+  };
+
+  const handleCancelInterventionEdit = () => {
+    if (hasUnsavedInterventionChanges && !window.confirm('Discard unsaved intervention changes?')) return;
+    resetInterventionEditState();
+  };
+
+  const handleSaveInterventionEdit = () => {
+    if (!interventionDraft) return;
+    applyInterventionUpdate(interventionDraft, true);
+    resetInterventionEditState();
+  };
+
+  const handleInterventionFieldChange = (field: keyof Intervention, value: string | number) => {
+    setInterventionDraft((previous) => {
+      if (!previous) return previous;
+      if (field === 'progress' || field === 'baselineScore' || field === 'goalScore') {
+        const numericValue =
+          typeof value === 'number' ? value : Number.isFinite(Number(value)) ? Number(value) : previous[field];
+        if (field === 'progress') {
+          return { ...previous, progress: Math.max(0, Math.min(100, Math.round(numericValue))) };
+        }
+        return { ...previous, [field]: numericValue };
+      }
+      return { ...previous, [field]: String(value) };
+    });
+  };
+
+  const handleAddInterventionDataPoint = () => {
+    setInterventionDraft((previous) => {
+      if (!previous) return previous;
+      const nextIndex = previous.dataPoints.length + 1;
+      const nextPoint: InterventionDataPoint = {
+        date: `Week ${nextIndex}`,
+        score: previous.baselineScore,
+      };
+      return { ...previous, dataPoints: [...previous.dataPoints, nextPoint] };
+    });
+  };
+
+  const handleInterventionDataPointChange = (
+    dataPointIndex: number,
+    field: keyof InterventionDataPoint,
+    value: string | number,
+  ) => {
+    setInterventionDraft((previous) => {
+      if (!previous) return previous;
+      const nextPoints = previous.dataPoints.map((point, index) => {
+        if (index !== dataPointIndex) return point;
+        if (field === 'score') {
+          const numericValue =
+            typeof value === 'number' ? value : Number.isFinite(Number(value)) ? Number(value) : point.score;
+          return { ...point, score: numericValue };
+        }
+        return { ...point, [field]: String(value) };
+      });
+      return { ...previous, dataPoints: nextPoints };
+    });
+  };
+
+  const handleRemoveInterventionDataPoint = (dataPointIndex: number) => {
+    setInterventionDraft((previous) => {
+      if (!previous) return previous;
+      return {
+        ...previous,
+        dataPoints: previous.dataPoints.filter((_, index) => index !== dataPointIndex),
+      };
+    });
+  };
+
+  const handleInterventionNotesChange = (interventionId: number, nextNotes: NonNullable<Intervention['notes']>) => {
+    const source = student?.interventions.find((item) => item.id === interventionId);
+    if (!source) return;
+    const updatedIntervention: Intervention = {
+      ...source,
+      notes: nextNotes,
+    };
+    applyInterventionUpdate(updatedIntervention, true);
+    if (interventionDraft?.id === interventionId) {
+      setInterventionDraft((previous) => (previous ? { ...previous, notes: nextNotes } : previous));
+    }
+    if (interventionOriginal?.id === interventionId) {
+      setInterventionOriginal((previous) => (previous ? { ...previous, notes: nextNotes } : previous));
+    }
+  };
+
   const handleCancelEdit = () => {
     if (!confirmDiscardEdits()) return;
     resetEditState();
@@ -503,6 +935,9 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
   const handleBackClick = () => {
     if (!confirmDiscardEdits()) return;
     resetEditState();
+    setSelectedInterventionId(null);
+    resetInterventionEditState();
+    resetReadingAssessmentEditor(student?.readingLevel ?? 'M');
     onBack();
   };
 
@@ -510,6 +945,9 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
     if (nextTab === activeTab) return;
     if (!confirmDiscardEdits()) return;
     resetEditState();
+    if (nextTab !== 'interventions') setSelectedInterventionId(null);
+    if (nextTab !== 'reading') resetReadingAssessmentEditor(student?.readingLevel ?? 'M');
+    resetInterventionEditState();
     setActiveTab(nextTab);
   };
 
@@ -997,6 +1435,295 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       </section>
       )}
 
+      {activeTab === 'reading' && (
+      <section
+        id="student-profile-panel-reading"
+        role="tabpanel"
+        aria-labelledby="student-profile-tab-reading"
+        className="space-y-6"
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Current F&amp;P</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{normalizeFpLevel(currentStudent.readingLevel) ?? currentStudent.readingLevel}</p>
+            <p className="mt-1 text-xs text-slate-500">{currentReadingSummary?.stage ?? 'Not mapped to stage yet'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Lexile Range</p>
+            <p className="mt-1 text-xl font-bold text-indigo-700">{currentReadingSummary?.lexileLabel ?? 'No mapping'}</p>
+            <p className="mt-1 text-xs text-slate-500">ATOS {currentReadingSummary?.atosLabel ?? 'N/A'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Grade Target Band</p>
+            <p className="mt-1 text-xl font-bold text-emerald-700">
+              {gradeTargetBand ? `${gradeTargetBand.min} - ${gradeTargetBand.max}` : 'No grade target'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">{gradeTargetRange ? `Indexed ${gradeTargetRange.minIndex} - ${gradeTargetRange.maxIndex}` : 'Target unavailable for this grade'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Growth Since First Assessment</p>
+            <p className={`mt-1 text-xl font-bold ${readingGrowthDelta === null ? 'text-slate-800' : readingGrowthDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {readingGrowthDelta === null ? 'Need 2+ assessments' : `${readingGrowthDelta >= 0 ? '+' : ''}${readingGrowthDelta} levels`}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {latestReadingChartPoint ? `Latest: ${latestReadingChartPoint.fAndPLevel} on ${latestReadingChartPoint.dateLabel}` : 'No charted assessments yet'}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-slate-800">Reading Trajectory vs Lexile Conversion Chart</h3>
+              <p className="text-sm text-slate-500">Tracks every saved assessment against all F&amp;P levels and reading stages from the 2017 Lexile conversion guide.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartReadingAssessmentCreate}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+            >
+              Add Assessment
+            </button>
+          </div>
+
+          {isReadingAssessmentEditorOpen && (
+            <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50/50 p-4">
+              <p className="mb-3 text-sm font-semibold text-indigo-900">
+                {editingReadingAssessmentId ? 'Edit Reading Assessment' : 'New Reading Assessment'}
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[170px_180px_1fr_auto]">
+                <label className="text-xs font-semibold text-slate-600">
+                  Date
+                  <input
+                    type="date"
+                    value={readingAssessmentDraft.date}
+                    onChange={(event) =>
+                      setReadingAssessmentDraft((previous) => ({ ...previous, date: event.target.value }))
+                    }
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  F&amp;P Level
+                  <select
+                    value={normalizeFpLevel(readingAssessmentDraft.fAndPLevel) ?? ''}
+                    onChange={(event) =>
+                      setReadingAssessmentDraft((previous) => ({ ...previous, fAndPLevel: event.target.value }))
+                    }
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  >
+                    {FP_LEVEL_ORDER.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-600">
+                  Notes
+                  <input
+                    value={readingAssessmentDraft.notes}
+                    onChange={(event) =>
+                      setReadingAssessmentDraft((previous) => ({ ...previous, notes: event.target.value }))
+                    }
+                    placeholder="Optional context for this assessment"
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </label>
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveReadingAssessment}
+                    className="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetReadingAssessmentEditor(currentStudent.readingLevel)}
+                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {readingChartPoints.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+              No mapped reading assessments yet. Add an assessment to visualize growth across the Lexile conversion stages.
+            </div>
+          ) : (
+            <div className="h-[430px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={readingChartPoints} margin={{ top: 16, right: 22, left: 6, bottom: 8 }}>
+                  {stageRanges.map((band) => (
+                    <ReferenceArea
+                      key={`stage-${band.stage}`}
+                      y1={band.minIndex}
+                      y2={band.maxIndex}
+                      fill={band.fill}
+                      fillOpacity={0.55}
+                      ifOverflow="extendDomain"
+                    />
+                  ))}
+                  {gradeTargetRange ? (
+                    <ReferenceArea
+                      y1={gradeTargetRange.minIndex}
+                      y2={gradeTargetRange.maxIndex}
+                      fill="#6366f1"
+                      fillOpacity={0.14}
+                      ifOverflow="extendDomain"
+                    />
+                  ) : null}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="dateLabel" tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="number"
+                    domain={[1, FP_LEVEL_ORDER.length]}
+                    ticks={FP_LEVEL_ORDER.map((_, index) => index + 1)}
+                    tickFormatter={(value) => FP_LEVEL_ORDER[value - 1] ?? ''}
+                    tick={{ fontSize: 10 }}
+                    width={34}
+                    interval={0}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      const point = payload?.[0]?.payload as
+                        | {
+                            dateLabel: string;
+                            fAndPLevel: string;
+                            stage: ReadingStage;
+                            lexileLabel: string;
+                            atosLabel: string;
+                            notes: string;
+                          }
+                        | undefined;
+                      if (!active || !point) return null;
+                      return (
+                        <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg">
+                          <p className="font-bold text-slate-800">{point.dateLabel}</p>
+                          <p className="mt-1 text-slate-700">Level {point.fAndPLevel}</p>
+                          <p className="text-slate-700">{point.stage}</p>
+                          <p className="text-indigo-700">Lexile {point.lexileLabel}</p>
+                          <p className="text-slate-600">ATOS {point.atosLabel}</p>
+                          {point.notes ? <p className="mt-1 max-w-[220px] text-slate-500">{point.notes}</p> : null}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="levelIndex"
+                    stroke="#0f766e"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: '#0f766e', stroke: '#ffffff', strokeWidth: 1.5 }}
+                    activeDot={{ r: 6, stroke: '#ffffff', strokeWidth: 2 }}
+                  />
+                  {latestReadingChartPoint ? (
+                    <ReferenceLine y={latestReadingChartPoint.levelIndex} stroke="#0f766e" strokeDasharray="4 4" />
+                  ) : null}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            {stageRanges.map((band) => (
+              <span key={`legend-${band.stage}`} className={`inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 ${band.textClassName}`}>
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: band.fill }} />
+                {band.stage} ({band.minLevel}-{band.maxLevel})
+              </span>
+            ))}
+            {gradeTargetBand ? (
+              <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700">
+                Grade target: {gradeTargetBand.min}-{gradeTargetBand.max}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="font-bold text-slate-800">Assessment Timeline</h3>
+            <p className="mt-1 text-sm text-slate-500">Newest first. Edit or remove entries as needed.</p>
+            <div className="mt-4 space-y-2">
+              {sortedReadingAssessments.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                  No assessments recorded yet.
+                </div>
+              ) : (
+                [...sortedReadingAssessments].reverse().map((assessment) => {
+                  const normalizedLevel = normalizeFpLevel(assessment.fAndPLevel) ?? assessment.fAndPLevel;
+                  const summary = getLexileSummaryForFpLevel(normalizedLevel);
+                  const stage = getStageForFpLevel(normalizedLevel) ?? 'Transitional';
+                  return (
+                    <article key={assessment.id} className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {formatIsoDateLabel(assessment.date)} - Level {normalizedLevel}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {stage} | Lexile {summary?.lexileLabel ?? 'N/A'} | ATOS {summary?.atosLabel ?? 'N/A'}
+                          </p>
+                          {assessment.notes ? <p className="mt-1 text-sm text-slate-600">{assessment.notes}</p> : null}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleStartReadingAssessmentEdit(assessment)}
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReadingAssessment(assessment.id)}
+                            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="font-bold text-slate-800">Lexile / F&amp;P Reference</h3>
+            <p className="mt-1 text-sm text-slate-500">Full level and stage mapping from the chart source used by this graph.</p>
+            <div className="mt-4 max-h-[420px] overflow-auto rounded-lg border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-xs">
+                <thead className="sticky top-0 bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">F&amp;P</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">Stage</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">Lexile</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">ATOS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {LEXILE_LEVEL_SUMMARIES.map((summary) => (
+                    <tr key={`reference-${summary.fpLevel}`}>
+                      <td className="px-3 py-2 font-semibold text-slate-800">{summary.fpLevel}</td>
+                      <td className="px-3 py-2 text-slate-600">{summary.stage}</td>
+                      <td className="px-3 py-2 text-slate-600">{summary.lexileLabel}</td>
+                      <td className="px-3 py-2 text-slate-600">{summary.atosLabel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+      )}
+
       {activeTab === 'interventions' && (
       <section
         id="student-profile-panel-interventions"
@@ -1038,39 +1765,228 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                 No interventions are attached to this profile yet.
               </div>
             ) : (
-              interventions.map((intervention) => (
-                <article key={intervention.id} className="rounded-lg border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h4 className="font-semibold text-slate-900">{intervention.name}</h4>
-                      <p className="text-xs text-slate-500">Started {intervention.date}</p>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-bold ${
-                        intervention.status.toLowerCase() === 'active'
-                          ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
-                          : 'border-slate-200 bg-slate-100 text-slate-600'
-                      }`}
+              interventions.map((intervention) => {
+                const isSelected = selectedInterventionId === intervention.id;
+                const editableIntervention =
+                  isInterventionEditing && interventionDraft?.id === intervention.id ? interventionDraft : intervention;
+
+                return (
+                  <article
+                    key={intervention.id}
+                    className={`rounded-lg border p-4 transition-colors ${
+                      isSelected ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSelectIntervention(intervention.id)}
+                      className="w-full text-left"
                     >
-                      {intervention.status}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-xs text-slate-500">
-                      <span>
-                        Baseline {intervention.baselineScore} - Goal {intervention.goalScore}
-                      </span>
-                      <span className="font-bold text-indigo-700">{intervention.progress}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-100">
-                      <div
-                        className="h-2 rounded-full bg-indigo-500 transition-all"
-                        style={{ width: `${Math.max(0, Math.min(100, intervention.progress))}%` }}
-                      />
-                    </div>
-                  </div>
-                </article>
-              ))
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h4 className="font-semibold text-slate-900">{editableIntervention.name}</h4>
+                          <p className="text-xs text-slate-500">Started {editableIntervention.date}</p>
+                        </div>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-bold ${
+                            editableIntervention.status.toLowerCase() === 'active'
+                              ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                              : 'border-slate-200 bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {editableIntervention.status}
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <div className="mb-1 flex justify-between text-xs text-slate-500">
+                          <span>
+                            Baseline {editableIntervention.baselineScore} - Goal {editableIntervention.goalScore}
+                          </span>
+                          <span className="font-bold text-indigo-700">{editableIntervention.progress}%</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100">
+                          <div
+                            className="h-2 rounded-full bg-indigo-500 transition-all"
+                            style={{ width: `${Math.max(0, Math.min(100, editableIntervention.progress))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </button>
+
+                    {isSelected && (
+                      <div className="mt-4 space-y-4 border-t border-indigo-100 pt-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Intervention details</p>
+                          {isInterventionEditing && interventionDraft?.id === intervention.id ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleSaveInterventionEdit}
+                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                              >
+                                Save Plan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelInterventionEdit}
+                                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleStartInterventionEdit}
+                              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Edit Plan
+                            </button>
+                          )}
+                        </div>
+
+                        {isInterventionEditing && interventionDraft?.id === intervention.id ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <label className="text-xs font-semibold text-slate-600">
+                                Plan Name
+                                <input
+                                  value={interventionDraft.name}
+                                  onChange={(event) => handleInterventionFieldChange('name', event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                />
+                              </label>
+                              <label className="text-xs font-semibold text-slate-600">
+                                Start Date
+                                <input
+                                  value={interventionDraft.date}
+                                  onChange={(event) => handleInterventionFieldChange('date', event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                />
+                              </label>
+                              <label className="text-xs font-semibold text-slate-600">
+                                Status
+                                <select
+                                  value={interventionDraft.status}
+                                  onChange={(event) => handleInterventionFieldChange('status', event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                >
+                                  <option value="Active">Active</option>
+                                  <option value="Completed">Completed</option>
+                                  <option value="Paused">Paused</option>
+                                  <option value="Pending">Pending</option>
+                                </select>
+                              </label>
+                              <label className="text-xs font-semibold text-slate-600">
+                                Progress %
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={interventionDraft.progress}
+                                  onChange={(event) => handleInterventionFieldChange('progress', event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                />
+                              </label>
+                              <label className="text-xs font-semibold text-slate-600">
+                                Baseline Score
+                                <input
+                                  type="number"
+                                  value={interventionDraft.baselineScore}
+                                  onChange={(event) => handleInterventionFieldChange('baselineScore', event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                />
+                              </label>
+                              <label className="text-xs font-semibold text-slate-600">
+                                Goal Score
+                                <input
+                                  type="number"
+                                  value={interventionDraft.goalScore}
+                                  onChange={(event) => handleInterventionFieldChange('goalScore', event.target.value)}
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                />
+                              </label>
+                            </div>
+
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                              <div className="mb-3 flex items-center justify-between">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Progress Data Points</p>
+                                <button
+                                  type="button"
+                                  onClick={handleAddInterventionDataPoint}
+                                  className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+                                >
+                                  Add Data Point
+                                </button>
+                              </div>
+                              <div className="space-y-2">
+                                {interventionDraft.dataPoints.length === 0 ? (
+                                  <p className="text-xs text-slate-500">No data points yet.</p>
+                                ) : (
+                                  interventionDraft.dataPoints.map((point, index) => (
+                                    <div key={`${point.date}-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_140px_auto]">
+                                      <input
+                                        value={point.date}
+                                        onChange={(event) => handleInterventionDataPointChange(index, 'date', event.target.value)}
+                                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                        aria-label={`Data point ${index + 1} date`}
+                                      />
+                                      <input
+                                        type="number"
+                                        value={point.score}
+                                        onChange={(event) => handleInterventionDataPointChange(index, 'score', event.target.value)}
+                                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                        aria-label={`Data point ${index + 1} score`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveInterventionDataPoint(index)}
+                                        className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-3">
+                            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Baseline</p>
+                              <p className="mt-1 text-lg font-bold text-slate-900">{editableIntervention.baselineScore}</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Goal</p>
+                              <p className="mt-1 text-lg font-bold text-slate-900">{editableIntervention.goalScore}</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Data Points</p>
+                              <p className="mt-1 text-lg font-bold text-slate-900">{editableIntervention.dataPoints.length}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {canViewStudentNotes ? (
+                          <StudentNotesPanel
+                            notes={editableIntervention.notes ?? []}
+                            canEdit={canViewStudentNotes}
+                            currentUserName={staffDisplayName}
+                            currentUserId={currentUserId}
+                            onChange={(nextNotes) => handleInterventionNotesChange(intervention.id, nextNotes)}
+                            emptyState="No intervention notes yet. Add progress checks, meeting outcomes, and follow-up actions."
+                          />
+                        ) : (
+                          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-500">
+                            Notes are visible to teacher and support staff roles.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })
             )}
           </div>
         </div>

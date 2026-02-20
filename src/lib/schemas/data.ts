@@ -367,6 +367,7 @@ const profileInterventionSchema = z.object({
   baselineScore: z.number().finite(),
   goalScore: z.number().finite(),
   dataPoints: z.array(profileInterventionDataPointSchema),
+  notes: z.array(z.lazy(() => studentNoteSchema)).default([]),
 });
 
 const profileActivitySchema = z.object({
@@ -376,6 +377,16 @@ const profileActivitySchema = z.object({
   source: z.string().trim().max(120).optional(),
   isNew: z.boolean().optional(),
   tags: z.array(nonEmptyTrimmedString("Activity tag", 120)).optional(),
+});
+
+const readingAssessmentSchema = z.object({
+  id: nonEmptyTrimmedString("Reading assessment id", 160),
+  date: nonEmptyTrimmedString("Reading assessment date", 32),
+  fAndPLevel: nonEmptyTrimmedString("Reading assessment F&P level", 16),
+  notes: z.string().trim().max(4_000).optional(),
+  enteredByName: z.string().trim().max(200).optional(),
+  createdAt: z.string().datetime("Reading assessment created timestamp must be an ISO datetime."),
+  updatedAt: z.string().datetime("Reading assessment updated timestamp must be an ISO datetime."),
 });
 
 const studentNoteRevisionSchema = z.object({
@@ -450,6 +461,7 @@ export const studentProfileRowSchema = z.object({
   readingLevel: nonEmptyTrimmedString("Reading level", 24),
   interventions: z.array(profileInterventionSchema),
   recentActivity: z.array(profileActivitySchema),
+  readingAssessments: z.array(readingAssessmentSchema).default([]),
   notes: z.array(studentNoteSchema).default([]),
   aiRecommendations: z.array(profileRecommendationSchema),
   medical: profileMedicalSchema,
