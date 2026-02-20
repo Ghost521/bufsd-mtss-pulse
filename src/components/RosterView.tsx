@@ -47,6 +47,7 @@ interface RosterViewProps {
   onStudentClick?: (name: string) => void;
   onNavigate?: (page: WorkspacePageId) => void;
   currentUserRole: UserRole;
+  defaultTab?: 'staff' | 'students';
 }
 
 // Extend type locally to support custom avatar without modifying global types yet
@@ -85,9 +86,16 @@ const getFidelityBreakdown = (totalScore: number, seed: string) => {
     ];
 };
 
-export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClick, onStudentClick, onNavigate, currentUserRole }) => {
+export const RosterView: React.FC<RosterViewProps> = ({
+  onMenuClick,
+  onEmailClick,
+  onStudentClick,
+  onNavigate,
+  currentUserRole,
+  defaultTab = 'staff',
+}) => {
   // Tab State
-  const [activeTab, setActiveTab] = useState<'staff' | 'students'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'students'>(defaultTab);
   const staffCollection = useTenantCollection<ExtendedStaffRosterItem>('staff');
   const seededStaffRef = useRef(false);
 
@@ -122,6 +130,10 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
     if (rows.length > 0) seededStaffRef.current = true;
     setStaffList(rows);
   }, [staffCollection.query.data?.rows]);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   useEffect(() => {
     if (seededStaffRef.current) return;

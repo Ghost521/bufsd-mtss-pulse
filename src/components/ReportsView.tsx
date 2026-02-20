@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -20,10 +20,12 @@ import { AlertCircle, Download, FileText, Loader2, RefreshCcw, Sparkles } from '
 import { UserRole, type StudentRosterItem, type Tier } from '../types';
 import { useStudents } from '../hooks/useStudents';
 import { useTenantCollection } from '../hooks/useTenantCollection';
+import type { WorkspacePageId } from '../lib/workspaceRoutes';
 
 interface ReportsViewProps {
   currentUserRole: UserRole;
   currentUserName: string;
+  onNavigate?: (page: WorkspacePageId) => void;
 }
 
 type ReportTab = 'Executive' | 'Academics' | 'Behavior' | 'Interventions';
@@ -32,6 +34,15 @@ type ExportNotice = { tone: 'success' | 'error'; message: string } | null;
 type StudentRow = StudentRosterItem & { schoolId?: string };
 type ReferralRecord = { id: string; studentId: string; urgency: string };
 type InterventionRecord = { id: string; planName: string; progress: number };
+type DecisionAction = { label: string; page: WorkspacePageId };
+type TabDecision = {
+  title: string;
+  detail: string;
+  metricLabel: string;
+  metricValue: string;
+  primary: DecisionAction;
+  secondary?: DecisionAction;
+};
 
 const REPORT_TABS: ReportTab[] = ['Executive', 'Academics', 'Behavior', 'Interventions'];
 
@@ -57,7 +68,7 @@ const EmptyChartState: React.FC<{ message: string }> = ({ message }) => (
   <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">{message}</p>
 );
 
-export const ReportsView: React.FC<ReportsViewProps> = ({ currentUserRole, currentUserName }) => {
+export const ReportsView: React.FC<ReportsViewProps> = ({ currentUserRole, currentUserName, onNavigate }) => {
   const [tab, setTab] = useState<ReportTab>('Executive');
   const [exportScope, setExportScope] = useState<ExportScope>('current');
   const [isExporting, setIsExporting] = useState(false);
@@ -235,6 +246,69 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ currentUserRole, curre
       detail: `Attendance is ${avgAttendance}% with ${students.length} active students in scope.`,
     };
   }, [avgAttendance, chronicAbsenteeism, interventionSuccess, hasAnyData, students.length]);
+
+  const activeTabDecision = useMemo<TabDecision>(() => {
+    if (tab === 'Executive') {
+      return {
+        title: chronicAbsenteeism >= 15 ? 'Absenteeism requires same-week action' : 'Use this trend in your weekly MTSS meeting',
+        detail:
+          chronicAbsenteeism >= 15
+            ? `Chronic risk is ${chronicAbsenteeism}%. Pull attendance outreach and intervention teams into one review.`
+            : `Attendance is ${avgAttendance}%. Keep momentum by reviewing referrals and supports before they escalate.`,
+        metricLabel: 'Chronic risk',
+        metricValue: `${chronicAbsenteeism}%`,
+        primary: { label: 'Open Intervention Queue', page: 'interventions' },
+        secondary: { label: 'Schedule MTSS Meeting', page: 'calendar' },
+      };
+    }
+
+    if (tab === 'Academics') {
+      return {
+        title: 'Prioritize grade-level response planning',
+        detail: 'Compare proficiency bands with intervention coverage to identify where staffing and tier supports are thin.',
+        metricLabel: 'Students in scope',
+        metricValue: String(students.length),
+        primary: { label: 'Open Student Rosters', page: currentUserRole === UserRole.TEACHER ? 'class_roster' : 'rosters' },
+        secondary: { label: 'Review Interventions', page: 'interventions' },
+      };
+    }
+
+    if (tab === 'Behavior') {
+      return {
+        title: 'Convert behavior trend into concrete follow-up',
+        detail: 'Use referral trend plus chronic risk to identify students needing check-ins, family outreach, or plan updates.',
+        metricLabel: 'Total referrals',
+        metricValue: String(referrals.length),
+        primary: { label: 'Message Support Team', page: 'messages' },
+        secondary: { label: 'Open Intervention Queue', page: 'interventions' },
+      };
+    }
+
+    return {
+      title: interventionSuccess < 75 ? 'Intervention outcomes are below target' : 'Intervention outcomes are stable',
+      detail:
+        interventionSuccess < 75
+          ? `Current success is ${interventionSuccess}%. Rebalance caseloads and update plans that have stalled progress.`
+          : `Current success is ${interventionSuccess}%. Maintain momentum by closing complete plans and setting next goals.`,
+      metricLabel: 'Success rate',
+      metricValue: `${interventionSuccess}%`,
+      primary: { label: 'Manage Intervention Plans', page: 'interventions' },
+      secondary: { label: 'Open School Reports', page: 'reports' },
+    };
+  }, [
+    avgAttendance,
+    chronicAbsenteeism,
+    currentUserRole,
+    interventionSuccess,
+    referrals.length,
+    students.length,
+    tab,
+  ]);
+
+  const handleDecisionAction = (action: DecisionAction) => {
+    if (!onNavigate) return;
+    onNavigate(action.page);
+  };
 
   const refetchAll = () => {
     void studentsQuery.refetch();
@@ -516,6 +590,42 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ currentUserRole, curre
                 {entry}
               </button>
             ))}
+          </div>
+
+          <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-emerald-50 p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-indigo-700">Next Best Action</p>
+                <h3 className="mt-1 text-base font-bold text-slate-900">{activeTabDecision.title}</h3>
+                <p className="mt-1 text-sm text-slate-600">{activeTabDecision.detail}</p>
+              </div>
+              <div className="rounded-lg border border-white/80 bg-white/70 px-3 py-2 text-right shadow-sm backdrop-blur">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">{activeTabDecision.metricLabel}</p>
+                <p className="text-xl font-bold text-slate-900">{activeTabDecision.metricValue}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => handleDecisionAction(activeTabDecision.primary)}
+                disabled={!onNavigate}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+              >
+                {activeTabDecision.primary.label}
+              </button>
+              {activeTabDecision.secondary ? (
+                <button
+                  onClick={() => {
+                    if (!activeTabDecision.secondary) return;
+                    handleDecisionAction(activeTabDecision.secondary);
+                  }}
+                  disabled={!onNavigate}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                >
+                  {activeTabDecision.secondary.label}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {tab === 'Executive' ? (

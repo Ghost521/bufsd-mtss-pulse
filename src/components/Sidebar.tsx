@@ -110,6 +110,49 @@ const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
     [UserRole.PARENT]: [{ id: "calendar", label: "School Calendar" }],
   };
 
+  if (role === UserRole.PRINCIPAL) {
+    return [
+      {
+        id: "student-support",
+        label: "Student Support",
+        defaultExpanded: true,
+        items: [
+          dashboardByRole[UserRole.PRINCIPAL],
+          { id: "rosters", label: "Rosters" },
+          { id: "interventions", label: "Interventions" },
+          { id: "reports", label: "School Reports" },
+        ],
+      },
+      {
+        id: "staff-rosters",
+        label: "Staff & Rosters",
+        defaultExpanded: true,
+        items: [{ id: "lesson_plans", label: "Lesson Plans" }],
+      },
+      {
+        id: "school-ops",
+        label: "School Operations",
+        defaultExpanded: true,
+        items: [
+          { id: "calendar", label: "School Calendar" },
+          { id: "documents", label: "Resource Library" },
+          { id: "import", label: "Integrations" },
+          { id: "settings", label: "Settings" },
+          { id: "profile", label: "Profile" },
+        ],
+      },
+      {
+        id: "communication",
+        label: "Communication",
+        defaultExpanded: true,
+        items: [
+          { id: "messages", label: "Messages" },
+          { id: "notifications", label: "Notifications" },
+        ],
+      },
+    ];
+  }
+
   return [
     { id: "work", label: "Instruction", defaultExpanded: true, items: workItemsByRole[role] },
     { id: "planning", label: "Planning & Calendar", defaultExpanded: true, items: planningItemsByRole[role] },
@@ -266,6 +309,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     </div>
   );
   const SettingsIcon = getRouteIcon("settings");
+  const ProfileIcon = getRouteIcon("profile");
 
   useEffect(() => {
     setAvatarLoadFailed(false);
@@ -491,6 +535,18 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             >
               <SettingsIcon size={iconSize("lg")} />
             </Link>
+            <Link
+              to={buildWorkspacePath("profile")}
+              activeOptions={{ exact: true }}
+              onClick={onClose}
+              className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
+                activePage === "profile" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+              aria-label="Open profile"
+              title="Profile"
+            >
+              <ProfileIcon size={iconSize("lg")} />
+            </Link>
           </div>
         ) : (
           <section className="rounded-2xl border border-slate-700/80 bg-gradient-to-b from-slate-800/70 to-slate-900/80 p-3 shadow-[0_10px_24px_-14px_rgba(0,0,0,0.8)]">
@@ -551,6 +607,21 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <span className="inline-flex items-center gap-2">
                   <SettingsIcon size={iconSize("md")} />
                   <span className="text-sm font-medium">Settings</span>
+                </span>
+              </Link>
+              <Link
+                to={buildWorkspacePath("profile")}
+                activeOptions={{ exact: true }}
+                onClick={onClose}
+                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                  activePage === "profile"
+                    ? "border-brand-500/60 bg-brand-500/20 text-white"
+                    : "border-slate-700 bg-slate-900/40 text-slate-200 hover:border-slate-500 hover:text-white"
+                }`}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <ProfileIcon size={iconSize("md")} />
+                  <span className="text-sm font-medium">Profile</span>
                 </span>
               </Link>
 

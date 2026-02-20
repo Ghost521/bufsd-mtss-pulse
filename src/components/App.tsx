@@ -894,9 +894,9 @@ const App: React.FC = () => {
 
   const contextTasksBase: Array<{ id: string; label: string; onClick: () => void }> = ({
       [UserRole.PRINCIPAL]: [
-        { id: 'task-interventions', label: 'Review Active Supports', onClick: () => navigateToPage('interventions') },
-        { id: 'task-reports', label: 'Review School Reports', onClick: () => navigateToPage('reports') },
-        { id: 'task-monitoring', label: 'Open Monitoring Queue', onClick: () => navigateToPage('rosters') },
+        { id: 'task-interventions', label: 'Open Intervention Queue', onClick: () => navigateToPage('interventions') },
+        { id: 'task-referrals', label: 'Open Referral Queue', onClick: () => navigateToPage('interventions') },
+        { id: 'task-mtss', label: 'Schedule MTSS', onClick: () => navigateToPage('calendar') },
       ],
       [UserRole.TEACHER]: [
         { id: 'task-roster', label: 'Open Student Roster', onClick: () => navigateToPage('class_roster') },
@@ -924,6 +924,51 @@ const App: React.FC = () => {
     () => contextTasksBase.filter((task) => !headerActionLabels.has(task.label)),
     [contextTasksBase, headerActionLabels]
   );
+
+  const pendingReferralCount = useMemo(() => {
+    const rows = referralsCollection.query.data?.rows ?? [];
+    return rows.filter((row) => {
+      const status = (row.status ?? '').toLowerCase();
+      if (!status) return true;
+      return status.includes('pending') || status.includes('new') || status.includes('queue') || status.includes('review');
+    }).length;
+  }, [referralsCollection.query.data?.rows]);
+
+  const pendingInterventionReviewCount = useMemo(() => {
+    const rows = interventionsCollection.query.data?.rows ?? [];
+    return rows.filter((row) => {
+      const status = (row.status ?? '').toLowerCase();
+      if (!status) return false;
+      return status.includes('pending') || status.includes('review') || status.includes('approval');
+    }).length;
+  }, [interventionsCollection.query.data?.rows]);
+
+  const principalPriorities =
+    currentRole !== UserRole.PRINCIPAL
+      ? []
+      : [
+          {
+            id: 'principal-priority-interventions',
+            label: 'Intervention Review Queue',
+            detail: 'Approve, deny, or schedule meetings for active intervention requests.',
+            stat: `${pendingInterventionReviewCount} pending`,
+            onClick: () => navigateToPage('interventions'),
+          },
+          {
+            id: 'principal-priority-referrals',
+            label: 'Referral Queue',
+            detail: 'Triage referrals and launch supports for newly flagged students.',
+            stat: `${pendingReferralCount} awaiting review`,
+            onClick: () => navigateToPage('interventions'),
+          },
+          {
+            id: 'principal-priority-mtss',
+            label: 'MTSS Meeting Planner',
+            detail: 'Coordinate intervention ownership, follow-up windows, and family outreach.',
+            stat: `${data.monitoringPulse.length} students flagged`,
+            onClick: () => navigateToPage('calendar'),
+          },
+        ];
 
   const structuredBriefing = useMemo(() => {
     const risksFromData = data.actionItems.slice(0, 3).map((item) => `${item.studentName}: ${item.insight}`);
@@ -1218,6 +1263,30 @@ const App: React.FC = () => {
         </div>
       </div>
 
+      {currentRole === UserRole.PRINCIPAL ? (
+        <div className="mb-6 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-emerald-50 p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-indigo-700">Top Priorities</p>
+              <p className="text-sm text-slate-600">Operational items that need leadership action this week.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+            {principalPriorities.map((item) => (
+              <button
+                key={item.id}
+                onClick={item.onClick}
+                className="group rounded-xl border border-white/80 bg-white/90 p-3 text-left shadow-sm transition-colors hover:border-indigo-200 hover:bg-indigo-50"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-indigo-700">{item.stat}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 group-hover:text-indigo-800">{item.label}</p>
+                <p className="mt-1 text-xs text-slate-600">{item.detail}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mb-6 space-y-2">
         {renderMobileSectionHeader('metrics', 'Performance Metrics', 'Intervention and student outcome indicators', `${data.metrics.length} KPIs`)}
         <div className={`${mobileSections.metrics ? 'block' : 'hidden'} lg:block`}>
@@ -1362,7 +1431,13 @@ const App: React.FC = () => {
             currentUserName={data.userName}
             currentUserId={sessionUserId}
           />
-        ) : renderDashboard();
+        ) : (
+          <SettingsView
+            currentUserRole={currentRole}
+            currentUserName={data.userName}
+            currentSchoolName={data.schoolName}
+          />
+        );
       case 'rosters':
         return (
           <RosterView 
@@ -1371,6 +1446,7 @@ const App: React.FC = () => {
             onStudentClick={(name) => { setSelectedStudent(name); setIsModalOpen(true); }}
             onNavigate={navigateToPage}
             currentUserRole={currentRole}
+            defaultTab={currentRole === UserRole.PRINCIPAL ? 'students' : 'staff'}
           />
         );
       case 'class_roster':
@@ -1474,6 +1550,7 @@ const App: React.FC = () => {
           <ReportsView 
             currentUserRole={currentRole}
             currentUserName={data.userName}
+            onNavigate={navigateToPage}
           />
         );
       case 'interventions':
