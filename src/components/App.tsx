@@ -54,6 +54,7 @@ import { useTenantBranding } from '../hooks/useTenantBranding';
 import { useSidebarState } from '../hooks/useSidebarState';
 import { useNotifications } from '../hooks/useNotifications';
 import { ACTION_ICON_BY_ID, getRouteIcon, iconSize } from '../lib/ui/icons';
+import { getPendingInterventionReviewCount, getPendingReferralQueue } from '../lib/queue-selectors';
 import { Button } from './ui/Button';
 import { NotificationDetailModal } from './notifications/NotificationDetailModal';
 
@@ -118,6 +119,8 @@ type ReferralNotificationSource = {
 type InterventionNotificationSource = {
   id: string;
   studentName: string;
+  referralId?: string;
+  workflowStatus?: string;
   planName?: string;
   status?: string;
   progress?: number;
@@ -927,21 +930,14 @@ const App: React.FC = () => {
 
   const pendingReferralCount = useMemo(() => {
     const rows = referralsCollection.query.data?.rows ?? [];
-    return rows.filter((row) => {
-      const status = (row.status ?? '').toLowerCase();
-      if (!status) return true;
-      return status.includes('pending') || status.includes('new') || status.includes('queue') || status.includes('review');
-    }).length;
+    return getPendingReferralQueue(rows).length;
   }, [referralsCollection.query.data?.rows]);
 
   const pendingInterventionReviewCount = useMemo(() => {
-    const rows = interventionsCollection.query.data?.rows ?? [];
-    return rows.filter((row) => {
-      const status = (row.status ?? '').toLowerCase();
-      if (!status) return false;
-      return status.includes('pending') || status.includes('review') || status.includes('approval');
-    }).length;
-  }, [interventionsCollection.query.data?.rows]);
+    const interventionRows = interventionsCollection.query.data?.rows ?? [];
+    const referralRows = referralsCollection.query.data?.rows ?? [];
+    return getPendingInterventionReviewCount(interventionRows, referralRows);
+  }, [interventionsCollection.query.data?.rows, referralsCollection.query.data?.rows]);
 
   const principalPriorities =
     currentRole !== UserRole.PRINCIPAL

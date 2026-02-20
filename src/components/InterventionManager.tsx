@@ -37,6 +37,11 @@ import { useTenantCollection } from '../hooks/useTenantCollection';
 import { SidebarToggleButton } from './SidebarToggleButton';
 import { getInterventionistRecipients, resolveInterventionFocus } from '../lib/interventionists';
 import {
+  findLinkedInterventionForReferral,
+  getPendingInterventionReviewQueue,
+  getPendingReferralQueue,
+} from '../lib/queue-selectors';
+import {
   DEFAULT_MATH_BENCHMARKS,
   applyGoalOutcomeAutomation,
   buildAutoRecommendedInterventions,
@@ -302,16 +307,18 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
   }, [currentUserRole, isCurrentUserInterventionist]);
   const canConfigureMathBenchmarks = currentUserRole === UserRole.PRINCIPAL || currentUserRole === UserRole.DISTRICT;
 
+  const pendingReferrals = useMemo(() => getPendingReferralQueue(referrals), [referrals]);
+
   const recentReferrals = useMemo(() => {
     const toTime = (value?: string) => {
       if (!value) return 0;
       const parsed = Date.parse(value);
       return Number.isNaN(parsed) ? 0 : parsed;
     };
-    return [...referrals]
+    return [...pendingReferrals]
       .sort((left, right) => toTime(right.createdAt) - toTime(left.createdAt))
       .slice(0, 6);
-  }, [referrals]);
+  }, [pendingReferrals]);
 
   const selectedInterventionFocuses = useMemo(() => {
     if (!selectedPlanForShare) return [];
@@ -443,24 +450,6 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     }
   };
 
-  const normalizeEntityName = (value: string) => value.trim().toLowerCase();
-  const isPendingReferral = (referral: ReferralRecord) => (referral.status ?? "Pending Review").toLowerCase().includes("pending");
-
-  const findInterventionForReferral = (referral: ReferralRecord, source = records): InterventionRecord | null => {
-    const byReferralId = source.find((item) => item.referralId === referral.id);
-    if (byReferralId) return byReferralId;
-    const studentName = normalizeEntityName(referral.studentName);
-    return (
-      source.find(
-        (item) =>
-          normalizeEntityName(item.studentName) === studentName &&
-          item.workflowStatus !== "denied" &&
-          item.workflowStatus !== "completed_success" &&
-          item.workflowStatus !== "completed_unsuccessful",
-      ) ?? null
-    );
-  };
-
   const createInterventionFromReferral = (referral: ReferralRecord): InterventionRecord => {
     const [firstName, ...rest] = referral.studentName.trim().split(" ");
     const urgency = referral.urgency.toLowerCase();
@@ -527,7 +516,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
   };
 
   const ensureInterventionForReferral = (referral: ReferralRecord): InterventionRecord => {
-    const existing = findInterventionForReferral(referral);
+    const existing = findLinkedInterventionForReferral(referral, records);
     if (existing) return existing;
     const created = createInterventionFromReferral(referral);
     setRecords((previous) => [created, ...previous]);
@@ -1085,19 +1074,13 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       : 0
   };
 
-  const pendingReviewRecords = useMemo(
-    () => records.filter((record) => record.workflowStatus === "pending_review" || record.workflowStatus === "approved_provisional"),
-    [records],
+  const pendingReviewQueue = useMemo(
+    () => getPendingInterventionReviewQueue(records, referrals),
+    [records, referrals],
   );
-  const pendingReferralWithoutIntervention = useMemo(
-    () =>
-      referrals.filter((referral) => {
-        if (!isPendingReferral(referral)) return false;
-        return !findInterventionForReferral(referral);
-      }),
-    [referrals, records],
-  );
-  const totalPendingReviewCount = pendingReviewRecords.length + pendingReferralWithoutIntervention.length;
+  const pendingReviewRecords = pendingReviewQueue.interventionRecords;
+  const pendingReferralWithoutIntervention = pendingReviewQueue.referralIntakeItems;
+  const totalPendingReviewCount = pendingReviewQueue.total;
   const autoRecommendedRecords = useMemo(
     () => records.filter((record) => Boolean(record.autoRecommendation)),
     [records],
@@ -1773,7 +1756,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                     <p className="text-xs text-slate-500">Most recent referrals awaiting review.</p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                    {referrals.length} total
+                    {pendingReferrals.length} pending
                 </span>
             </div>
 
@@ -1785,7 +1768,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 <div className="space-y-2">
                     {recentReferrals.map((referral) => {
                         const isHighlighted = referral.id === highlightedReferralId;
-                        const linkedIntervention = findInterventionForReferral(referral);
+                        const linkedIntervention = findLinkedInterventionForReferral(referral, records);
                         return (
                             <div
                                 key={referral.id}
