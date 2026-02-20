@@ -19,6 +19,8 @@ import {
   Filter,
   Mail,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   ChevronDown,
   Check,
   Camera,
@@ -53,6 +55,7 @@ interface ExtendedStaffRosterItem extends StaffRosterItem {
 }
 
 type StaffSortKey = 'Name' | 'Fidelity' | 'Attendance' | 'Interventions' | 'Caseload';
+type StaffSortDirection = 'asc' | 'desc';
 const STAFF_SORT_OPTIONS: StaffSortKey[] = ['Fidelity', 'Attendance', 'Interventions', 'Caseload', 'Name'];
 const INTERVENTION_FOCUSES: InterventionistFocus[] = ['Reading', 'Math'];
 
@@ -94,16 +97,17 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
   // State for filtering and sorting
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('All');
-  const [sortBy, setSortBy] = useState<StaffSortKey>('Fidelity');
+  const [sortState, setSortState] = useState<{ key: StaffSortKey; direction: StaffSortDirection }>({
+    key: 'Fidelity',
+    direction: 'desc',
+  });
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
   // Bulk Selection State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // Hover state for Fidelity Breakdown
-  const [hoveredFidelityId, setHoveredFidelityId] = useState<string | null>(null);
+  const [expandedStaffIds, setExpandedStaffIds] = useState<Set<string>>(new Set());
 
   // State for Avatar Upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -151,18 +155,21 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
 
     // 3. Sort
     result.sort((a, b) => {
-      switch (sortBy) {
-        case 'Fidelity': return b.mtssFidelityScore - a.mtssFidelityScore;
-        case 'Attendance': return b.attendanceRate - a.attendanceRate;
-        case 'Interventions': return b.activeInterventions - a.activeInterventions;
-        case 'Caseload': return b.studentCount - a.studentCount;
-        case 'Name': return a.name.localeCompare(b.name);
-        default: return 0;
-      }
+      const baseResult = (() => {
+        switch (sortState.key) {
+          case 'Fidelity': return b.mtssFidelityScore - a.mtssFidelityScore;
+          case 'Attendance': return b.attendanceRate - a.attendanceRate;
+          case 'Interventions': return b.activeInterventions - a.activeInterventions;
+          case 'Caseload': return b.studentCount - a.studentCount;
+          case 'Name': return a.name.localeCompare(b.name);
+          default: return 0;
+        }
+      })();
+      return sortState.direction === 'desc' ? baseResult : baseResult * -1;
     });
 
     return result;
-  }, [searchQuery, roleFilter, sortBy, staffList]);
+  }, [searchQuery, roleFilter, sortState, staffList]);
 
   // Helpers
   const getFidelityColor = (score: number) => {
@@ -261,11 +268,36 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
   };
 
   const handleSelectAll = () => {
+      if (filteredAndSortedStaff.length === 0) return;
       if (selectedIds.size === filteredAndSortedStaff.length) {
           setSelectedIds(new Set());
       } else {
           setSelectedIds(new Set(filteredAndSortedStaff.map(s => s.id)));
       }
+  };
+
+  const handleSortKeySelect = (key: StaffSortKey) => {
+    setSortState((current) => ({ ...current, key }));
+    setIsSortMenuOpen(false);
+  };
+
+  const handleToggleSortDirection = () => {
+    setSortState((current) => ({
+      ...current,
+      direction: current.direction === 'desc' ? 'asc' : 'desc',
+    }));
+  };
+
+  const handleToggleCardDetails = (staffId: string) => {
+    setExpandedStaffIds((current) => {
+      const next = new Set(current);
+      if (next.has(staffId)) {
+        next.delete(staffId);
+      } else {
+        next.add(staffId);
+      }
+      return next;
+    });
   };
 
   const handleBulkDelete = () => {
@@ -290,26 +322,6 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
         accept="image/*" 
         className="hidden" 
       />
-
-      {/* Floating Bulk Action Bar */}
-      {isSelectionMode && selectedIds.size > 0 && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-6 animate-in slide-in-from-bottom-4 zoom-in-95">
-                <span className="font-bold text-sm">{selectedIds.size} Selected</span>
-                <div className="h-4 w-px bg-white/20"></div>
-                <button onClick={handleBulkDelete} className="flex items-center gap-2 hover:text-rose-400 transition-colors text-sm font-semibold">
-                    <Trash2 size={16} /> Remove
-                </button>
-                <button className="flex items-center gap-2 hover:text-indigo-300 transition-colors text-sm font-semibold">
-                    <Archive size={16} /> Deactivate
-                </button>
-                <button className="flex items-center gap-2 hover:text-emerald-300 transition-colors text-sm font-semibold">
-                    <Download size={16} /> Export
-                </button>
-                <button onClick={() => setSelectedIds(new Set())} className="ml-2 p-1 hover:bg-white/20 rounded-full">
-                    <X size={14} />
-                </button>
-            </div>
-      )}
 
       {/* Header & View Toggle */}
       <div className="flex flex-col gap-6 mb-8">
@@ -410,7 +422,7 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                             )}
                         </div>
 
-                        <div className="relative">
+                        <div className="relative flex items-center gap-2">
                             <button 
                                 onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
                                 className={`w-full md:w-auto flex items-center justify-between md:justify-start gap-2 px-3 py-2.5 border rounded-lg text-sm font-medium transition-all duration-200 shadow-sm whitespace-nowrap ${
@@ -421,29 +433,37 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                             >
                                 <div className="flex items-center gap-2 truncate">
                                     <ArrowUpDown size={16} className={`shrink-0 ${isSortMenuOpen ? "text-indigo-600" : "text-slate-500"}`} />
-                                    <span className="truncate">Sort</span>
+                                    <span className="truncate">Sort: {sortState.key}</span>
                                 </div>
                                 <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${isSortMenuOpen ? 'rotate-180' : ''} text-slate-400`} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Sort direction: ${sortState.direction === 'desc' ? 'Descending' : 'Ascending'}`}
+                              onClick={handleToggleSortDirection}
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-600 shadow-sm transition-colors hover:border-indigo-200 hover:text-indigo-600"
+                            >
+                              {sortState.direction === 'desc' ? <ArrowDown size={16} /> : <ArrowUp size={16} />}
                             </button>
                             {isSortMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsSortMenuOpen(false)} />
-                                    <div className="absolute right-0 mt-2 w-full md:w-52 bg-white border border-slate-100 rounded-xl shadow-lg ring-1 ring-black/5 z-20 p-1 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                    <div className="absolute right-0 top-full mt-2 w-full md:w-52 bg-white border border-slate-100 rounded-xl shadow-lg ring-1 ring-black/5 z-20 p-1 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                                         <div className="px-3 py-2 border-b border-slate-50 mb-1">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Order By</p>
                                         </div>
                                         {STAFF_SORT_OPTIONS.map(sort => (
                                             <button
                                                 key={sort}
-                                                onClick={() => { setSortBy(sort); setIsSortMenuOpen(false); }}
+                                                onClick={() => handleSortKeySelect(sort)}
                                                 className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors ${
-                                                    sortBy === sort 
+                                                    sortState.key === sort 
                                                         ? 'bg-indigo-50 text-indigo-700 font-semibold' 
                                                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                                 }`}
                                             >
                                                 {sort}
-                                                {sortBy === sort && <Check size={14} className="text-indigo-600" />}
+                                                {sortState.key === sort && <Check size={14} className="text-indigo-600" />}
                                             </button>
                                         ))}
                                     </div>
@@ -460,7 +480,7 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold border transition-all ${isSelectionMode ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600'}`}
                     >
                         {isSelectionMode ? <X size={16} /> : <CheckCircle2 size={16} />}
-                        {isSelectionMode ? 'Cancel' : 'Bulk Select'}
+                        {isSelectionMode ? 'Done selecting' : 'Select staff'}
                     </button>
 
                     {/* Import Button */}
@@ -484,14 +504,37 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
       {activeTab === 'staff' && (
           <>
             {isSelectionMode && (
-                <div className="mb-4 flex items-center gap-2 bg-slate-100 p-2 rounded-lg w-fit">
+                <div className="sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur-sm">
                     <button 
                         onClick={handleSelectAll}
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 bg-white rounded shadow-sm"
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-indigo-200 hover:text-indigo-700"
                     >
                         Select All
                     </button>
-                    <span className="text-xs font-medium text-slate-500 px-2">{selectedIds.size} Selected</span>
+                    <span className="text-xs font-semibold text-slate-600">{selectedIds.size} selected</span>
+                    <div className="h-4 w-px bg-slate-200" />
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={selectedIds.size === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors enabled:hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                      Remove
+                    </button>
+                    <button
+                      disabled={selectedIds.size === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Archive size={14} />
+                      Deactivate
+                    </button>
+                    <button
+                      disabled={selectedIds.size === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors enabled:hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Download size={14} />
+                      Export
+                    </button>
                 </div>
             )}
 
@@ -512,16 +555,16 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                     filteredAndSortedStaff.map((staff) => {
                     const fidelityStyles = getFidelityColor(staff.mtssFidelityScore);
                     const breakdown = getFidelityBreakdown(staff.mtssFidelityScore, staff.name);
-                    const isHovered = hoveredFidelityId === staff.id;
                     const isSelected = selectedIds.has(staff.id);
                     const interventionFocus = normalizeInterventionFocus(staff.interventionFocus);
                     const isInterventionist = interventionFocus.length > 0 || Boolean(staff.isInterventionist);
+                    const isExpanded = expandedStaffIds.has(staff.id);
                     
                     return (
                     <div 
                         key={staff.id} 
                         onClick={() => isSelectionMode && handleToggleSelection(staff.id)}
-                        className={`bg-white rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 group relative flex flex-col h-full hover:-translate-y-1 overflow-hidden cursor-pointer ${isSelectionMode && isSelected ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-100'}`}
+                        className={`bg-white rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 group relative flex flex-col h-full hover:-translate-y-1 overflow-hidden ${isSelectionMode ? 'cursor-pointer' : 'cursor-default'} ${isSelectionMode && isSelected ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-100'}`}
                     >
                         
                         {/* Decorative Top Border */}
@@ -588,25 +631,17 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                         </div>
 
                         {/* Quick Stats Grid */}
-                        <div className="grid grid-cols-2 gap-4 mb-5">
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); setSortBy('Caseload'); }}
-                                className={`flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100/50 group-hover:border-indigo-100/50 transition-all cursor-pointer hover:bg-indigo-50/30 hover:shadow-inner ${sortBy === 'Caseload' ? 'ring-1 ring-indigo-200 bg-indigo-50/30' : ''}`}
-                                title="Click to sort by Caseload"
-                            >
-                                <span className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${sortBy === 'Caseload' ? 'text-indigo-600' : 'text-slate-500'}`}>Caseload</span>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100/50 group-hover:border-indigo-100/50 transition-all">
+                                <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-slate-500">Caseload</span>
                                 <div className="flex items-center gap-2">
-                                    <Users size={16} className={`${sortBy === 'Caseload' ? 'text-indigo-600' : 'text-indigo-500'}`} />
+                                    <Users size={16} className="text-indigo-500" />
                                     <span className="text-xl font-bold text-slate-900">{staff.studentCount}</span>
                                     <span className="text-[10px] text-slate-400">students</span>
                                 </div>
                             </div>
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); setSortBy('Attendance'); }}
-                                className={`flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100/50 group-hover:border-indigo-100/50 transition-all cursor-pointer hover:bg-indigo-50/30 hover:shadow-inner ${sortBy === 'Attendance' ? 'ring-1 ring-indigo-200 bg-indigo-50/30' : ''}`}
-                                title="Click to sort by Attendance"
-                            >
-                                <span className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${sortBy === 'Attendance' ? 'text-indigo-600' : 'text-slate-500'}`}>Attendance</span>
+                            <div className="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100/50 group-hover:border-indigo-100/50 transition-all">
+                                <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-slate-500">Attendance</span>
                                 <div className="flex items-center gap-2">
                                     <span className={`text-xl font-bold ${staff.attendanceRate >= 95 ? 'text-emerald-600' : 'text-amber-600'}`}>
                                         {staff.attendanceRate}%
@@ -615,117 +650,110 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                                 </div>
                             </div>
                         </div>
-                        
-                        {/* Performance Text */}
-                        <div className="flex items-center gap-2 mb-1 py-1 px-2 rounded-lg bg-indigo-50/50 border border-indigo-50">
-                            <TrendingUp size={14} className="text-indigo-500" /> 
-                            <span className="text-xs font-semibold text-slate-600">Performance:</span>
-                            <span className="text-xs font-bold text-slate-800">{staff.performanceMetric}</span>
-                        </div>
-                        {canManageInterventionists && staff.role === 'Teacher' && !isSelectionMode ? (
-                          <div
-                            className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <div className="mb-2 flex items-center justify-between">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Interventionist Tags</p>
-                              <span className="text-[10px] font-semibold text-slate-500">
-                                {interventionFocus.length > 0 ? interventionFocus.join(' + ') : 'None'}
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              {INTERVENTION_FOCUSES.map((focus) => {
-                                const selected = interventionFocus.includes(focus);
-                                return (
-                                  <button
-                                    key={focus}
-                                    type="button"
-                                    onClick={() => handleToggleInterventionFocus(staff, focus)}
-                                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors ${
-                                      selected
-                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-700'
-                                    }`}
-                                  >
-                                    {focus === 'Reading' ? <BookOpen size={12} /> : <Calculator size={12} />}
-                                    {focus}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : null}
-                        </div>
-
-                        {/* Enhanced Fidelity Progress Section */}
-                        <div 
-                            className="relative"
-                            onMouseEnter={() => setHoveredFidelityId(staff.id)}
-                            onMouseLeave={() => setHoveredFidelityId(null)}
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleToggleCardDetails(staff.id);
+                          }}
+                          className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:text-indigo-700"
                         >
-                            {/* Main Bar View */}
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); setSortBy('Fidelity'); }}
-                                className={`px-6 py-4 bg-slate-50/50 flex-1 border-t border-slate-100 cursor-pointer hover:bg-indigo-50/10 transition-colors relative z-10 ${sortBy === 'Fidelity' ? 'bg-indigo-50/20' : ''}`}
-                                title="Click to sort by Fidelity"
-                            >
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className={`text-xs font-semibold flex items-center gap-1.5 ${sortBy === 'Fidelity' ? 'text-indigo-700' : 'text-slate-600'}`}>
-                                        <ClipboardList size={14} className={sortBy === 'Fidelity' ? 'text-indigo-500' : 'text-slate-400'} /> 
-                                        MTSS Fidelity Score
-                                        <Info size={12} className="text-slate-300" />
-                                    </span>
-                                    <span className={`text-xs font-bold ${fidelityStyles.text}`}>
-                                        {staff.mtssFidelityScore}%
-                                    </span>
-                                </div>
-                                <div className={`w-full h-2.5 rounded-full overflow-hidden ${fidelityStyles.track}`}>
-                                    <div 
-                                        className={`h-full rounded-full transition-all duration-1000 ${fidelityStyles.bar}`}
-                                        style={{ width: `${staff.mtssFidelityScore}%` }}
-                                    />
-                                </div>
-                            </div>
+                          {isExpanded ? 'Hide details' : 'Show details'}
+                          <ChevronDown
+                            size={14}
+                            className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                        </div>
 
-                            {/* Breakdown Overlay (Visible on Hover) */}
-                            <div className={`absolute inset-0 bg-white z-20 border-t border-slate-100 flex flex-col justify-center px-6 transition-all duration-300 ease-in-out ${isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'}`}>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                    {breakdown.map((metric, i) => (
-                                        <div key={i} className="flex flex-col gap-1">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1">
-                                                    <metric.icon size={10} className="text-slate-400" />
-                                                    {metric.label}
-                                                </span>
-                                                <span className={`text-[10px] font-bold ${metric.text}`}>{metric.value}%</span>
-                                            </div>
-                                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full rounded-full ${metric.color}`}
-                                                    style={{ width: `${metric.value}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                        {/* Fidelity Summary */}
+                        <div className="px-6 py-4 bg-slate-50/50 flex-1 border-t border-slate-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-semibold flex items-center gap-1.5 text-slate-600">
+                                    <ClipboardList size={14} className="text-slate-400" /> 
+                                    MTSS Fidelity Score
+                                    <Info size={12} className="text-slate-300" />
+                                </span>
+                                <span className={`text-xs font-bold ${fidelityStyles.text}`}>
+                                    {staff.mtssFidelityScore}%
+                                </span>
+                            </div>
+                            <div className={`w-full h-2.5 rounded-full overflow-hidden ${fidelityStyles.track}`}>
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ${fidelityStyles.bar}`}
+                                    style={{ width: `${staff.mtssFidelityScore}%` }}
+                                />
                             </div>
                         </div>
 
-                        {/* Footer Actions - Quick Actions */}
-                        {!isSelectionMode && (
-                            <div className="px-6 py-4 border-t border-slate-100 bg-white rounded-b-xl space-y-3 relative z-30">
+                        {isExpanded && !isSelectionMode ? (
+                          <div className="space-y-3 border-t border-slate-100 bg-white px-6 py-4 rounded-b-xl">
+                            <div className="flex items-center gap-2 py-1 px-2 rounded-lg bg-indigo-50/50 border border-indigo-50">
+                                <TrendingUp size={14} className="text-indigo-500" /> 
+                                <span className="text-xs font-semibold text-slate-600">Performance:</span>
+                                <span className="text-xs font-bold text-slate-800">{staff.performanceMetric}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                                {breakdown.map((metric, i) => (
+                                    <div key={i} className="flex flex-col gap-1">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                                <metric.icon size={10} className="text-slate-400" />
+                                                {metric.label}
+                                            </span>
+                                            <span className={`text-[10px] font-bold ${metric.text}`}>{metric.value}%</span>
+                                        </div>
+                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full ${metric.color}`}
+                                                style={{ width: `${metric.value}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {canManageInterventionists && staff.role === 'Teacher' ? (
+                              <div
+                                className="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="mb-2 flex items-center justify-between">
+                                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Interventionist Tags</p>
+                                  <span className="text-[10px] font-semibold text-slate-500">
+                                    {interventionFocus.length > 0 ? interventionFocus.join(' + ') : 'None'}
+                                  </span>
+                                </div>
+                                <div className="flex gap-2">
+                                  {INTERVENTION_FOCUSES.map((focus) => {
+                                    const selected = interventionFocus.includes(focus);
+                                    return (
+                                      <button
+                                        key={focus}
+                                        type="button"
+                                        onClick={() => handleToggleInterventionFocus(staff, focus)}
+                                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors ${
+                                          selected
+                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-700'
+                                        }`}
+                                      >
+                                        {focus === 'Reading' ? <BookOpen size={12} /> : <Calculator size={12} />}
+                                        {focus}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Actions</span>
-                                    <div 
-                                        onClick={(e) => { e.stopPropagation(); setSortBy('Interventions'); }}
-                                        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded border transition-all cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 ${sortBy === 'Interventions' ? 'text-indigo-700 bg-indigo-50 border-indigo-200' : 'text-slate-500 bg-slate-50 border-slate-100'}`}
-                                        title="Click to sort by Active Plans"
-                                    >
+                                    <div className="flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded border text-slate-500 bg-slate-50 border-slate-100">
                                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
                                         {staff.activeInterventions} Active Plans
                                     </div>
                                 </div>
-                                
                                 <div className="grid grid-cols-2 gap-3">
                                     <button 
                                         onClick={() => handleAction('Email', staff.name)}
@@ -742,7 +770,8 @@ export const RosterView: React.FC<RosterViewProps> = ({ onMenuClick, onEmailClic
                                     </button>
                                 </div>
                             </div>
-                        )}
+                          </div>
+                        ) : null}
                     </div>
                     )})
                 )}

@@ -36,12 +36,12 @@ export type NotificationSourceSnapshot = {
   documents: RAGDocument[];
 };
 
-const nowIso = (): string => new Date().toISOString();
+const DEFAULT_CREATED_AT = "1970-01-01T00:00:00.000Z";
 
-const toIsoOrNow = (input: string | null | undefined): string => {
-  if (!input || input.trim().length === 0) return nowIso();
+const toIsoOrFallback = (input: string | null | undefined, fallback = DEFAULT_CREATED_AT): string => {
+  if (!input || input.trim().length === 0) return fallback;
   const parsed = Date.parse(input);
-  if (Number.isNaN(parsed)) return nowIso();
+  if (Number.isNaN(parsed)) return fallback;
   return new Date(parsed).toISOString();
 };
 
@@ -69,7 +69,8 @@ const messageCandidates = (snapshot: NotificationSourceSnapshot): NotificationCa
   for (const conversation of snapshot.messages) {
     if (!conversation.unreadCount || conversation.unreadCount <= 0) continue;
     const latestTimestamp =
-      conversation.messages[conversation.messages.length - 1]?.timestamp || conversation.lastMessageTime || nowIso();
+      conversation.messages[conversation.messages.length - 1]?.timestamp || conversation.lastMessageTime;
+    const createdAt = toIsoOrFallback(latestTimestamp);
     const messageCountLabel = conversation.unreadCount === 1 ? "message" : "messages";
     const participant = conversation.participantName || "New sender";
     const latestMessage = conversation.lastMessage?.trim() || "Open Messages to review the latest update.";
@@ -83,13 +84,13 @@ const messageCandidates = (snapshot: NotificationSourceSnapshot): NotificationCa
       severity: "info",
       sourceType: "messages",
       sourceId: conversation.id,
-      sourceFingerprint: `messages:${conversation.id}:${latestTimestamp}:${conversation.unreadCount}`,
+      sourceFingerprint: `messages:${conversation.id}:${createdAt}:${conversation.unreadCount}`,
       sourceRoute: "messages",
       sourceContext: {
         participant,
         unreadCount: `${conversation.unreadCount}`,
       },
-      createdAt: toIsoOrNow(latestTimestamp),
+      createdAt,
     });
   }
   return rows;
@@ -108,7 +109,7 @@ const referralCandidates = (snapshot: NotificationSourceSnapshot): NotificationC
       recipientUserId: snapshot.currentUserId,
       recipientUserName: snapshot.currentUserName,
       title: `${referral.studentName} referral needs review`,
-      summary: `${referral.type} referral · ${referral.urgency} urgency`,
+      summary: `${referral.type} referral - ${referral.urgency} urgency`,
       body: referral.notes?.trim() || "Review this referral and determine the next intervention step.",
       category: "Referral",
       severity,
@@ -122,7 +123,7 @@ const referralCandidates = (snapshot: NotificationSourceSnapshot): NotificationC
         type: referral.type,
         grade: referral.grade ?? "",
       },
-      createdAt: toIsoOrNow(referral.createdAt),
+      createdAt: toIsoOrFallback(referral.createdAt),
     });
   }
   return rows;
@@ -153,7 +154,7 @@ const interventionCandidates = (snapshot: NotificationSourceSnapshot): Notificat
         status: intervention.status ?? "",
         teacher: intervention.teacher ?? "",
       },
-      createdAt: toIsoOrNow(intervention.startDate),
+      createdAt: toIsoOrFallback(intervention.startDate),
     });
   }
   return rows;
@@ -173,7 +174,7 @@ const documentCandidates = (snapshot: NotificationSourceSnapshot): NotificationC
       recipientUserId: snapshot.currentUserId,
       recipientUserName: snapshot.currentUserName,
       title,
-      summary: `${document.type.toUpperCase()} · ${document.scope} scope`,
+      summary: `${document.type.toUpperCase()} - ${document.scope} scope`,
       body:
         document.summary?.trim() ||
         "Open the document workspace to review status details and required next actions.",
@@ -188,7 +189,7 @@ const documentCandidates = (snapshot: NotificationSourceSnapshot): NotificationC
         status: document.status,
         uploader: document.uploaderName,
       },
-      createdAt: toIsoOrNow(document.uploadDate),
+      createdAt: toIsoOrFallback(document.uploadDate),
     });
   }
   return rows;
@@ -276,3 +277,4 @@ export const mergeDerivedNotifications = (input: {
   nextRows.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
   return { rows: nextRows, changed: true };
 };
+

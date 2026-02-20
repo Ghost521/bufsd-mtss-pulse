@@ -73,6 +73,7 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const lastSeenSignatureRef = useRef<string>("");
   const wasOpenRef = useRef(false);
+  const markSeenTimerRef = useRef<number | null>(null);
 
   const visibleActive = useMemo(() => activeNotifications.slice(0, 8), [activeNotifications]);
   const visibleArchived = useMemo(() => archivedNotifications.slice(0, 8), [archivedNotifications]);
@@ -107,6 +108,10 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
   useEffect(() => {
     if (!open) {
       lastSeenSignatureRef.current = "";
+      if (markSeenTimerRef.current != null) {
+        window.clearTimeout(markSeenTimerRef.current);
+        markSeenTimerRef.current = null;
+      }
       return;
     }
   }, [open]);
@@ -134,8 +139,20 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
     const signature = unseenVisibleIds.join("|");
     if (unseenVisibleIds.length > 0 && signature !== lastSeenSignatureRef.current) {
       lastSeenSignatureRef.current = signature;
-      onNotificationMarkSeen(unseenVisibleIds);
+      if (markSeenTimerRef.current != null) {
+        window.clearTimeout(markSeenTimerRef.current);
+      }
+      markSeenTimerRef.current = window.setTimeout(() => {
+        onNotificationMarkSeen(unseenVisibleIds);
+        markSeenTimerRef.current = null;
+      }, 200);
     }
+    return () => {
+      if (markSeenTimerRef.current != null) {
+        window.clearTimeout(markSeenTimerRef.current);
+        markSeenTimerRef.current = null;
+      }
+    };
   }, [hasError, loading, onNotificationMarkSeen, open, visibleActive]);
 
   useEffect(() => {

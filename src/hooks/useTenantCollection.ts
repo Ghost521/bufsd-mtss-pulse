@@ -24,6 +24,21 @@ export type CollectionResponse<TRow> = {
   requestId: string;
 };
 
+type RetryOption =
+  | boolean
+  | number
+  | ((failureCount: number, error: unknown) => boolean);
+
+type RetryDelayOption = number | ((retryAttempt: number) => number);
+
+type CollectionQueryOptions = {
+  enabled?: boolean;
+  retry?: RetryOption;
+  retryDelay?: RetryDelayOption;
+  refetchOnWindowFocus?: boolean;
+  staleTime?: number;
+};
+
 const parseError = async (response: Response): Promise<Error> => {
   const json = (await response.json().catch(() => null)) as { error?: string } | null;
   const message = json?.error || `Request failed (${response.status})`;
@@ -79,7 +94,7 @@ const deleteRow = async <TRow>(domain: CollectionDomain, id: string): Promise<TR
 
 export const useTenantCollection = <TRow extends { id: string }>(
   domain: CollectionDomain,
-  options?: { enabled?: boolean },
+  options?: CollectionQueryOptions,
 ) => {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.data.byDomain(domain);
@@ -88,6 +103,10 @@ export const useTenantCollection = <TRow extends { id: string }>(
     queryKey,
     queryFn: () => fetchRows<TRow>(domain),
     enabled: options?.enabled ?? true,
+    retry: options?.retry,
+    retryDelay: options?.retryDelay,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus,
+    staleTime: options?.staleTime,
   });
 
   const replaceMutation = useMutation({

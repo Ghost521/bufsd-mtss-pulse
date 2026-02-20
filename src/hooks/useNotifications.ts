@@ -47,9 +47,17 @@ export const useNotifications = (input: {
 }) => {
   const notificationsCollection = useTenantCollection<NotificationRow>("notifications", {
     enabled: Boolean(input.userId || input.userName),
+    retry: 1,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15000),
+    refetchOnWindowFocus: false,
+    staleTime: 15000,
   });
 
-  const allRows = notificationsCollection.query.data?.rows ?? [];
+  const allRows = useMemo(
+    () => notificationsCollection.query.data?.rows ?? [],
+    [notificationsCollection.query.data?.rows],
+  );
+  const isReplacePending = notificationsCollection.replaceMutation.isPending;
 
   const userRows = useMemo(
     () =>
@@ -85,19 +93,31 @@ export const useNotifications = (input: {
   const updateMany = useCallback(
     (ids: string[], patchFactory: (row: NotificationRow) => Partial<NotificationRow>) => {
       const idSet = new Set(ids);
-      userRows
-        .filter((row) => idSet.has(row.id))
-        .forEach((row) => {
-          notificationsCollection.updateMutation.mutate({
-            id: row.id,
-            patch: {
-              ...patchFactory(row),
-              updatedAt: nowIso(),
-            },
-          });
-        });
+      if (idSet.size === 0) return;
+      let hasChanges = false;
+      const updatedAt = nowIso();
+      const nextRows = allRows.map((row) => {
+        if (!idSet.has(row.id)) return row;
+        if (!isOwnedByCurrentUser(row, input.userId, input.userName)) return row;
+
+        const patch = patchFactory(row);
+        const patchKeys = Object.keys(patch) as Array<keyof NotificationRow>;
+        if (patchKeys.length === 0) return row;
+        const patchChangesRow = patchKeys.some((key) => row[key] !== patch[key]);
+        if (!patchChangesRow) return row;
+
+        hasChanges = true;
+        return {
+          ...row,
+          ...patch,
+          updatedAt,
+        };
+      });
+
+      if (!hasChanges) return;
+      notificationsCollection.replaceMutation.mutate(nextRows);
     },
-    [notificationsCollection.updateMutation, userRows],
+    [allRows, input.userId, input.userName, notificationsCollection.replaceMutation],
   );
 
   const markSeen = useCallback(
@@ -160,8 +180,10 @@ export const useNotifications = (input: {
 
   const restore = useCallback(
     (id: string) => {
+      let hasChanges = false;
       const nextRows = allRows.map((row) => {
         if (row.id !== id) return row;
+        if (!row.archivedAt && !row.dismissedAt && !row.deletedAt) return row;
         const nextRow: NotificationRow = {
           ...row,
           updatedAt: nowIso(),
@@ -169,8 +191,10 @@ export const useNotifications = (input: {
         delete nextRow.archivedAt;
         delete nextRow.dismissedAt;
         delete nextRow.deletedAt;
+        hasChanges = true;
         return nextRow;
       });
+      if (!hasChanges) return;
       notificationsCollection.replaceMutation.mutate(nextRows);
     },
     [allRows, notificationsCollection.replaceMutation],
@@ -193,6 +217,7 @@ export const useNotifications = (input: {
       documents: RAGDocument[];
     }) => {
       if (!notificationsCollection.query.data) return;
+      if (isReplacePending) return;
       if (!input.userId && !input.userName) return;
 
       const recipientUserId = input.userId ?? `name:${normalize(input.userName)}`;
@@ -221,6 +246,7 @@ export const useNotifications = (input: {
       input.userId,
       input.userName,
       notificationsCollection.query.data,
+      isReplacePending,
       notificationsCollection.replaceMutation,
     ],
   );
