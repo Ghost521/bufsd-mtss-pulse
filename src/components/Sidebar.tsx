@@ -307,7 +307,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     </div>
   );
   const SettingsIcon = getRouteIcon("settings");
-  const ProfileIcon = getRouteIcon("profile");
 
   useEffect(() => {
     setAvatarLoadFailed(false);
@@ -505,8 +504,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               type="button"
               onClick={onDesktopCollapseToggle}
               className="mx-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-0 text-slate-100 transition-colors hover:border-slate-500 hover:text-white"
-              aria-label="Show profile and settings"
-              title="Show profile and settings"
+              aria-label="Show account options"
+              title="Show account options"
             >
               {showAvatarImage ? (
                 <img
@@ -532,18 +531,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               title="Settings"
             >
               <SettingsIcon size={iconSize("lg")} />
-            </Link>
-            <Link
-              to={buildWorkspacePath("profile")}
-              activeOptions={{ exact: true }}
-              onClick={onClose}
-              className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
-                activePage === "profile" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              }`}
-              aria-label="Open profile"
-              title="Profile"
-            >
-              <ProfileIcon size={iconSize("lg")} />
             </Link>
           </div>
         ) : (
@@ -605,21 +592,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <span className="inline-flex items-center gap-2">
                   <SettingsIcon size={iconSize("md")} />
                   <span className="text-sm font-medium">Settings</span>
-                </span>
-              </Link>
-              <Link
-                to={buildWorkspacePath("profile")}
-                activeOptions={{ exact: true }}
-                onClick={onClose}
-                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-                  activePage === "profile"
-                    ? "border-brand-500/60 bg-brand-500/20 text-white"
-                    : "border-slate-700 bg-slate-900/40 text-slate-200 hover:border-slate-500 hover:text-white"
-                }`}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <ProfileIcon size={iconSize("md")} />
-                  <span className="text-sm font-medium">Profile</span>
                 </span>
               </Link>
 
