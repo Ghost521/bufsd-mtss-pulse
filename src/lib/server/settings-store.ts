@@ -96,6 +96,7 @@ const createDefaultRecord = (session: SessionContext): SettingsRecord => {
       infiniteCampusConnected: true,
       cleverConnected: true,
       powerSchoolConnected: false,
+      eSchoolDataConnected: false,
     },
     updatedAt: now,
     updatedBy: session.user.id,

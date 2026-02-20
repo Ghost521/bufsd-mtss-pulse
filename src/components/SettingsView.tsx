@@ -69,7 +69,7 @@ const timezoneOptions = [
 ];
 const colorFieldIds: Array<keyof DistrictBrandingEditable["colors"]> = ["primary", "secondary", "accent", "surface"];
 const systemIntegrationRows: Array<{
-  key: "infiniteCampusConnected" | "cleverConnected" | "powerSchoolConnected";
+  key: "infiniteCampusConnected" | "cleverConnected" | "powerSchoolConnected" | "eSchoolDataConnected";
   label: string;
   description: string;
 }> = [
@@ -87,6 +87,11 @@ const systemIntegrationRows: Array<{
     key: "powerSchoolConnected",
     label: "PowerSchool",
     description: "Connect PowerSchool for SIS data and gradebook integration.",
+  },
+  {
+    key: "eSchoolDataConnected",
+    label: "eSchoolData",
+    description: "Connect eSchoolData for roster, attendance, and intervention data sync.",
   },
 ];
 const blankBrandingStatus = (): BrandingStatus => ({ saving: false, success: null, error: null });
@@ -171,7 +176,12 @@ const fallbackRecord = (name: string, role: UserRole): SettingsRecord => {
     security: { twoFactorEnabled: true, providerManagedAuth: true, lastPasswordChangedAt: null },
     preferences: { preferredLanguage: "English", contactMethodPriority: "Email first, then Phone" },
     classroom: { autoFlagLowAttendance: role === UserRole.TEACHER, weeklyParentSummary: role === UserRole.TEACHER },
-    system: { infiniteCampusConnected: true, cleverConnected: true, powerSchoolConnected: false },
+    system: {
+      infiniteCampusConnected: true,
+      cleverConnected: true,
+      powerSchoolConnected: false,
+      eSchoolDataConnected: false,
+    },
     updatedAt: new Date().toISOString(),
     updatedBy: "fallback",
   });
@@ -202,7 +212,12 @@ const fallbackRecord = (name: string, role: UserRole): SettingsRecord => {
     security: { twoFactorEnabled: true, providerManagedAuth: true, lastPasswordChangedAt: null },
     preferences: { preferredLanguage: "English", contactMethodPriority: "Email first, then Phone" },
     classroom: { autoFlagLowAttendance: role === UserRole.TEACHER, weeklyParentSummary: role === UserRole.TEACHER },
-    system: { infiniteCampusConnected: true, cleverConnected: true, powerSchoolConnected: false },
+    system: {
+      infiniteCampusConnected: true,
+      cleverConnected: true,
+      powerSchoolConnected: false,
+      eSchoolDataConnected: false,
+    },
     updatedAt: new Date().toISOString(),
     updatedBy: "fallback",
   });

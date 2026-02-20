@@ -100,6 +100,7 @@ export const systemSettingsSchema = z.object({
   infiniteCampusConnected: z.boolean(),
   cleverConnected: z.boolean(),
   powerSchoolConnected: z.boolean(),
+  eSchoolDataConnected: z.boolean().default(false),
   readingBenchmarks: readingBenchmarkOverridesSchema.optional(),
 });
 

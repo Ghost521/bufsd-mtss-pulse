@@ -1,5 +1,5 @@
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Upload,
   FileSpreadsheet,
@@ -20,6 +20,7 @@ import {
 import { read, utils } from "xlsx";
 import type { ImportAnalysisResult } from "../services/geminiService";
 import { analyzeImportedBatch, extractDataFromDocument } from "../services/geminiService";
+import { systemSettingsSchema, type SystemSettings } from "../lib/schemas/settings";
 import { Tier, UserRole } from "../types";
 import type { StaffRosterItem } from "../types";
 import { SidebarToggleButton } from "./SidebarToggleButton";
@@ -31,10 +32,10 @@ interface DataImporterProps {
 }
 
 type ImportStep = "source" | "upload" | "mapping" | "preview" | "complete";
-type SourceType = "FILE" | "PASTE" | "IREADY" | "BRANCHING_MINDS" | "POWERSCHOOL";
+type SourceType = "FILE" | "PASTE" | "IREADY" | "BRANCHING_MINDS" | "POWERSCHOOL" | "ESCHOOLDATA";
 type ImportRow = Record<string, unknown>;
 
-type ConnectorSource = Extract<SourceType, "IREADY" | "BRANCHING_MINDS" | "POWERSCHOOL">;
+type ConnectorSource = Extract<SourceType, "IREADY" | "BRANCHING_MINDS" | "POWERSCHOOL" | "ESCHOOLDATA">;
 type ConnectorStatus = "not_connected" | "connecting" | "connected";
 
 interface MappedColumn {
@@ -92,9 +93,14 @@ const SOURCE_OPTIONS: Array<{ id: SourceType; label: string; desc: string; isCon
   { id: "IREADY", label: "i-Ready", desc: "OAuth connection shell. Sync pipeline coming soon.", isConnector: true },
   { id: "BRANCHING_MINDS", label: "Branching Minds", desc: "OAuth connection shell. Sync pipeline coming soon.", isConnector: true },
   { id: "POWERSCHOOL", label: "PowerSchool", desc: "OAuth connection shell. Sync pipeline coming soon.", isConnector: true },
+  { id: "ESCHOOLDATA", label: "eSchoolData", desc: "OAuth connection shell. Sync pipeline coming soon.", isConnector: true },
 ];
 
-const CONNECTOR_SOURCES: ConnectorSource[] = ["IREADY", "BRANCHING_MINDS", "POWERSCHOOL"];
+const CONNECTOR_SOURCES: ConnectorSource[] = ["IREADY", "BRANCHING_MINDS", "POWERSCHOOL", "ESCHOOLDATA"];
+const CONNECTOR_SETTING_KEYS: Partial<Record<ConnectorSource, keyof SystemSettings>> = {
+  POWERSCHOOL: "powerSchoolConnected",
+  ESCHOOLDATA: "eSchoolDataConnected",
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -169,6 +175,21 @@ const readAsDataUrl = (file: File): Promise<string> =>
 const isConnectorSource = (sourceType: SourceType): sourceType is ConnectorSource =>
   CONNECTOR_SOURCES.includes(sourceType as ConnectorSource);
 
+const parseSystemSettingsFromPayload = (payload: unknown): SystemSettings | null => {
+  const data = payload as { rows?: Array<{ system?: unknown }>; row?: { system?: unknown } } | null;
+  const fromRows = systemSettingsSchema.safeParse(data?.rows?.[0]?.system);
+  if (fromRows.success) return fromRows.data;
+  const fromRow = systemSettingsSchema.safeParse(data?.row?.system);
+  if (fromRow.success) return fromRow.data;
+  return null;
+};
+
+const parseApiErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (typeof payload?.error === "string" && payload.error.trim().length > 0) return payload.error;
+  return `${fallback} (${response.status})`;
+};
+
 export const DataImporter: React.FC<DataImporterProps> = ({
   onMenuClick,
   onImportComplete,
@@ -195,11 +216,13 @@ export const DataImporter: React.FC<DataImporterProps> = ({
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitPlannedTotal, setCommitPlannedTotal] = useState(0);
   const [commitResult, setCommitResult] = useState<BatchCommitResult | null>(null);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
 
   const [connectorStatus, setConnectorStatus] = useState<Record<ConnectorSource, ConnectorStatus>>({
     IREADY: "not_connected",
     BRANCHING_MINDS: "not_connected",
     POWERSCHOOL: "not_connected",
+    ESCHOOLDATA: "not_connected",
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -260,6 +283,44 @@ export const DataImporter: React.FC<DataImporterProps> = ({
 
   const canReviewData = mappingValidationIssues.length === 0 && fullData.length > 0;
   const currentStepIndex = useMemo(() => ["source", "upload", "mapping", "preview"].indexOf(step), [step]);
+  const selectedSourceLabel = useMemo(
+    () => SOURCE_OPTIONS.find((option) => option.id === sourceType)?.label ?? sourceType.replace("_", " "),
+    [sourceType]
+  );
+
+  const applyPersistedConnectorStatus = useCallback((settings: SystemSettings) => {
+    setConnectorStatus((previous) => ({
+      ...previous,
+      POWERSCHOOL: settings.powerSchoolConnected ? "connected" : "not_connected",
+      ESCHOOLDATA: settings.eSchoolDataConnected ? "connected" : "not_connected",
+    }));
+  }, []);
+
+  const fetchSystemSettings = useCallback(async (): Promise<SystemSettings | null> => {
+    const response = await fetch("/api/data/settings");
+    if (!response.ok) return null;
+    const payload = (await response.json().catch(() => null)) as unknown;
+    return parseSystemSettingsFromPayload(payload);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadConnectorState = async () => {
+      try {
+        const settings = await fetchSystemSettings();
+        if (!settings || !mounted) return;
+        setSystemSettings(settings);
+        applyPersistedConnectorStatus(settings);
+      } catch {
+        // Connector persistence is optional in this release; continue with in-memory state.
+      }
+    };
+
+    void loadConnectorState();
+    return () => {
+      mounted = false;
+    };
+  }, [applyPersistedConnectorStatus, fetchSystemSettings]);
 
   const resetImportData = () => {
     setPastedText("");
@@ -398,15 +459,53 @@ export const DataImporter: React.FC<DataImporterProps> = ({
 
   const handleConnectorConnect = async (connector: ConnectorSource) => {
     if (connectorStatus[connector] === "connecting") return;
+    const previousStatus = connectorStatus[connector];
 
     setImportError(null);
     setIsConnecting(true);
     setConnectorStatus((prev) => ({ ...prev, [connector]: "connecting" }));
 
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const settingKey = CONNECTOR_SETTING_KEYS[connector];
 
-    setConnectorStatus((prev) => ({ ...prev, [connector]: "connected" }));
-    setIsConnecting(false);
+      if (settingKey) {
+        const currentSettings = systemSettings ?? (await fetchSystemSettings());
+        if (!currentSettings) {
+          throw new Error("Could not load system settings to persist connector status.");
+        }
+
+        const nextSettings: SystemSettings = {
+          ...currentSettings,
+          [settingKey]: true,
+        };
+
+        const response = await fetch("/api/data/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ section: "system", data: nextSettings }),
+        });
+
+        if (!response.ok) {
+          throw new Error(await parseApiErrorMessage(response, "Could not save connector status"));
+        }
+
+        const payload = (await response.json().catch(() => null)) as unknown;
+        const persisted = parseSystemSettingsFromPayload(payload) ?? nextSettings;
+        setSystemSettings(persisted);
+        applyPersistedConnectorStatus(persisted);
+      } else {
+        setConnectorStatus((prev) => ({ ...prev, [connector]: "connected" }));
+      }
+    } catch (error) {
+      setConnectorStatus((prev) => ({
+        ...prev,
+        [connector]: previousStatus === "connected" ? "connected" : "not_connected",
+      }));
+      setImportError(error instanceof Error ? error.message : "Could not connect this data source.");
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   const updateMapping = (sourceHeader: string, targetField: string) => {
@@ -589,6 +688,8 @@ export const DataImporter: React.FC<DataImporterProps> = ({
         );
       case "POWERSCHOOL":
         return <div className="text-xl font-bold text-slate-700">PowerSchool</div>;
+      case "ESCHOOLDATA":
+        return <div className="text-xl font-bold text-emerald-700">eSchoolData</div>;
       default:
         return <Database size={32} />;
     }
@@ -693,27 +794,46 @@ export const DataImporter: React.FC<DataImporterProps> = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {SOURCE_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => handleSourceSelect(option.id)}
-                    className="flex flex-col items-center justify-center p-8 bg-white border-2 border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-lg transition-all group text-center h-52"
-                  >
-                    <div className="mb-4 opacity-80 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 duration-300">
-                      {getSourceIcon(option.id)}
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-700">
-                      {option.label}
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-2">{option.desc}</p>
-                    {option.isConnector && (
-                      <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        <Link2 size={12} /> OAuth Shell
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {SOURCE_OPTIONS.map((option) => {
+                  const optionConnector = isConnectorSource(option.id) ? option.id : null;
+                  const optionConnectorStatus = optionConnector ? connectorStatus[optionConnector] : null;
+                  const connectorBadgeClasses =
+                    optionConnectorStatus === "connected"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      : optionConnectorStatus === "connecting"
+                        ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                        : "bg-indigo-50 text-indigo-700 border-indigo-100";
+                  const connectorBadgeText =
+                    optionConnectorStatus === "connected"
+                      ? "Connected"
+                      : optionConnectorStatus === "connecting"
+                        ? "Connecting"
+                        : "OAuth Shell";
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleSourceSelect(option.id)}
+                      className="flex flex-col items-center justify-center p-8 bg-white border-2 border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-lg transition-all group text-center h-52"
+                    >
+                      <div className="mb-4 opacity-80 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 duration-300">
+                        {getSourceIcon(option.id)}
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-700">
+                        {option.label}
+                      </h3>
+                      <p className="text-sm text-slate-500 mt-2">{option.desc}</p>
+                      {option.isConnector && (
+                        <span
+                          className={`mt-3 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border ${connectorBadgeClasses}`}
+                        >
+                          <Link2 size={12} /> {connectorBadgeText}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -801,7 +921,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
                     <div className="flex items-center justify-between gap-3 mb-4">
                       <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Link2 size={18} className="text-indigo-600" /> {sourceType.replace("_", " ")} OAuth Connection
+                        <Link2 size={18} className="text-indigo-600" /> {selectedSourceLabel} OAuth Connection
                       </h3>
                       <span
                         className={`text-xs font-semibold px-2 py-1 rounded-full border ${

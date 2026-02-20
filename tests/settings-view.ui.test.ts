@@ -50,6 +50,7 @@ const createSettingsRow = () => ({
     infiniteCampusConnected: true,
     cleverConnected: true,
     powerSchoolConnected: false,
+    eSchoolDataConnected: false,
   },
   updatedAt: "2026-02-17T15:30:00.000Z",
   updatedBy: "u-principal-ne",
