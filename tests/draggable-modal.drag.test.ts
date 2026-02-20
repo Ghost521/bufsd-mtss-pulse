@@ -62,19 +62,17 @@ const renderModal = async (
   const root = createRoot(container);
 
   await act(async () => {
+    const mergedProps: React.ComponentProps<typeof DraggableModal> = {
+      isOpen: true,
+      onClose: vi.fn(),
+      title: "Drag Test Modal",
+      initialWidth: 400,
+      initialHeight: 300,
+      children: React.createElement("div", null, "Modal content"),
+      ...props,
+    };
     root.render(
-      React.createElement(
-        DraggableModal,
-        {
-          isOpen: true,
-          onClose: vi.fn(),
-          title: "Drag Test Modal",
-          initialWidth: 400,
-          initialHeight: 300,
-          ...props,
-        },
-        React.createElement("div", null, "Modal content")
-      )
+      React.createElement(DraggableModal, mergedProps)
     );
   });
 

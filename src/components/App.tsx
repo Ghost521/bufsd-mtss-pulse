@@ -17,6 +17,7 @@ import {
   ChevronDown,
   CheckCircle2
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { SidebarInlineToggleProvider, SidebarToggleButton } from './SidebarToggleButton';
 import { MetricCard } from './MetricCard';
@@ -500,7 +501,7 @@ const App: React.FC = () => {
     };
   }, [isMoreMenuOpen]);
 
-  const iconMap: Record<string, React.ElementType> = {
+  const iconMap: Record<string, LucideIcon> = {
     Activity,
     Zap,
     AlertCircle,

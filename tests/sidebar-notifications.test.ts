@@ -8,8 +8,14 @@ import { UserRole, type NotificationListItem } from "../src/types";
 
 vi.mock("@tanstack/react-router", async () => {
   const ReactModule = await import("react");
+  type LinkMockProps = {
+    to?: string;
+    className?: string;
+    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+    children?: React.ReactNode;
+  } & Record<string, unknown>;
   return {
-    Link: ({ to, className, onClick, children, activeOptions: _activeOptions, ...rest }: Record<string, unknown>) =>
+    Link: ({ to, className, onClick, children, activeOptions: _activeOptions, ...rest }: LinkMockProps) =>
       ReactModule.createElement(
         "a",
         {
@@ -18,7 +24,7 @@ vi.mock("@tanstack/react-router", async () => {
           onClick,
           ...rest,
         },
-        children
+        children ?? null
       ),
     useNavigate: () => () => Promise.resolve(),
   };

@@ -73,14 +73,21 @@ vi.mock("../src/hooks/useTenantCollection", () => ({
 
 vi.mock("../src/components/DraggableModal", async () => {
   const ReactModule = await import("react");
+  type DraggableModalMockProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    title?: React.ReactNode;
+    children?: React.ReactNode;
+    footer?: React.ReactNode;
+  };
   return {
-    DraggableModal: ({ isOpen, onClose, title, children, footer }: Record<string, unknown>) => {
+    DraggableModal: ({ isOpen, onClose, title, children, footer }: DraggableModalMockProps) => {
       if (!isOpen) return null;
       return ReactModule.createElement("div", { role: "dialog" }, [
         ReactModule.createElement("button", { key: "modal-close", type: "button", onClick: onClose as () => void }, "Close Modal"),
-        ReactModule.createElement("div", { key: "modal-title" }, title),
-        ReactModule.createElement("div", { key: "modal-body" }, children),
-        footer ? ReactModule.createElement("div", { key: "modal-footer" }, footer) : null,
+        ReactModule.createElement("div", { key: "modal-title" }, title ?? null),
+        ReactModule.createElement("div", { key: "modal-body" }, children ?? null),
+        footer ? ReactModule.createElement("div", { key: "modal-footer" }, footer ?? null) : null,
       ]);
     },
   };

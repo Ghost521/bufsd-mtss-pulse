@@ -17,6 +17,8 @@ export type LessonPlanRecord = {
   };
 };
 
+type LessonPlanLike = LessonPlanRecord;
+
 const normalizeSpaces = (value: string): string => value.trim().replace(/\s+/g, " ");
 
 export const normalizeOwnerKey = (value: string | null | undefined): string =>
@@ -28,7 +30,7 @@ const toMs = (value: string | undefined): number => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-export const isLessonPlanOwnedBy = (plan: Pick<LessonPlanRecord, "ownerId" | "author">, ownerKey: string): boolean => {
+export const isLessonPlanOwnedBy = (plan: Pick<LessonPlanLike, "ownerId" | "author">, ownerKey: string): boolean => {
   const normalizedOwner = normalizeOwnerKey(plan.ownerId);
   if (normalizedOwner.length > 0) {
     return normalizedOwner === ownerKey;
@@ -36,7 +38,7 @@ export const isLessonPlanOwnedBy = (plan: Pick<LessonPlanRecord, "ownerId" | "au
   return normalizeOwnerKey(plan.author) === ownerKey;
 };
 
-export const matchesLessonPlanSearch = (plan: LessonPlanRecord, query: string): boolean => {
+export const matchesLessonPlanSearch = <T extends LessonPlanLike>(plan: T, query: string): boolean => {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
   const groupSearch = plan.studentGroup?.join(" ").toLowerCase() ?? "";
@@ -51,7 +53,7 @@ export const matchesLessonPlanSearch = (plan: LessonPlanRecord, query: string): 
 };
 
 export const isLessonPlanVisible = (
-  plan: LessonPlanRecord,
+  plan: LessonPlanLike,
   ownerKey: string,
   viewFilter: LessonPlanViewFilter,
 ): boolean => {
@@ -63,7 +65,7 @@ export const isLessonPlanVisible = (
   return true;
 };
 
-export const sortLessonPlans = (plans: LessonPlanRecord[], sortBy: LessonPlanSort): LessonPlanRecord[] => {
+export const sortLessonPlans = <T extends LessonPlanLike>(plans: T[], sortBy: LessonPlanSort): T[] => {
   return [...plans].sort((left, right) => {
     if (sortBy === "Title A-Z") {
       return left.title.localeCompare(right.title);
@@ -77,7 +79,7 @@ export const sortLessonPlans = (plans: LessonPlanRecord[], sortBy: LessonPlanSor
   });
 };
 
-export const areLessonPlansEqual = (left: LessonPlanRecord | null, right: LessonPlanRecord | null): boolean => {
+export const areLessonPlansEqual = <T extends LessonPlanLike>(left: T | null, right: T | null): boolean => {
   if (!left || !right) return false;
   return JSON.stringify(left) === JSON.stringify(right);
 };

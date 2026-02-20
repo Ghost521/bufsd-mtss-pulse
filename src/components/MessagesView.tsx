@@ -676,13 +676,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     );
 
     if (!deletedPayload) return;
+    const payload: { conversationId: string; message: Message; index: number } = deletedPayload;
 
     setDeletedMessageState((previous) => {
       if (previous) {
         window.clearTimeout(previous.timeoutId);
       }
       const timeoutId = window.setTimeout(() => scheduleUndoToastReset(timeoutId), 5000);
-      return { ...deletedPayload, timeoutId };
+      return { ...payload, timeoutId };
     });
   };
 

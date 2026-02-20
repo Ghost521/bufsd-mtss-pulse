@@ -18,6 +18,7 @@ import {
   validateAttachment,
   validateReferralInput,
   type ReferralCategory,
+  type ReferralValidationErrors,
   type ReferralUrgency,
 } from '../services/referralValidation';
 import type { StudentRosterItem } from '../types';
@@ -174,7 +175,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitResult, setSubmitResult] = useState<ReferralSubmitResult | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ReferralValidationErrors>({});
   const [showClosePrompt, setShowClosePrompt] = useState(false);
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [savedDraftSnapshot, setSavedDraftSnapshot] = useState<string | null>(null);
