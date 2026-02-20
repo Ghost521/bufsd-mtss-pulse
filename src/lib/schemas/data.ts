@@ -310,6 +310,7 @@ export const lessonPlanRowSchema = aiInterventionPlanSchema.extend({
   ownerId: nonEmptyTrimmedString("Owner id", 160),
   isShared: z.boolean(),
   studentGroup: z.array(nonEmptyTrimmedString("Student name", 160)).optional(),
+  schoolName: z.string().trim().max(200).optional(),
 });
 
 export const importRowSchema = z.object({

@@ -1473,6 +1473,7 @@ const App: React.FC = () => {
              onMenuClick={openMobileMenu}
              currentUserRole={currentRole}
              currentUserName={data.userName}
+             currentSchoolName={data.schoolName}
              onComposeMessage={handleNavigateToMessages}
           />
         );

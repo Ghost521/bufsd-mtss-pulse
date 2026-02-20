@@ -55,6 +55,14 @@ describe("lesson-plan-utils", () => {
     expect(isLessonPlanVisible(mine, ownerKey, "Shared")).toBe(false);
   });
 
+  it("allows elevated viewers to see private non-owned plans", () => {
+    const ownerKey = normalizeOwnerKey("Rosa Cortese");
+    const privateOther = buildPlan({ id: "other", ownerId: "Mr. Davis", author: "Mr. Davis", isShared: false });
+
+    expect(isLessonPlanVisible(privateOther, ownerKey, "All")).toBe(false);
+    expect(isLessonPlanVisible(privateOther, ownerKey, "All", true)).toBe(true);
+  });
+
   it("matches search across key fields", () => {
     const plan = buildPlan({ title: "Reading Fluency Sprint", subject: "Reading" });
     expect(matchesLessonPlanSearch(plan, "fluency")).toBe(true);

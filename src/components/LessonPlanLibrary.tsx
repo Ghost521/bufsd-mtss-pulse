@@ -48,6 +48,7 @@ interface LessonPlanLibraryProps {
   onMenuClick: () => void;
   currentUserRole: UserRole;
   currentUserName: string;
+  currentSchoolName?: string;
   currentUserId?: string;
   onComposeMessage?: (launch: MessagesLaunchContext) => void;
 }
@@ -62,15 +63,18 @@ interface LessonPlan extends AIInterventionPlan {
   ownerId: string; // To track ownership
   isShared: boolean;
   studentGroup?: string[]; // Names of students in the group
+  schoolName?: string;
 }
 
 type ViewFilter = 'All' | 'My Plans' | 'Shared';
 const VIEW_FILTERS: ViewFilter[] = ['All', 'My Plans', 'Shared'];
+type GroupBy = 'none' | 'teacher' | 'grade' | 'school';
 
 export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
   onMenuClick,
   currentUserRole,
   currentUserName,
+  currentSchoolName,
   currentUserId,
   onComposeMessage,
 }) => {
@@ -86,6 +90,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
   const [gradeFilter, setGradeFilter] = useState('All');
   const [viewFilter, setViewFilter] = useState<ViewFilter>('All');
   const [sortBy, setSortBy] = useState<LessonPlanSort>('Newest');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
   
   // Create State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -149,16 +154,63 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
 
   // Computed
   const hasActiveFilters = searchQuery.trim().length > 0 || subjectFilter !== 'All' || gradeFilter !== 'All' || viewFilter !== 'All';
+  const roleLabel = String(currentUserRole).toLowerCase();
+  const isDistrictViewer = currentUserRole === UserRole.DISTRICT || roleLabel.includes('district');
+  const isSchoolAdminViewer = roleLabel.includes('school admin');
+  const canViewAllPrivatePlans =
+    currentUserRole === UserRole.PRINCIPAL ||
+    currentUserRole === UserRole.DISTRICT ||
+    isSchoolAdminViewer;
+  const groupByOptions = useMemo<GroupBy[]>(
+    () =>
+      canViewAllPrivatePlans
+        ? isDistrictViewer
+          ? ['none', 'school', 'teacher', 'grade']
+          : ['none', 'teacher', 'grade']
+        : ['none'],
+    [canViewAllPrivatePlans, isDistrictViewer],
+  );
+
+  useEffect(() => {
+    if (!groupByOptions.includes(groupBy)) {
+      setGroupBy(groupByOptions[0] ?? 'none');
+    }
+  }, [groupBy, groupByOptions]);
+
   const filteredPlans = useMemo(() => {
     const visible = plans.filter((plan) => {
       const matchesSubject = subjectFilter === 'All' || plan.subject === subjectFilter;
       const matchesGrade = gradeFilter === 'All' || plan.grade === gradeFilter;
       const matchesSearch = matchesLessonPlanSearch(plan, searchQuery);
       if (!matchesSubject || !matchesGrade || !matchesSearch) return false;
-      return isLessonPlanVisible(plan, ownerKey, viewFilter);
+      return isLessonPlanVisible(plan, ownerKey, viewFilter, canViewAllPrivatePlans);
     });
     return sortLessonPlans(visible, sortBy);
-  }, [gradeFilter, ownerKey, plans, searchQuery, sortBy, subjectFilter, viewFilter]);
+  }, [canViewAllPrivatePlans, gradeFilter, ownerKey, plans, searchQuery, sortBy, subjectFilter, viewFilter]);
+
+  const groupedPlans = useMemo(() => {
+    if (groupBy === 'none') {
+      return [{ key: 'all', label: 'All Plans', plans: filteredPlans }];
+    }
+
+    const getGroupKey = (plan: LessonPlan): string => {
+      if (groupBy === 'teacher') return plan.author || 'Unknown Teacher';
+      if (groupBy === 'grade') return plan.grade || 'Unspecified Grade';
+      return plan.schoolName?.trim() || 'Unknown School';
+    };
+
+    const groups = new Map<string, LessonPlan[]>();
+    filteredPlans.forEach((plan) => {
+      const key = getGroupKey(plan);
+      const bucket = groups.get(key) ?? [];
+      bucket.push(plan);
+      groups.set(key, bucket);
+    });
+
+    return Array.from(groups.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, grouped]) => ({ key, label: key, plans: grouped }));
+  }, [filteredPlans, groupBy]);
 
   const isEditDirty = useMemo(
     () => (isEditMode ? !areLessonPlansEqual(selectedPlan, editedPlan) : false),
@@ -227,7 +279,8 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
       author: userLabel,
       ownerId: userLabel,
       isShared: false, // Default private
-      studentGroup: groupNames
+      studentGroup: groupNames,
+      schoolName: currentSchoolName?.trim() || undefined,
     };
     setPlans([newLesson, ...plans]);
     setIsCreateModalOpen(false);
@@ -466,6 +519,22 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
 
+                {canViewAllPrivatePlans ? (
+                  <div className="relative">
+                    <select
+                      value={groupBy}
+                      onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+                      className="appearance-none pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-white transition-colors"
+                    >
+                      {groupByOptions.includes('none') ? <option value="none">No Grouping</option> : null}
+                      {groupByOptions.includes('teacher') ? <option value="teacher">Group by Teacher</option> : null}
+                      {groupByOptions.includes('grade') ? <option value="grade">Group by Grade</option> : null}
+                      {groupByOptions.includes('school') ? <option value="school">Group by School</option> : null}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                ) : null}
+
                 <div className="w-px h-8 bg-slate-200 mx-1 hidden md:block"></div>
 
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -562,92 +631,111 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {filteredPlans.map((plan) => {
-              const isMine = isLessonPlanOwnedBy(plan, ownerKey);
-              return (
-                <article
-                  key={plan.id}
-                  className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-indigo-300 hover:shadow-lg"
-                >
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="flex gap-2">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${getSubjectColor(plan.subject)}`}>
-                        {plan.subject}
-                      </span>
-                      {plan.studentGroup ? (
-                        <span className="flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700">
-                          <Users size={10} /> Group ({plan.studentGroup.length})
-                        </span>
-                      ) : null}
-                    </div>
-                    {isMine ? (
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={(event) => toggleShare(plan.id, event)}
-                          className={`rounded p-1.5 transition-colors hover:bg-slate-100 ${plan.isShared ? 'text-emerald-600' : 'text-slate-400'}`}
-                          title={plan.isShared ? "Set private" : "Share with team"}
-                          aria-label={plan.isShared ? `Set ${plan.title} to private` : `Share ${plan.title} with team`}
-                        >
-                          {plan.isShared ? <Globe size={16} /> : <Lock size={16} />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => requestDeletePlan(plan.id, event)}
-                          className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                          aria-label={`Delete ${plan.title}`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ) : null}
+          <div className="space-y-8">
+            {groupedPlans.map((section) => (
+              <section key={section.key}>
+                {groupBy !== 'none' ? (
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">{section.label}</h3>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                      {section.plans.length} plan{section.plans.length === 1 ? '' : 's'}
+                    </span>
                   </div>
+                ) : null}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {section.plans.map((plan) => {
+                    const isMine = isLessonPlanOwnedBy(plan, ownerKey);
+                    return (
+                      <article
+                        key={plan.id}
+                        className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-indigo-300 hover:shadow-lg"
+                      >
+                        <div className="mb-3 flex items-start justify-between">
+                          <div className="flex gap-2">
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${getSubjectColor(plan.subject)}`}>
+                              {plan.subject}
+                            </span>
+                            {plan.studentGroup ? (
+                              <span className="flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700">
+                                <Users size={10} /> Group ({plan.studentGroup.length})
+                              </span>
+                            ) : null}
+                          </div>
+                          {isMine ? (
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={(event) => toggleShare(plan.id, event)}
+                                className={`rounded p-1.5 transition-colors hover:bg-slate-100 ${plan.isShared ? 'text-emerald-600' : 'text-slate-400'}`}
+                                title={plan.isShared ? "Set private" : "Share with team"}
+                                aria-label={plan.isShared ? `Set ${plan.title} to private` : `Share ${plan.title} with team`}
+                              >
+                                {plan.isShared ? <Globe size={16} /> : <Lock size={16} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => requestDeletePlan(plan.id, event)}
+                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                aria-label={`Delete ${plan.title}`}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
 
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedPlan(plan); setIsEditMode(false); setEditedPlan(null); }}
-                    className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-lg"
-                    aria-label={`Open lesson plan ${plan.title}`}
-                  >
-                    <h3 className="mb-2 line-clamp-2 text-lg font-bold leading-tight text-slate-800 transition-colors hover:text-indigo-700">
-                      {plan.title}
-                    </h3>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedPlan(plan); setIsEditMode(false); setEditedPlan(null); }}
+                          className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-lg"
+                          aria-label={`Open lesson plan ${plan.title}`}
+                        >
+                          <h3 className="mb-2 line-clamp-2 text-lg font-bold leading-tight text-slate-800 transition-colors hover:text-indigo-700">
+                            {plan.title}
+                          </h3>
 
-                    <div className="mb-4 flex-1 line-clamp-3 text-sm text-slate-500">
-                      <RichTextRenderer content={plan.lessonPlan.objective} />
-                    </div>
+                          <div className="mb-4 flex-1 line-clamp-3 text-sm text-slate-500">
+                            <RichTextRenderer content={plan.lessonPlan.objective} />
+                          </div>
 
-                    {plan.studentGroup ? (
-                      <div className="mb-4 flex flex-wrap gap-1">
-                        {plan.studentGroup.slice(0, 3).map((name, index) => (
-                          <span key={index} className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
-                            {name.split(' ')[0]}
-                          </span>
-                        ))}
-                        {plan.studentGroup.length > 3 ? (
-                          <span className="px-1 text-[10px] text-slate-400">+{plan.studentGroup.length - 3}</span>
-                        ) : null}
-                      </div>
-                    ) : null}
+                          {plan.studentGroup ? (
+                            <div className="mb-4 flex flex-wrap gap-1">
+                              {plan.studentGroup.slice(0, 3).map((name, index) => (
+                                <span key={index} className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                                  {name.split(' ')[0]}
+                                </span>
+                              ))}
+                              {plan.studentGroup.length > 3 ? (
+                                <span className="px-1 text-[10px] text-slate-400">+{plan.studentGroup.length - 3}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
 
-                    <div className="mt-auto flex items-center gap-4 border-t border-slate-100 pt-4 text-xs font-medium text-slate-400">
-                      <span className="flex items-center gap-1.5">
-                        <Clock size={14} /> {plan.duration}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <User size={14} /> {isMine ? 'You' : plan.author}
-                      </span>
-                      <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
-                        {plan.grade}
-                      </span>
-                    </div>
-                  </button>
+                          <div className="mt-auto flex items-center gap-4 border-t border-slate-100 pt-4 text-xs font-medium text-slate-400">
+                            <span className="flex items-center gap-1.5">
+                              <Clock size={14} /> {plan.duration}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <User size={14} /> {isMine ? 'You' : plan.author}
+                            </span>
+                            <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
+                              {plan.grade}
+                            </span>
+                          </div>
+                          {canViewAllPrivatePlans && groupBy !== 'school' && plan.schoolName ? (
+                            <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                              {plan.schoolName}
+                            </div>
+                          ) : null}
+                        </button>
 
-                  <div className="pointer-events-none absolute -bottom-6 -right-6 h-24 w-24 rounded-full bg-indigo-50/50 blur-2xl transition-colors group-hover:bg-indigo-100/50" />
-                </article>
-              );
-            })}
+                        <div className="pointer-events-none absolute -bottom-6 -right-6 h-24 w-24 rounded-full bg-indigo-50/50 blur-2xl transition-colors group-hover:bg-indigo-100/50" />
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>
@@ -1198,6 +1286,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                             <p>Created: {new Date(currentPlan.createdDate).toLocaleDateString()}</p>
                             {currentPlan.updatedAt ? <p>Updated: {new Date(currentPlan.updatedAt).toLocaleDateString()}</p> : null}
                             <p>Author: {currentPlan.author}</p>
+                            {currentPlan.schoolName ? <p>School: {currentPlan.schoolName}</p> : null}
                         </div>
                     </div>
                     

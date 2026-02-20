@@ -56,9 +56,10 @@ export const isLessonPlanVisible = (
   plan: LessonPlanLike,
   ownerKey: string,
   viewFilter: LessonPlanViewFilter,
+  canViewAllPrivatePlans = false,
 ): boolean => {
   const isMine = isLessonPlanOwnedBy(plan, ownerKey);
-  const isVisible = isMine || plan.isShared;
+  const isVisible = canViewAllPrivatePlans || isMine || plan.isShared;
   if (!isVisible) return false;
   if (viewFilter === "My Plans" && !isMine) return false;
   if (viewFilter === "Shared" && (!plan.isShared || isMine)) return false;
