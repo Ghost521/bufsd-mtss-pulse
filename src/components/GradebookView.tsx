@@ -1620,19 +1620,22 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         </div>
 
         <button
-          className="bg-gradient-to-r from-indigo-600 to-violet-700 rounded-xl shadow-md p-4 flex items-center justify-between text-white relative overflow-hidden group cursor-pointer text-left"
+          className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-700 to-violet-800 p-4 text-left text-white shadow-md transition-all hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white group flex items-center justify-between cursor-pointer"
           onClick={() => setShowAiAnalysis(true)}
         >
+          <div className="pointer-events-none absolute inset-0 bg-slate-900/10" />
           <div className="relative z-10">
-            <h3 className="font-bold text-lg flex items-center gap-2">
-              <BrainCircuit size={20} /> Grade Analysis
+            <h3 className="flex items-center gap-2 text-lg font-bold text-white" style={{ color: '#ffffff' }}>
+              <BrainCircuit size={20} className="text-white" /> Grade Analysis
             </h3>
-            <p className="text-sm text-white">Open actionable AI insights for current filters.</p>
+            <p className="text-sm text-slate-100" style={{ color: '#f1f5f9' }}>
+              Open actionable AI insights for current filters.
+            </p>
           </div>
-          <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm group-hover:bg-white/30 transition-colors relative z-10">
-            <TrendingUp size={24} />
+          <div className="relative z-10 rounded-lg bg-white/15 p-2 backdrop-blur-sm transition-colors group-hover:bg-white/25">
+            <TrendingUp size={24} className="text-white" />
           </div>
-          <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors"></div>
+          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl transition-colors group-hover:bg-white/20"></div>
         </button>
       </div>
 
