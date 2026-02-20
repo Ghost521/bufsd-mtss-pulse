@@ -443,6 +443,120 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     }
   };
 
+  const normalizeEntityName = (value: string) => value.trim().toLowerCase();
+  const isPendingReferral = (referral: ReferralRecord) => (referral.status ?? "Pending Review").toLowerCase().includes("pending");
+
+  const findInterventionForReferral = (referral: ReferralRecord, source = records): InterventionRecord | null => {
+    const byReferralId = source.find((item) => item.referralId === referral.id);
+    if (byReferralId) return byReferralId;
+    const studentName = normalizeEntityName(referral.studentName);
+    return (
+      source.find(
+        (item) =>
+          normalizeEntityName(item.studentName) === studentName &&
+          item.workflowStatus !== "denied" &&
+          item.workflowStatus !== "completed_success" &&
+          item.workflowStatus !== "completed_unsuccessful",
+      ) ?? null
+    );
+  };
+
+  const createInterventionFromReferral = (referral: ReferralRecord): InterventionRecord => {
+    const [firstName, ...rest] = referral.studentName.trim().split(" ");
+    const urgency = referral.urgency.toLowerCase();
+    const suggestedTier = urgency.includes("critical") || urgency.includes("high") ? Tier.TIER_3 : Tier.TIER_2;
+    const referralFocus = referral.type || "Academic";
+    const baseStatus: InterventionRecord["status"] = urgency.includes("critical")
+      ? "Critical"
+      : urgency.includes("high")
+        ? "At Risk"
+        : "On Track";
+    const goal = createInterventionGoal({
+      title: `${referralFocus} intervention goal`,
+      description: `Referral-driven intervention created from ${referral.id}.`,
+      startDate: new Date().toISOString().slice(0, 10),
+      progress: 0,
+      actorName: currentUserName,
+      durationMonths: 6,
+      aiSuggested: true,
+    });
+    const meetingProposal = buildMeetingProposalFromAvailability({
+      participants: [PRINCIPAL_CONTACT, TEACHERS[0], "Intervention Team"],
+      events: calendarEvents,
+    });
+
+    return normalizeInterventionRecord(
+      {
+        id: `ref-${referral.id}-${Date.now()}`,
+        referralId: referral.id,
+        studentName: referral.studentName,
+        firstName: firstName || referral.studentName,
+        lastName: rest.join(" ") || "Student",
+        grade: referral.grade || "N/A",
+        teacher: TEACHERS[0],
+        tier: suggestedTier,
+        focusArea: referralFocus,
+        planName: `${referralFocus} Referral Intervention`,
+        startDate: new Date().toISOString().slice(0, 10),
+        durationWeeks: 24,
+        progress: 0,
+        attendance: 100,
+        status: baseStatus,
+        avatarSeed: referral.studentName.replace(/\s+/g, ""),
+        workflowStatus: "pending_review",
+        decision: "pending",
+        requiresPrincipalCosign: false,
+        meetingProposal,
+        goals: [goal],
+        milestones: createWeeklyMilestones(goal),
+        notes: [
+          createInterventionNote(
+            "Referral intake",
+            `Intervention created from referral ${referral.id} (${referral.type}, ${referral.urgency}).`,
+            currentUserName,
+          ),
+        ],
+        outcome: { met: null },
+        auditTrail: [
+          createInterventionAuditEntry("recommended", currentUserName, `Created from referral queue item ${referral.id}.`),
+          createInterventionAuditEntry("meeting_proposed", currentUserName, "Draft meeting proposal generated during intake."),
+        ],
+      },
+      currentUserName,
+    );
+  };
+
+  const ensureInterventionForReferral = (referral: ReferralRecord): InterventionRecord => {
+    const existing = findInterventionForReferral(referral);
+    if (existing) return existing;
+    const created = createInterventionFromReferral(referral);
+    setRecords((previous) => [created, ...previous]);
+    return created;
+  };
+
+  const openReferralWorkflow = (referral: ReferralRecord) => {
+    const intervention = ensureInterventionForReferral(referral);
+    openWorkflowModal(intervention);
+  };
+
+  const approveFromReferralQueue = (referral: ReferralRecord) => {
+    const intervention = ensureInterventionForReferral(referral);
+    approveIntervention(intervention, `Approved from referral ${referral.id}.`);
+    openWorkflowModal(intervention);
+  };
+
+  const denyFromReferralQueue = (referral: ReferralRecord) => {
+    const intervention = ensureInterventionForReferral(referral);
+    denyIntervention(intervention, `Denied from referral ${referral.id}.`);
+    openWorkflowModal(intervention);
+  };
+
+  const setupMeetingFromReferralQueue = (referral: ReferralRecord) => {
+    const intervention = ensureInterventionForReferral(referral);
+    reproposeMeeting(intervention);
+    openWorkflowModal(intervention);
+  };
+
   const updateRecordById = (id: string, updater: (record: InterventionRecord) => InterventionRecord) => {
     setRecords((previous) =>
       previous.map((record) => (record.id === id ? updater(record) : record)),
@@ -461,8 +575,9 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     setDecisionReason("");
   };
 
-  const approveIntervention = (record: InterventionRecord) => {
+  const approveIntervention = (record: InterventionRecord, reasonOverride?: string) => {
     if (!canApproveOrDeny) return;
+    const resolvedReason = (reasonOverride ?? decisionReason).trim();
     const provisional = isCurrentUserInterventionist && currentUserRole !== UserRole.PRINCIPAL && currentUserRole !== UserRole.DISTRICT;
     updateRecordById(record.id, (current) => {
       const nextMeetingProposal =
@@ -479,7 +594,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
         decisionByName: currentUserName,
         decisionByRole: currentUserRole,
         decisionAt: new Date().toISOString(),
-        decisionReason: decisionReason.trim() || undefined,
+        decisionReason: resolvedReason || undefined,
         requiresPrincipalCosign: provisional,
         meetingProposal: nextMeetingProposal,
         auditTrail: [
@@ -501,8 +616,9 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     });
   };
 
-  const denyIntervention = (record: InterventionRecord) => {
+  const denyIntervention = (record: InterventionRecord, reasonOverride?: string) => {
     if (!canApproveOrDeny) return;
+    const resolvedReason = (reasonOverride ?? decisionReason).trim();
     updateRecordById(record.id, (current) => ({
       ...current,
       workflowStatus: "denied",
@@ -510,10 +626,10 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       decisionByName: currentUserName,
       decisionByRole: currentUserRole,
       decisionAt: new Date().toISOString(),
-      decisionReason: decisionReason.trim() || "No reason provided.",
+      decisionReason: resolvedReason || "No reason provided.",
       auditTrail: [
         ...current.auditTrail,
-        createInterventionAuditEntry("denied", currentUserName, `Intervention denied. Reason: ${decisionReason.trim() || "No reason provided."}`),
+        createInterventionAuditEntry("denied", currentUserName, `Intervention denied. Reason: ${resolvedReason || "No reason provided."}`),
       ],
     }));
   };
@@ -973,6 +1089,15 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
     () => records.filter((record) => record.workflowStatus === "pending_review" || record.workflowStatus === "approved_provisional"),
     [records],
   );
+  const pendingReferralWithoutIntervention = useMemo(
+    () =>
+      referrals.filter((referral) => {
+        if (!isPendingReferral(referral)) return false;
+        return !findInterventionForReferral(referral);
+      }),
+    [referrals, records],
+  );
+  const totalPendingReviewCount = pendingReviewRecords.length + pendingReferralWithoutIntervention.length;
   const autoRecommendedRecords = useMemo(
     () => records.filter((record) => Boolean(record.autoRecommendation)),
     [records],
@@ -1490,7 +1615,7 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
             <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
                 <div>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Review</p>
-                    <p className="text-2xl font-bold text-amber-600">{stats.pendingReview}</p>
+                    <p className="text-2xl font-bold text-amber-600">{totalPendingReviewCount}</p>
                 </div>
                 <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><ClipboardList size={20} /></div>
             </div>
@@ -1525,10 +1650,10 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                         <p className="text-xs text-slate-600">Approve, deny, or provisionally approve interventions before activation.</p>
                     </div>
                     <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-amber-700">
-                        {pendingReviewRecords.length} pending
+                        {totalPendingReviewCount} pending
                     </span>
                 </div>
-                {pendingReviewRecords.length === 0 ? (
+                {totalPendingReviewCount === 0 ? (
                     <p className="text-sm text-slate-600">No interventions currently waiting for review.</p>
                 ) : (
                     <div className="space-y-2">
@@ -1544,6 +1669,30 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => openWorkflowModal(record)}
+                                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                        >
+                                          Review
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {pendingReferralWithoutIntervention.slice(0, 4).map((referral) => (
+                            <div key={`pending-referral-${referral.id}`} className="rounded-lg border border-indigo-200 bg-white px-3 py-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-900">{referral.studentName}</p>
+                                        <p className="text-xs text-slate-500">
+                                          Referral {referral.id} • {referral.type} • {referral.urgency}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                          Pending Referral
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => openReferralWorkflow(referral)}
                                           className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                                         >
                                           Review
@@ -1636,14 +1785,16 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 <div className="space-y-2">
                     {recentReferrals.map((referral) => {
                         const isHighlighted = referral.id === highlightedReferralId;
+                        const linkedIntervention = findInterventionForReferral(referral);
                         return (
                             <div
                                 key={referral.id}
+                                onClick={() => openReferralWorkflow(referral)}
                                 className={`rounded-lg border p-3 transition-colors ${
                                     isHighlighted
                                         ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-300'
-                                        : 'border-slate-200 bg-slate-50'
-                                }`}
+                                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                                } cursor-pointer`}
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
@@ -1656,6 +1807,15 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                         <p className="text-xs text-slate-500">
                                             Grade {referral.grade ?? 'N/A'} | {referral.type} | {referral.urgency}
                                         </p>
+                                        {linkedIntervention ? (
+                                          <p className="mt-1 text-[11px] font-semibold text-indigo-700">
+                                            Linked intervention: {linkedIntervention.planName}
+                                          </p>
+                                        ) : (
+                                          <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                                            Not yet in review queue. Click to open and create workflow item.
+                                          </p>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="text-right">
@@ -1664,17 +1824,38 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => onStudentClick(referral.studentName)}
+                                            onClick={(event) => { event.stopPropagation(); onStudentClick(referral.studentName); }}
                                             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                                         >
                                             Open Student
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => handleReferralMessage(referral)}
+                                            onClick={(event) => { event.stopPropagation(); handleReferralMessage(referral); }}
                                             className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                                         >
                                             Message Team
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => { event.stopPropagation(); approveFromReferralQueue(referral); }}
+                                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                        >
+                                            Approve
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => { event.stopPropagation(); denyFromReferralQueue(referral); }}
+                                            className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                        >
+                                            Deny
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => { event.stopPropagation(); setupMeetingFromReferralQueue(referral); }}
+                                            className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+                                        >
+                                            Set Meeting
                                         </button>
                                     </div>
                                 </div>

@@ -264,6 +264,7 @@ const interventionAutoRecommendationSchema = z.object({
 
 export const interventionRowSchema = z.object({
   id: nonEmptyTrimmedString("Record id", 160),
+  referralId: z.string().trim().max(160).optional(),
   studentName: nonEmptyTrimmedString("Student name", 160),
   firstName: nonEmptyTrimmedString("First name", 120),
   lastName: nonEmptyTrimmedString("Last name", 120),

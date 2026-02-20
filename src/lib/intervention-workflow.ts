@@ -117,6 +117,7 @@ export type InterventionAutoRecommendation = {
 };
 
 export type InterventionWorkflowFields = {
+  referralId?: string;
   workflowStatus: InterventionWorkflowStatus;
   decision: InterventionDecision;
   decisionByName?: string;
