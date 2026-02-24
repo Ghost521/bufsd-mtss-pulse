@@ -50,7 +50,7 @@ export const Route = createFileRoute("/api/auth/login")({
         headers.set("Location", loginUrl);
         if (forceReauth) {
           const localSessionHeaders = clearSessionCookieHeaders();
-          localSessionHeaders.forEach((value, key) => headers.append(key, value));
+          localSessionHeaders.forEach(([key, value]) => headers.append(key, value));
           headers.append(
             "Set-Cookie",
             clearCookie(LAST_ACTIVITY_COOKIE, {

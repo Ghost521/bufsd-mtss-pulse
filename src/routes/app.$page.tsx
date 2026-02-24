@@ -19,6 +19,7 @@ export const Route = createFileRoute("/app/$page")({
     }
 
     if (shouldBypassRouteAuth(location.href)) return;
+    if (typeof window === "undefined") return;
 
     const auth = await getRouteAuthStatus();
     if (!auth.signedIn) {

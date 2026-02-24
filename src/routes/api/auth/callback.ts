@@ -102,7 +102,7 @@ export const Route = createFileRoute("/api/auth/callback")({
           userId: session.user.id,
           context: session.activeContext,
         });
-        localSessionHeaders.forEach((value, key) => headers.append(key, value));
+        localSessionHeaders.forEach(([key, value]) => headers.append(key, value));
 
         headers.append(
           "Set-Cookie",

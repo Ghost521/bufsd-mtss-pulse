@@ -336,97 +336,101 @@ export const RosterView: React.FC<RosterViewProps> = ({
       />
 
       {/* Header & View Toggle */}
-      <div className="flex flex-col gap-6 mb-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-6 mb-8 bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden z-10">
+        <div className="absolute -left-12 -top-12 w-48 h-48 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+            <div className="flex items-center gap-4">
                 <SidebarToggleButton
                     onClick={onMenuClick}
-                    className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                    className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
                 />
+                <div className="p-3 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600 hidden sm:block">
+                    <Users size={24} strokeWidth={2.5} />
+                </div>
                 <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Roster workspace</h2>
-                    <p className="text-slate-500 mt-1">Manage staff and student rosters.</p>
+                    <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Roster workspace</h2>
+                    <p className="text-slate-500 mt-1.5 text-sm font-medium">Manage staff and student rosters.</p>
                 </div>
             </div>
 
             {/* Segmented View Toggle */}
-            <div className="bg-slate-100 p-1 rounded-xl flex items-center w-full md:w-auto">
+            <div className="bg-slate-100/80 p-1.5 rounded-xl flex items-center w-full md:w-auto shadow-inner border border-slate-200/50">
                 <button
                     onClick={() => setActiveTab('staff')}
-                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${
+                    className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
                         activeTab === 'staff' 
-                        ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
-                        : 'text-slate-500 hover:text-slate-700'
+                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' 
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                     }`}
                 >
-                    <Users size={16} /> Staff Directory
+                    <Users size={16} strokeWidth={2.5} /> Staff Directory
                 </button>
                 <button
                     onClick={() => setActiveTab('students')}
-                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 ${
+                    className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
                         activeTab === 'students' 
-                        ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
-                        : 'text-slate-500 hover:text-slate-700'
+                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' 
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                     }`}
                 >
-                    <GraduationCap size={16} /> Students
+                    <GraduationCap size={16} strokeWidth={2.5} /> Students
                 </button>
             </div>
         </div>
 
         {/* STAFF VIEW CONTROLS */}
         {activeTab === 'staff' && (
-            <div className="flex flex-col md:flex-row gap-3 animate-in fade-in justify-between">
+            <div className="flex flex-col md:flex-row gap-4 animate-in fade-in justify-between items-center bg-slate-50/50 p-4 rounded-3xl border border-slate-200/60 shadow-sm backdrop-blur-md">
                 
-                <div className="flex flex-col md:flex-row gap-3 flex-1">
+                <div className="flex flex-col md:flex-row gap-4 flex-1 w-full">
                     {/* Search */}
-                    <div className="relative group w-full md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16} />
+                    <div className="relative group w-full md:w-64 xl:w-80">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
                         <input 
                             type="text" 
-                            placeholder="Search staff..." 
+                            placeholder="Search staff by name or grade..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full transition-all shadow-sm focus:shadow-md hover:border-slate-300"
+                            className="pl-11 pr-5 py-3 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 w-full transition-all shadow-sm"
                         />
                     </div>
 
                     {/* Filters Group */}
-                    <div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto">
+                    <div className="grid grid-cols-2 md:flex gap-3 w-full md:w-auto">
                         <div className="relative">
                             <button 
                                 onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-                                className={`w-full md:w-auto flex items-center justify-between md:justify-start gap-2 px-3 py-2.5 border rounded-lg text-sm font-medium transition-all duration-200 shadow-sm whitespace-nowrap ${
+                                className={`w-full md:w-auto flex items-center justify-between md:justify-start gap-3 px-4 py-3 border rounded-xl text-sm font-bold transition-all duration-300 shadow-sm whitespace-nowrap focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/20 ${
                                     isFilterMenuOpen || roleFilter !== 'All'
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                    ? 'bg-indigo-50 border-indigo-200/80 text-indigo-700' 
+                                    : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                                 }`}
                             >
-                                <div className="flex items-center gap-2 truncate">
-                                    <Filter size={16} className={`shrink-0 ${roleFilter !== 'All' ? "text-indigo-600" : "text-slate-500"}`} />
+                                <div className="flex items-center gap-2.5 truncate">
+                                    <Filter size={16} className={`shrink-0 ${roleFilter !== 'All' ? "text-indigo-600" : "text-slate-500"}`} strokeWidth={2.5} />
                                     <span className="truncate">{roleFilter === 'All' ? 'Role' : roleFilter}</span>
                                 </div>
-                                <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${isFilterMenuOpen ? 'rotate-180' : ''} ${roleFilter !== 'All' ? "text-indigo-500" : "text-slate-400"}`} />
+                                <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isFilterMenuOpen ? 'rotate-180' : ''} ${roleFilter !== 'All' ? "text-indigo-500" : "text-slate-400"}`} />
                             </button>
                             {isFilterMenuOpen && (
                                 <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsFilterMenuOpen(false)} />
-                                    <div className="absolute left-0 md:left-auto md:right-0 mt-2 w-full md:w-48 bg-white border border-slate-100 rounded-xl shadow-lg ring-1 ring-black/5 z-20 p-1 animate-in fade-in zoom-in-95 duration-200 origin-top">
-                                        <div className="px-3 py-2 border-b border-slate-50 mb-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Role</p>
+                                    <div className="fixed inset-0 z-20" onClick={() => setIsFilterMenuOpen(false)} />
+                                    <div className="absolute left-0 md:left-auto md:right-0 mt-3 w-full md:w-56 bg-white/95 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-xl z-30 p-2 animate-in fade-in zoom-in-95 duration-200 origin-top">
+                                        <div className="px-4 py-2.5 border-b border-slate-100/80 mb-2">
+                                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Select Role</p>
                                         </div>
                                         {['All', 'Teacher', 'Consultant', 'Specialist'].map(role => (
                                             <button
                                                 key={role}
                                                 onClick={() => { setRoleFilter(role); setIsFilterMenuOpen(false); }}
-                                                className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors ${
+                                                className={`w-full text-left px-4 py-3 text-sm rounded-xl flex items-center justify-between transition-colors ${
                                                     roleFilter === role 
-                                                        ? 'bg-indigo-50 text-indigo-700 font-semibold' 
-                                                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                                        ? 'bg-indigo-50/80 text-indigo-700 font-extrabold border border-indigo-100/50 shadow-sm' 
+                                                        : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900 border border-transparent'
                                                 }`}
                                             >
                                                 {role === 'All' ? 'All Roles' : role}
-                                                {roleFilter === role && <Check size={14} className="text-indigo-600" />}
+                                                {roleFilter === role && <Check size={16} strokeWidth={3} className="text-indigo-600" />}
                                             </button>
                                         ))}
                                     </div>
@@ -437,45 +441,45 @@ export const RosterView: React.FC<RosterViewProps> = ({
                         <div className="relative flex items-center gap-2">
                             <button 
                                 onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
-                                className={`w-full md:w-auto flex items-center justify-between md:justify-start gap-2 px-3 py-2.5 border rounded-lg text-sm font-medium transition-all duration-200 shadow-sm whitespace-nowrap ${
+                                className={`w-full md:w-auto flex items-center justify-between md:justify-start gap-3 px-4 py-3 border rounded-xl text-sm font-bold transition-all duration-300 shadow-sm whitespace-nowrap focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/20 ${
                                     isSortMenuOpen 
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                    ? 'bg-indigo-50 border-indigo-200/80 text-indigo-700' 
+                                    : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                                 }`}
                             >
-                                <div className="flex items-center gap-2 truncate">
-                                    <ArrowUpDown size={16} className={`shrink-0 ${isSortMenuOpen ? "text-indigo-600" : "text-slate-500"}`} />
+                                <div className="flex items-center gap-2.5 truncate">
+                                    <ArrowUpDown size={16} className={`shrink-0 ${isSortMenuOpen ? "text-indigo-600" : "text-slate-500"}`} strokeWidth={2.5} />
                                     <span className="truncate">Sort: {sortState.key}</span>
                                 </div>
-                                <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${isSortMenuOpen ? 'rotate-180' : ''} text-slate-400`} />
+                                <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isSortMenuOpen ? 'rotate-180' : ''} text-slate-400`} />
                             </button>
                             <button
                               type="button"
                               aria-label={`Sort direction: ${sortState.direction === 'desc' ? 'Descending' : 'Ascending'}`}
                               onClick={handleToggleSortDirection}
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-600 shadow-sm transition-colors hover:border-indigo-200 hover:text-indigo-600"
+                              className="inline-flex items-center justify-center rounded-xl border border-slate-200/80 bg-white px-3.5 py-3 text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow hover:-translate-y-0.5"
                             >
-                              {sortState.direction === 'desc' ? <ArrowDown size={16} /> : <ArrowUp size={16} />}
+                              {sortState.direction === 'desc' ? <ArrowDown size={16} strokeWidth={2.5} /> : <ArrowUp size={16} strokeWidth={2.5} />}
                             </button>
                             {isSortMenuOpen && (
                                 <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsSortMenuOpen(false)} />
-                                    <div className="absolute right-0 top-full mt-2 w-full md:w-52 bg-white border border-slate-100 rounded-xl shadow-lg ring-1 ring-black/5 z-20 p-1 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                                        <div className="px-3 py-2 border-b border-slate-50 mb-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Order By</p>
+                                    <div className="fixed inset-0 z-20" onClick={() => setIsSortMenuOpen(false)} />
+                                    <div className="absolute right-0 top-full mt-3 w-full md:w-56 bg-white/95 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-xl z-30 p-2 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                        <div className="px-4 py-2.5 border-b border-slate-100/80 mb-2">
+                                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Order By</p>
                                         </div>
                                         {STAFF_SORT_OPTIONS.map(sort => (
                                             <button
                                                 key={sort}
                                                 onClick={() => handleSortKeySelect(sort)}
-                                                className={`w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors ${
+                                                className={`w-full text-left px-4 py-3 text-sm rounded-xl flex items-center justify-between transition-colors ${
                                                     sortState.key === sort 
-                                                        ? 'bg-indigo-50 text-indigo-700 font-semibold' 
-                                                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                                        ? 'bg-indigo-50/80 text-indigo-700 font-extrabold border border-indigo-100/50 shadow-sm' 
+                                                        : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900 border border-transparent'
                                                 }`}
                                             >
                                                 {sort}
-                                                {sortState.key === sort && <Check size={14} className="text-indigo-600" />}
+                                                {sortState.key === sort && <Check size={16} strokeWidth={3} className="text-indigo-600" />}
                                             </button>
                                         ))}
                                     </div>
@@ -485,24 +489,24 @@ export const RosterView: React.FC<RosterViewProps> = ({
                     </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-3 w-full md:w-auto">
                     {/* Bulk Selection Toggle */}
                     <button 
                        onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedIds(new Set()); }}
-                       className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold border transition-all ${isSelectionMode ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600'}`}
+                       className={`flex-1 md:flex-none items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-extrabold transition-all shadow-sm border ${isSelectionMode ? 'bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700 hover:shadow-md' : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50 hover:shadow-md'}`}
                     >
-                        {isSelectionMode ? <X size={16} /> : <CheckCircle2 size={16} />}
-                        {isSelectionMode ? 'Done selecting' : 'Select staff'}
+                        {isSelectionMode ? <X size={16} strokeWidth={2.5} /> : <CheckCircle2 size={16} strokeWidth={2.5} />}
+                        {isSelectionMode ? 'Done' : 'Select'}
                     </button>
 
                     {/* Import Button */}
                     {canImportStaff && (
                       <button 
                           onClick={() => onNavigate && onNavigate('import')}
-                          className="bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-colors text-sm flex items-center gap-2 active:translate-y-0.5 transform"
+                          className="flex-1 md:flex-none bg-white border border-slate-200/80 text-slate-700 hover:text-indigo-700 hover:border-indigo-200/80 hover:bg-indigo-50/50 px-5 py-3 rounded-xl font-extrabold shadow-sm transition-all text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-md"
                       >
-                          <Upload size={16} /> 
-                          <span>Import Staff</span>
+                          <Upload size={16} strokeWidth={2.5} /> 
+                          <span>Import</span>
                       </button>
                     )}
                 </div>
@@ -552,13 +556,13 @@ export const RosterView: React.FC<RosterViewProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2">
                 {filteredAndSortedStaff.length === 0 ? (
-                    <div className="col-span-full py-16 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 flex flex-col items-center gap-2">
-                        <Search size={48} className="text-slate-300 mb-2" />
-                        <p className="font-medium">No staff members found.</p>
-                        <p className="text-sm text-slate-400">Try adjusting your filters or search query.</p>
+                    <div className="col-span-full py-20 text-center text-slate-500 bg-white/50 backdrop-blur-sm rounded-3xl border-2 border-dashed border-slate-200/60 flex flex-col items-center gap-3">
+                        <Search size={48} className="text-slate-300 mb-2" strokeWidth={1.5} />
+                        <p className="font-extrabold text-lg text-slate-700 tracking-tight">No staff members found.</p>
+                        <p className="text-sm font-medium text-slate-500">Try adjusting your filters or search query.</p>
                         <button 
                             onClick={() => {setRoleFilter('All'); setSearchQuery('');}}
-                            className="mt-2 text-sm text-indigo-600 font-medium hover:underline"
+                            className="mt-3 text-sm text-indigo-600 font-bold hover:underline underline-offset-4"
                         >
                             Clear all filters
                         </button>
@@ -576,89 +580,89 @@ export const RosterView: React.FC<RosterViewProps> = ({
                     <div 
                         key={staff.id} 
                         onClick={() => isSelectionMode && handleToggleSelection(staff.id)}
-                        className={`bg-white rounded-xl border shadow-sm hover:shadow-lg transition-all duration-300 group relative flex flex-col h-full hover:-translate-y-1 overflow-hidden ${isSelectionMode ? 'cursor-pointer' : 'cursor-default'} ${isSelectionMode && isSelected ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-100'}`}
+                        className={`bg-white/90 backdrop-blur-sm rounded-2xl border shadow-sm hover:shadow-lg hover:border-indigo-300/80 transition-all duration-300 group relative flex flex-col h-full hover:-translate-y-1 overflow-hidden ${isSelectionMode ? 'cursor-pointer' : 'cursor-default'} ${isSelectionMode && isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-md' : 'border-slate-200/60'}`}
                     >
                         
                         {/* Decorative Top Border */}
-                        <div className={`h-1 w-full ${staff.mtssFidelityScore >= 90 ? 'bg-emerald-500' : staff.mtssFidelityScore >= 80 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                        <div className={`h-1.5 w-full transition-colors ${staff.mtssFidelityScore >= 90 ? 'bg-emerald-500' : staff.mtssFidelityScore >= 80 ? 'bg-amber-500' : 'bg-rose-500'}`} />
 
                         {/* Header Section */}
-                        <div className="p-6 pb-4">
+                        <div className="p-6 pb-5 relative z-10">
                         <div className="flex justify-between items-start mb-5">
                             <div className="flex items-center gap-4">
                             {/* Avatar with Upload Overlay */}
                             <div className="relative group/avatar">
-                                <div className="w-16 h-16 rounded-full bg-slate-100 border-4 border-white shadow-md overflow-hidden ring-1 ring-slate-100 group-hover/avatar:ring-indigo-200 transition-all duration-300 relative flex items-center justify-center">
+                                <div className="w-16 h-16 rounded-2xl bg-slate-100 border-2 border-white shadow-md overflow-hidden ring-1 ring-slate-200/50 group-hover/avatar:ring-indigo-300 transition-all duration-300 relative flex items-center justify-center">
                                     {isSelectionMode ? (
                                         <div className={`w-full h-full flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600' : 'bg-slate-100'}`}>
-                                            {isSelected ? <Check size={32} className="text-white" /> : <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${staff.avatarSeed}&backgroundColor=e0e7ff`} className="opacity-50" />}
+                                            {isSelected ? <Check size={32} strokeWidth={3} className="text-white" /> : <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${staff.avatarSeed}&backgroundColor=e0e7ff`} className="opacity-50" />}
                                         </div>
                                     ) : (
                                         <>
                                             <img 
                                                 src={staff.customAvatar || `https://api.dicebear.com/7.x/lorelei/svg?seed=${staff.avatarSeed}&backgroundColor=e0e7ff`} 
                                                 alt={staff.name}
-                                                className="w-full h-full object-cover transition-transform duration-300 group-hover/avatar:scale-105"
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-110"
                                             />
                                             {/* Camera Upload Overlay */}
                                             <div 
                                                 onClick={(e) => handleAvatarClick(staff.id, e)}
-                                                className="absolute inset-0 rounded-full bg-slate-900/40 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer backdrop-blur-[1px] border-4 border-transparent"
+                                                className="absolute inset-0 bg-slate-900/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer backdrop-blur-[2px] border-2 border-transparent"
                                             >
-                                                <Camera size={20} className="text-white drop-shadow-md" />
+                                                <Camera size={24} strokeWidth={2.5} className="text-white drop-shadow-md" />
                                             </div>
                                         </>
                                     )}
                                 </div>
 
                                 {staff.flaggedStudents > 0 && !isSelectionMode && (
-                                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-rose-500 text-white rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold shadow-sm animate-pulse pointer-events-none" title={`${staff.flaggedStudents} Flagged Students`}>
+                                    <div className="absolute -bottom-2 -right-2 w-7 h-7 bg-rose-500 text-white rounded-xl border-2 border-white flex items-center justify-center text-[11px] font-extrabold shadow-sm animate-pulse pointer-events-none" title={`${staff.flaggedStudents} Flagged Students`}>
                                         {staff.flaggedStudents}
                                     </div>
                                 )}
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors cursor-pointer" onClick={() => !isSelectionMode && handleAction('View Profile', staff.name)}>
+                                <h3 className="text-xl font-extrabold tracking-tight text-slate-800 group-hover:text-indigo-700 transition-colors cursor-pointer" onClick={() => !isSelectionMode && handleAction('View Profile', staff.name)}>
                                     {staff.name}
                                 </h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${getRoleBadgeStyle(staff.role)}`}>
+                                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                    <span className={`text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md border shadow-sm ${getRoleBadgeStyle(staff.role)}`}>
                                         {staff.role}
                                     </span>
-                                    {staff.grade && <span className="text-xs text-slate-500 font-medium border border-slate-100 px-1.5 py-0.5 rounded bg-slate-50">{staff.grade}</span>}
+                                    {staff.grade && <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest border border-slate-200/80 px-2 py-0.5 rounded-md bg-slate-50 shadow-sm">{staff.grade}</span>}
                                     {isInterventionist ? (
-                                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700">
-                                        Interventionist{interventionFocus.length > 0 ? `: ${interventionFocus.join(' + ')}` : ''}
+                                      <span className="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md border border-emerald-200/80 bg-emerald-50 text-emerald-700 shadow-sm">
+                                        Interv{interventionFocus.length > 0 ? `: ${interventionFocus.join(' + ')}` : ''}
                                       </span>
                                     ) : null}
                                 </div>
                             </div>
                             </div>
                             {!isSelectionMode && (
-                                <button className="text-slate-400 hover:text-indigo-600 p-2 rounded-full hover:bg-slate-50 transition-colors">
-                                    <MoreHorizontal size={20} />
+                                <button className="text-slate-400 hover:text-indigo-600 p-2 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm transition-all">
+                                    <MoreHorizontal size={20} strokeWidth={2.5} />
                                 </button>
                             )}
                         </div>
 
                         {/* Quick Stats Grid */}
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div className="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100/50 group-hover:border-indigo-100/50 transition-all">
-                                <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-slate-500">Caseload</span>
+                        <div className="grid grid-cols-2 gap-4 mb-5">
+                            <div className="flex flex-col p-4 bg-slate-50/80 rounded-2xl border border-slate-200/50 group-hover:border-indigo-200/50 transition-all shadow-sm group/stat">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest mb-1 text-slate-500 group-hover/stat:text-indigo-600 transition-colors">Caseload</span>
                                 <div className="flex items-center gap-2">
-                                    <Users size={16} className="text-indigo-500" />
-                                    <span className="text-xl font-bold text-slate-900">{staff.studentCount}</span>
-                                    <span className="text-[10px] text-slate-400">students</span>
+                                    <Users size={18} className="text-indigo-500" strokeWidth={2.5} />
+                                    <span className="text-2xl font-extrabold tracking-tight text-slate-800">{staff.studentCount}</span>
+                                    <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">students</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100/50 group-hover:border-indigo-100/50 transition-all">
-                                <span className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-slate-500">Attendance</span>
+                            <div className="flex flex-col p-4 bg-slate-50/80 rounded-2xl border border-slate-200/50 group-hover:border-indigo-200/50 transition-all shadow-sm">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest mb-1 text-slate-500">Attendance</span>
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-xl font-bold ${staff.attendanceRate >= 95 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                    <span className={`text-2xl font-extrabold tracking-tight ${staff.attendanceRate >= 95 ? 'text-emerald-600' : 'text-amber-600'}`}>
                                         {staff.attendanceRate}%
                                     </span>
-                                    <div className={`w-1.5 h-1.5 rounded-full ${staff.attendanceRate >= 95 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                    <div className={`w-2 h-2 rounded-full shadow-sm ${staff.attendanceRate >= 95 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                                 </div>
                             </div>
                         </div>
@@ -668,29 +672,30 @@ export const RosterView: React.FC<RosterViewProps> = ({
                             event.stopPropagation();
                             handleToggleCardDetails(staff.id);
                           }}
-                          className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:text-indigo-700"
+                          className="mb-5 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-xs font-bold text-slate-600 transition-all hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50/30 shadow-sm"
                         >
                           {isExpanded ? 'Hide details' : 'Show details'}
                           <ChevronDown
-                            size={14}
+                            size={16}
+                            strokeWidth={2.5}
                             className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                           />
                         </button>
                         </div>
 
                         {/* Fidelity Summary */}
-                        <div className="px-6 py-4 bg-slate-50/50 flex-1 border-t border-slate-100">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs font-semibold flex items-center gap-1.5 text-slate-600">
-                                    <ClipboardList size={14} className="text-slate-400" /> 
+                        <div className="px-6 py-5 bg-slate-50/80 flex-1 border-t border-slate-100/80 relative z-10">
+                            <div className="flex justify-between items-center mb-3">
+                                <span className="text-[11px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 text-slate-500">
+                                    <ClipboardList size={16} className="text-slate-400" strokeWidth={2.5} /> 
                                     MTSS Fidelity Score
-                                    <Info size={12} className="text-slate-300" />
+                                    <Info size={14} className="text-slate-300" />
                                 </span>
-                                <span className={`text-xs font-bold ${fidelityStyles.text}`}>
+                                <span className={`text-sm font-extrabold ${fidelityStyles.text}`}>
                                     {staff.mtssFidelityScore}%
                                 </span>
                             </div>
-                            <div className={`w-full h-2.5 rounded-full overflow-hidden ${fidelityStyles.track}`}>
+                            <div className={`w-full h-3 rounded-full overflow-hidden shadow-inner border border-slate-200/50 ${fidelityStyles.track}`}>
                                 <div 
                                     className={`h-full rounded-full transition-all duration-1000 ${fidelityStyles.bar}`}
                                     style={{ width: `${staff.mtssFidelityScore}%` }}
@@ -699,23 +704,23 @@ export const RosterView: React.FC<RosterViewProps> = ({
                         </div>
 
                         {isExpanded && !isSelectionMode ? (
-                          <div className="space-y-3 border-t border-slate-100 bg-white px-6 py-4 rounded-b-xl">
-                            <div className="flex items-center gap-2 py-1 px-2 rounded-lg bg-indigo-50/50 border border-indigo-50">
-                                <TrendingUp size={14} className="text-indigo-500" /> 
-                                <span className="text-xs font-semibold text-slate-600">Performance:</span>
-                                <span className="text-xs font-bold text-slate-800">{staff.performanceMetric}</span>
+                          <div className="space-y-4 border-t border-slate-100/80 bg-white px-6 py-5 rounded-b-2xl relative z-10">
+                            <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50 shadow-sm">
+                                <TrendingUp size={16} strokeWidth={2.5} className="text-indigo-500 shrink-0" /> 
+                                <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Performance:</span>
+                                <span className="text-sm font-extrabold text-slate-800">{staff.performanceMetric}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                            <div className="grid grid-cols-2 gap-x-5 gap-y-3 rounded-xl border border-slate-200/60 bg-slate-50/50 p-4 shadow-sm">
                                 {breakdown.map((metric, i) => (
-                                    <div key={i} className="flex flex-col gap-1">
+                                    <div key={i} className="flex flex-col gap-1.5">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1">
-                                                <metric.icon size={10} className="text-slate-400" />
+                                            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                                <metric.icon size={12} strokeWidth={2.5} className="text-slate-400" />
                                                 {metric.label}
                                             </span>
-                                            <span className={`text-[10px] font-bold ${metric.text}`}>{metric.value}%</span>
+                                            <span className={`text-[11px] font-extrabold ${metric.text}`}>{metric.value}%</span>
                                         </div>
-                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="w-full h-2 bg-slate-100/80 rounded-full overflow-hidden shadow-inner border border-slate-200/50">
                                             <div 
                                                 className={`h-full rounded-full ${metric.color}`}
                                                 style={{ width: `${metric.value}%` }}
@@ -726,16 +731,16 @@ export const RosterView: React.FC<RosterViewProps> = ({
                             </div>
                             {canManageInterventionists && staff.role === 'Teacher' ? (
                               <div
-                                className="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                                className="rounded-xl border border-slate-200/60 bg-slate-50/50 p-4 shadow-sm"
                                 onClick={(event) => event.stopPropagation()}
                               >
-                                <div className="mb-2 flex items-center justify-between">
-                                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Interventionist Tags</p>
-                                  <span className="text-[10px] font-semibold text-slate-500">
+                                <div className="mb-3 flex items-center justify-between">
+                                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Interventionist Tags</p>
+                                  <span className="text-[10px] font-bold text-slate-400">
                                     {interventionFocus.length > 0 ? interventionFocus.join(' + ') : 'None'}
                                   </span>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                   {INTERVENTION_FOCUSES.map((focus) => {
                                     const selected = interventionFocus.includes(focus);
                                     return (
@@ -743,13 +748,13 @@ export const RosterView: React.FC<RosterViewProps> = ({
                                         key={focus}
                                         type="button"
                                         onClick={() => handleToggleInterventionFocus(staff, focus)}
-                                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-bold transition-colors ${
+                                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-widest transition-all shadow-sm ${
                                           selected
-                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                            : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-700'
+                                            ? 'border-indigo-300/80 bg-indigo-50 text-indigo-700'
+                                            : 'border-slate-200/80 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 hover:bg-indigo-50/30'
                                         }`}
                                       >
-                                        {focus === 'Reading' ? <BookOpen size={12} /> : <Calculator size={12} />}
+                                        {focus === 'Reading' ? <BookOpen size={14} strokeWidth={2.5} /> : <Calculator size={14} strokeWidth={2.5} />}
                                         {focus}
                                       </button>
                                     );
@@ -758,27 +763,27 @@ export const RosterView: React.FC<RosterViewProps> = ({
                               </div>
                             ) : null}
 
-                            <div className="space-y-3">
+                            <div className="space-y-3 pt-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Actions</span>
-                                    <div className="flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded border text-slate-500 bg-slate-50 border-slate-100">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Quick Actions</span>
+                                    <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md border text-slate-500 bg-slate-50 border-slate-200/80 shadow-sm">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse shadow-sm" />
                                         {staff.activeInterventions} Active Plans
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <button 
                                         onClick={() => handleAction('Email', staff.name)}
-                                        className="flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group/btn"
+                                        className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 hover:text-indigo-700 hover:border-indigo-300 transition-all shadow-sm group/btn"
                                     >
-                                        <Mail size={14} className="text-slate-400 group-hover/btn:text-indigo-500 transition-colors" /> 
+                                        <Mail size={16} strokeWidth={2.5} className="text-slate-400 group-hover/btn:text-indigo-500 transition-colors" /> 
                                         Email Staff
                                     </button>
                                     <button 
                                         onClick={() => handleAction('View Details', staff.name)}
-                                        className="flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-white bg-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-700 hover:shadow-md transition-all shadow-sm group/btn"
+                                        className="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-semibold text-white bg-indigo-600 border border-indigo-600 rounded-xl hover:bg-indigo-700 hover:shadow-lg transition-all shadow-md hover:-translate-y-0.5 group/btn"
                                     >
-                                        View Details <ArrowRight size={14} className="group-hover/btn:translate-x-0.5 transition-transform" />
+                                        View Details <ArrowRight size={16} strokeWidth={2.5} className="group-hover/btn:translate-x-1 transition-transform" />
                                     </button>
                                 </div>
                             </div>
@@ -793,14 +798,16 @@ export const RosterView: React.FC<RosterViewProps> = ({
 
       {/* STUDENT ROSTER VIEW */}
       {activeTab === 'students' && (
-          <StudentRosterView 
-            onMenuClick={onMenuClick}
-            onStudentClick={onStudentClick || ((name) => console.log(name))}
-            currentUserRole={currentUserRole}
-            viewType={currentUserRole === UserRole.TEACHER ? "classroom" : "master"}
-            embedded={true} 
-            onNavigate={onNavigate}
-          />
+          <div className="bg-white/80 backdrop-blur-md rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden p-6 sm:p-8">
+            <StudentRosterView 
+                onMenuClick={onMenuClick}
+                onStudentClick={onStudentClick || ((name) => console.log(name))}
+                currentUserRole={currentUserRole}
+                viewType={currentUserRole === UserRole.TEACHER ? "classroom" : "master"}
+                embedded={true} 
+                onNavigate={onNavigate}
+            />
+          </div>
       )}
     </div>
   );

@@ -106,24 +106,24 @@ export const isSessionIdleExpired = (lastActivity: string | null, now: Date = ne
   return elapsed >= IDLE_TIMEOUT_MILLISECONDS;
 };
 
-export const createActivityCookieHeaders = (now: Date = new Date()): Headers => {
-  const headers = new Headers();
-  headers.append(
-    "Set-Cookie",
-    serializeCookie(LAST_ACTIVITY_COOKIE, `${now.getTime()}`, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: COOKIE_SECURE,
-      maxAge: IDLE_TIMEOUT_SECONDS,
-    })
-  );
-  return headers;
+export const createActivityCookieHeaders = (now: Date = new Date()): Array<[string, string]> => {
+  return [
+    [
+      "Set-Cookie",
+      serializeCookie(LAST_ACTIVITY_COOKIE, `${now.getTime()}`, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: COOKIE_SECURE,
+        maxAge: IDLE_TIMEOUT_SECONDS,
+      }),
+    ],
+  ];
 };
 
 export const appendActivityCookie = (response: Response, now: Date = new Date()): Response => {
   const headers = createActivityCookieHeaders(now);
-  headers.forEach((value, key) => response.headers.append(key, value));
+  headers.forEach(([key, value]) => response.headers.append(key, value));
   return response;
 };
 
@@ -184,9 +184,9 @@ export const getSessionSummary = (session: SessionContext | null) => {
 export const createSessionCookieHeaders = (input: {
   userId: string;
   context: TenantContext;
-}): Headers => {
-  const headers = new Headers();
-  headers.append(
+}): Array<[string, string]> => {
+  const headers: Array<[string, string]> = [];
+  headers.push([
     "Set-Cookie",
     serializeCookie(USER_COOKIE, input.userId, {
       path: "/",
@@ -194,9 +194,9 @@ export const createSessionCookieHeaders = (input: {
       sameSite: "Lax",
       secure: COOKIE_SECURE,
       maxAge: COOKIE_MAX_AGE_SECONDS,
-    })
-  );
-  headers.append(
+    }),
+  ]);
+  headers.push([
     "Set-Cookie",
     serializeCookie(CONTEXT_COOKIE, JSON.stringify(input.context), {
       path: "/",
@@ -204,40 +204,40 @@ export const createSessionCookieHeaders = (input: {
       sameSite: "Lax",
       secure: COOKIE_SECURE,
       maxAge: COOKIE_MAX_AGE_SECONDS,
-    })
-  );
+    }),
+  ]);
   const activityHeaders = createActivityCookieHeaders();
-  activityHeaders.forEach((value, key) => headers.append(key, value));
+  activityHeaders.forEach(([key, value]) => headers.push([key, value]));
   return headers;
 };
 
-export const clearSessionCookieHeaders = (): Headers => {
-  const headers = new Headers();
-  headers.append(
+export const clearSessionCookieHeaders = (): Array<[string, string]> => {
+  const headers: Array<[string, string]> = [];
+  headers.push([
     "Set-Cookie",
     clearCookie(USER_COOKIE, {
       path: "/",
       httpOnly: true,
       sameSite: "Lax",
       secure: COOKIE_SECURE,
-    })
-  );
-  headers.append(
+    }),
+  ]);
+  headers.push([
     "Set-Cookie",
     clearCookie(CONTEXT_COOKIE, {
       path: "/",
       httpOnly: true,
       sameSite: "Lax",
       secure: COOKIE_SECURE,
-    })
-  );
+    }),
+  ]);
   return headers;
 };
 
 export const resolveSessionChange = async (
   request: Request,
   body: unknown
-): Promise<{ session: SessionContext; headers: Headers } | { error: string; status: number }> => {
+): Promise<{ session: SessionContext; headers: Array<[string, string]> } | { error: string; status: number }> => {
   const current = await getSessionFromRequest(request);
   if (!current) return { error: "Session unavailable.", status: 401 };
 

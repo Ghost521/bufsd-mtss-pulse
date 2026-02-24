@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/auth/logout")({
 
         const headers = new Headers();
         const sessionHeaders = clearSessionCookieHeaders();
-        sessionHeaders.forEach((value, key) => headers.append(key, value));
+        sessionHeaders.forEach(([key, value]) => headers.append(key, value));
         headers.append(
           "Set-Cookie",
           clearCookie(WORKOS_SESSION_COOKIE, {

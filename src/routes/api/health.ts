@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/health")({
           persistence: getPersistenceDiagnostics(),
         });
 
-        changed.headers.forEach((value, key) => response.headers.append(key, value));
+        changed.headers.forEach(([key, value]) => response.headers.append(key, value));
         return response;
       },
     },

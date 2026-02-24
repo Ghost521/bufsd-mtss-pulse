@@ -1975,48 +1975,48 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Main Layout - Full Width Calendar */}
-      <div className="app-responsive-pane flex flex-1 min-h-[600px] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="app-responsive-pane flex flex-1 min-h-[600px] min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md shadow-sm">
             
             {/* Calendar Header with Integrated Filters */}
-            <div className="relative z-10 flex flex-col items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:p-6">
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            <div className="relative z-10 flex flex-col items-start justify-between gap-5 border-b border-slate-200/60 bg-white/50 backdrop-blur-md p-5 sm:flex-row sm:items-center sm:p-7">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-5">
                     <div className="flex items-center gap-3 lg:hidden">
                         <SidebarToggleButton
                             onClick={onMenuClick}
                             className="p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
                         />
                     </div>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+                    <h2 className="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl">
                         {headerTitle}
                     </h2>
-                    <div className="ml-0 flex items-center rounded-lg border border-slate-200 bg-slate-100/80 p-1 sm:ml-2">
+                    <div className="ml-0 flex items-center rounded-xl border border-slate-200/60 bg-slate-100/50 p-1.5 sm:ml-3 shadow-inner">
                         <button
                             onClick={handlePreviousRange}
                             aria-label="Previous month"
-                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
                             <ChevronLeft size={18}/>
                         </button>
-                        <button onClick={handleToday} className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-md">Today</button>
+                        <button onClick={handleToday} className="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:text-indigo-700 transition-colors uppercase tracking-widest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg bg-white/50 hover:bg-white shadow-sm">Today</button>
                         <button
                             onClick={handleNextRange}
                             aria-label="Next month"
-                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-md text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-slate-500 hover:text-indigo-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
                             <ChevronRight size={18}/>
                         </button>
                     </div>
                 </div>
                 
-                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                    <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                <div className="flex w-full flex-wrap items-center gap-4 sm:w-auto">
+                    <div className="flex items-center rounded-xl border border-slate-200/50 bg-slate-100/50 p-1.5 shadow-inner">
                         {(['month', 'week', 'day'] as CalendarViewMode[]).map(mode => (
                             <button
                                 key={mode}
                                 type="button"
                                 onClick={() => setViewMode(mode)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
-                                    viewMode === mode ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                className={`px-4 py-2 rounded-lg text-xs font-extrabold uppercase tracking-widest transition-all ${
+                                    viewMode === mode ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                                 }`}
                             >
                                 {mode}
@@ -2032,16 +2032,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             aria-label="Filter event types"
                             aria-expanded={isFilterDropdownOpen}
                             aria-haspopup="dialog"
-                            className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isFilterDropdownOpen ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                            className={`flex items-center gap-2 px-5 py-2.5 border rounded-xl text-sm font-semibold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${isFilterDropdownOpen ? 'bg-indigo-50 border-indigo-200/80 text-indigo-700' : 'bg-white border-slate-200/60 text-slate-600 hover:bg-slate-50 hover:border-slate-300/80'}`}
                         >
-                            <Filter size={16} />
+                            <Filter size={18} />
                             <span>Filters</span>
                             {hasActiveTypeFilters && (
-                                <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                <span className="bg-indigo-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md min-w-[20px] text-center shadow-sm">
                                     {selectedTypes.length}
                                 </span>
                             )}
-                            <ChevronDown size={14} className={`transition-transform duration-200 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                            <ChevronDown size={16} className={`transition-transform duration-200 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
 
                         {isFilterDropdownOpen && (
@@ -2049,33 +2049,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 ref={filterPanelRef}
                                 role="dialog"
                                 aria-label="Filter events by type"
-                            className="absolute right-0 mt-2 w-full max-w-[20rem] rounded-xl border border-slate-100 bg-white p-2 shadow-xl z-30 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5"
+                            className="absolute right-0 mt-3 w-full max-w-[20rem] rounded-2xl border border-slate-200/60 bg-white/95 backdrop-blur-md p-3 shadow-xl z-30 animate-in fade-in zoom-in-95 origin-top-right ring-1 ring-black/5"
                             >
-                                <div className="px-3 py-2 border-b border-slate-50 mb-2 flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Event Types</span>
-                                    <div className="flex items-center gap-3">
+                                <div className="px-3 py-2 border-b border-slate-100/80 mb-3 flex justify-between items-center">
+                                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Event Types</span>
+                                    <div className="flex items-center gap-4">
                                         <button 
                                             onClick={clearTypeFilters}
-                                            className="text-[10px] text-indigo-600 hover:underline font-semibold"
+                                            className="text-[10px] text-indigo-600 hover:underline font-extrabold uppercase tracking-wider"
                                         >
                                             Clear
                                         </button>
                                         <button
                                             onClick={() => setIsFilterDropdownOpen(false)}
-                                            className="text-[10px] text-slate-500 hover:text-slate-700 font-bold"
+                                            className="text-[10px] text-slate-500 hover:text-slate-800 font-extrabold uppercase tracking-wider"
                                         >
                                             Close
                                         </button>
                                     </div>
                                 </div>
-                                <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar px-1 pb-1">
+                                <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar px-1 pb-1">
                                     {ALL_EVENT_TYPES.map(type => {
                                         const styles = getEventTypeStyles(type);
                                         const isSelected = selectedTypes.includes(type);
                                         return (
-                                            <label key={type} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}>
-                                                <div className={`relative flex items-center justify-center w-5 h-5 rounded border transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
-                                                    {isSelected && <Check size={12} className="text-white" />}
+                                            <label key={type} className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-indigo-50/50 shadow-sm border border-indigo-100/50' : 'hover:bg-slate-50 border border-transparent'}`}>
+                                                <div className={`relative flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                                                    {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
                                                     <input 
                                                         type="checkbox"
                                                         className="hidden"
@@ -2083,8 +2083,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                                         onChange={() => toggleTypeFilter(type)}
                                                     />
                                                 </div>
-                                                <div className={`w-2.5 h-2.5 rounded-full ${styles.dot}`} />
-                                                <span className={`text-sm ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>{type}</span>
+                                                <div className={`w-3 h-3 rounded-full shadow-sm ${styles.dot}`} />
+                                                <span className={`text-sm tracking-tight ${isSelected ? 'text-slate-900 font-extrabold' : 'text-slate-600 font-semibold'}`}>{type}</span>
                                             </label>
                                         );
                                     })}
@@ -2096,22 +2096,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     {/* Create Event Button */}
                     <button 
                         onClick={() => openEventComposer(new Date(), dayStartMinutes, false)} 
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                        className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 hover:-translate-y-0.5"
                     >
-                        <Plus size={18} /> 
+                        <Plus size={18} strokeWidth={2.5} /> 
                         <span>New Event</span>
                     </button>
                 </div>
             </div>
 
             {hasActiveTypeFilters && (
-                <div className="px-6 py-2.5 border-b border-slate-100 bg-indigo-50/40 flex items-center justify-between gap-3">
-                    <p className="text-xs font-medium text-indigo-900">
+                <div className="px-7 py-3 border-b border-slate-200/60 bg-indigo-50/50 backdrop-blur-sm flex items-center justify-between gap-4">
+                    <p className="text-xs font-semibold text-indigo-900 tracking-wide">
                         Showing {selectedTypes.length} of {ALL_EVENT_TYPES.length} event types
                     </p>
                     <button
                         onClick={clearTypeFilters}
-                        className="text-xs font-semibold text-indigo-700 hover:underline"
+                        className="text-xs font-extrabold uppercase tracking-widest text-indigo-700 hover:text-indigo-900 transition-colors"
                     >
                         Reset Filters
                     </button>

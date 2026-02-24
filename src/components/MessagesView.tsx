@@ -892,7 +892,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   };
 
   return (
-    <div className="app-responsive-pane relative flex h-[calc(100vh-100px)] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="app-responsive-pane relative flex h-[calc(100vh-100px)] min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 mb-6">
       
       {/* --- Video Call Overlay --- */}
       {isVideoCallActive && activeMeta && (
@@ -993,71 +993,71 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
       {/* New Message Modal */}
       {showNewMessageModal && (
-          <div data-modal="true" className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-slate-100">
-                  <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                      <h3 className="font-bold text-lg text-slate-900">New Conversation</h3>
-                      <button onClick={closeNewMessageModal} className="text-slate-400 hover:text-slate-600 transition-colors rounded-full p-1 hover:bg-slate-100" aria-label="Close new conversation dialog"><X size={20} /></button>
+          <div data-modal="true" className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-slate-200/80">
+                  <div className="p-6 border-b border-slate-200/60 flex justify-between items-center bg-white/50 rounded-t-3xl">
+                      <h3 className="font-extrabold tracking-tight text-xl text-slate-900">New Conversation</h3>
+                      <button onClick={closeNewMessageModal} className="text-slate-400 hover:text-slate-600 transition-colors rounded-xl p-2 hover:bg-slate-100/80" aria-label="Close new conversation dialog"><X size={20} strokeWidth={2.5} /></button>
                   </div>
                   
-                  <div className="p-5 border-b border-slate-100 space-y-4 bg-slate-50/50">
+                  <div className="p-6 border-b border-slate-200/60 space-y-4 bg-slate-50/50">
                       {selectedContacts.length > 1 && isStaffUser && (
                           <input 
                             type="text" 
                             placeholder="Group name (optional)" 
                             value={groupName}
                             onChange={(e) => setGroupName(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                            className="w-full px-4 py-3 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 shadow-sm transition-all"
                           />
                       )}
                       <div className="relative">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} strokeWidth={2.5} />
                         <input 
                             type="text" 
                             placeholder="Search people..." 
                             value={contactSearch}
                             onChange={(e) => setContactSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 shadow-sm transition-all"
                         />
                       </div>
                       {selectedContacts.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                             {selectedContacts.map(c => (
-                                <span key={c} className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full flex items-center gap-1.5 animate-in fade-in zoom-in">
-                                    {c} <button onClick={() => handleToggleContact(c)} className="hover:text-indigo-900"><X size={12} /></button>
+                                <span key={c} className="text-[11px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100/50 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 animate-in fade-in zoom-in uppercase tracking-wide">
+                                    {c} <button onClick={() => handleToggleContact(c)} className="hover:text-indigo-900"><X size={14} strokeWidth={3} /></button>
                                 </span>
                             ))}
                         </div>
                       )}
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-2">
+                  <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
                       {availableContacts.length === 0 ? (
-                          <div className="p-8 text-center text-slate-400 text-sm">No contacts found.</div>
+                          <div className="p-10 text-center font-semibold text-slate-400 text-sm">No contacts found.</div>
                       ) : (
                         availableContacts.map(contact => (
                             <div 
                                 key={contact.id} 
                                 onClick={() => handleToggleContact(contact.name)}
-                                className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+                                className="flex items-center gap-4 p-3.5 hover:bg-slate-50/80 rounded-2xl cursor-pointer transition-colors group border border-transparent hover:border-slate-200/50"
                             >
-                                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${selectedContacts.includes(contact.name) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white group-hover:border-indigo-300'}`}>
-                                    {selectedContacts.includes(contact.name) && <Check size={16} className="text-white" />}
+                                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${selectedContacts.includes(contact.name) ? 'bg-indigo-600 border-indigo-600 shadow-sm' : 'border-slate-300 bg-white group-hover:border-indigo-300'}`}>
+                                    {selectedContacts.includes(contact.name) && <Check size={16} strokeWidth={3} className="text-white" />}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold text-slate-800">{contact.name}</p>
-                                    <p className="text-xs text-slate-500">{contact.role}</p>
+                                    <p className="text-sm font-extrabold text-slate-800">{contact.name}</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{contact.role}</p>
                                 </div>
                             </div>
                         ))
                       )}
                   </div>
 
-                  <div className="p-5 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+                  <div className="p-6 border-t border-slate-200/60 bg-white/50 rounded-b-3xl">
                       <button 
                         onClick={handleCreateConversation}
                         disabled={selectedContacts.length === 0}
-                        className="w-full py-3 bg-indigo-600 text-white rounded-lg font-semibold shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                        className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                       >
                           {selectedContacts.length > 1 && isStaffUser ? `Create Group (${selectedContacts.length})` : 'Start Conversation'}
                       </button>
@@ -1068,47 +1068,47 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
       {/* Group Info / Manage Modal */}
       {showGroupInfoModal && activeConversation && activeMeta && (
-          <div data-modal="true" className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-slate-100 overflow-hidden">
-                  <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
-                      <h3 className="font-bold text-slate-800">Chat Details</h3>
-                      <button onClick={() => setShowGroupInfoModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200 transition-colors" aria-label="Close chat details"><X size={20} /></button>
+          <div data-modal="true" className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-sm flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 border border-slate-200/80 overflow-hidden">
+                  <div className="p-5 border-b border-slate-200/60 flex justify-between items-center bg-white/50">
+                      <h3 className="font-extrabold tracking-tight text-lg text-slate-900">Chat Details</h3>
+                      <button onClick={() => setShowGroupInfoModal(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100/80 transition-colors" aria-label="Close chat details"><X size={20} strokeWidth={2.5} /></button>
                   </div>
                   
-                  <div className="p-8 text-center border-b border-slate-100">
-                        <div className="w-24 h-24 mx-auto bg-slate-100 rounded-full border-4 border-white shadow-lg overflow-hidden mb-4 ring-1 ring-slate-100">
+                  <div className="p-8 text-center border-b border-slate-200/60 bg-slate-50/30">
+                        <div className="w-28 h-28 mx-auto bg-slate-100/80 rounded-3xl border-4 border-white shadow-lg overflow-hidden mb-5 ring-1 ring-slate-200/50">
                             {activeConversation.isGroup ? (
                                 <div className="w-full h-full flex items-center justify-center bg-indigo-50 text-indigo-600">
-                                    <Users size={40} />
+                                    <Users size={48} strokeWidth={2.5} />
                                 </div>
                             ) : (
                                 <img 
                                     src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${activeMeta.avatarSeed}&backgroundColor=e0e7ff`} 
                                     alt="avatar"
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                                 />
                             )}
                         </div>
-                        <h2 className="text-xl font-bold text-slate-900 mb-1">{activeMeta.name}</h2>
-                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${getRoleBadgeStyle(activeConversation.isGroup ? 'Group' : activeMeta.role)}`}>
+                        <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2">{activeMeta.name}</h2>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-md shadow-sm ${getRoleBadgeStyle(activeConversation.isGroup ? 'Group' : activeMeta.role)}`}>
                             {activeConversation.isGroup ? 'Group Chat' : activeMeta.role}
                         </span>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-5 bg-slate-50/30">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Participants ({activeConversation.participants?.length || 1})</h4>
-                      <div className="space-y-1">
+                  <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
+                      <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 px-2">Participants ({activeConversation.participants?.length || 1})</h4>
+                      <div className="space-y-1.5">
                           {(activeConversation.participants || [activeMeta.name]).map((name, idx) => (
-                              <div key={idx} className="flex justify-between items-center p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 transition-all">
-                                  <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden">
+                              <div key={idx} className="flex justify-between items-center p-3 rounded-2xl hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200/60 transition-all group">
+                                  <span className="text-sm font-bold text-slate-800 flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-xl bg-slate-200 overflow-hidden shadow-sm">
                                          <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${name}&backgroundColor=e0e7ff`} className="w-full h-full object-cover"/>
                                       </div>
-                                      {name} {name === currentUserName && '(You)'}
+                                      {name} {name === currentUserName && <span className="text-slate-400 font-semibold text-xs">(You)</span>}
                                   </span>
                                   {activeConversation.isGroup && isStaffUser && (
-                                      <button onClick={() => handleRemoveParticipant(name)} className="text-slate-300 hover:text-rose-500 p-1 transition-colors" title="Remove">
-                                          <UserMinus size={16} />
+                                      <button onClick={() => handleRemoveParticipant(name)} className="text-slate-300 hover:text-rose-600 p-2 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100" title="Remove">
+                                          <UserMinus size={18} strokeWidth={2.5} />
                                       </button>
                                   )}
                               </div>
@@ -1116,34 +1116,34 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                       </div>
                       
                       {activeConversation.isGroup && isStaffUser && (
-                          <div className="mt-4 pt-4 border-t border-slate-200">
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Add Participant</p>
+                          <div className="mt-6 pt-5 border-t border-slate-200/60">
+                              <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 px-2">Add Participant</p>
                               <div className="relative">
                                 <select 
                                     onChange={(e) => { if(e.target.value) { handleAddParticipant(e.target.value); e.target.value = ''; } }}
-                                    className="w-full p-2.5 pl-3 text-sm bg-white border border-slate-200 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                    className="w-full p-3.5 pl-4 text-sm font-semibold bg-white border border-slate-200/80 rounded-xl appearance-none focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer shadow-sm transition-all text-slate-700"
                                 >
                                     <option value="">Select contact...</option>
                                     {MOCK_CONTACTS.filter(c => !(activeConversation.participants || []).includes(c.name)).map(c => (
                                         <option key={c.id} value={c.name}>{c.name}</option>
                                     ))}
                                 </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <UserPlus size={16} />
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <UserPlus size={18} strokeWidth={2.5} />
                                 </div>
                               </div>
                           </div>
                       )}
                   </div>
 
-                  <div className="p-5 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+                  <div className="p-6 border-t border-slate-200/60 bg-white/50">
                       <button 
                         ref={convoDeleteButtonRef}
                         onClick={handleDeleteConversationRequest}
-                        className="w-full py-3 bg-white border border-rose-200 text-rose-600 rounded-lg font-semibold shadow-sm hover:bg-rose-50 hover:border-rose-300 transition-all flex items-center justify-center gap-2 text-sm"
+                        className="w-full py-3.5 bg-white border border-rose-200 text-rose-600 rounded-xl font-extrabold shadow-sm hover:bg-rose-50 hover:border-rose-300 hover:shadow transition-all flex items-center justify-center gap-2.5 text-sm"
                         aria-label="Delete conversation"
                       >
-                          <Trash2 size={16} /> Delete Conversation
+                          <Trash2 size={18} strokeWidth={2.5} /> Delete Conversation
                       </button>
                   </div>
               </div>
@@ -1151,26 +1151,29 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       )}
 
       {showDeleteConversationModal && (
-          <div data-modal="true" className="absolute inset-0 z-[55] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="w-full max-w-sm bg-white rounded-xl shadow-2xl border border-slate-100 p-6">
-                  <h3 className="text-lg font-bold text-slate-900">Delete conversation?</h3>
-                  <p className="mt-2 text-sm text-slate-600">
+          <div data-modal="true" className="absolute inset-0 z-[65] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-sm bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/80 p-8 text-center animate-in zoom-in-95 duration-200">
+                  <div className="w-16 h-16 mx-auto bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-5 shadow-sm border border-rose-200">
+                    <Trash2 size={32} strokeWidth={2.5} />
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Delete conversation?</h3>
+                  <p className="mt-3 text-sm font-medium text-slate-600 leading-relaxed">
                     This removes the conversation and message history from your workspace view.
                   </p>
-                  <div className="mt-5 flex gap-2 justify-end">
-                    <button
-                      type="button"
-                      onClick={closeDeleteConversationModal}
-                      className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
-                    >
-                      Cancel
-                    </button>
+                  <div className="mt-8 flex flex-col gap-3">
                     <button
                       type="button"
                       onClick={handleDeleteConversationConfirm}
-                      className="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                      className="w-full px-5 py-3.5 text-sm font-extrabold rounded-xl bg-rose-600 text-white shadow-md shadow-rose-500/20 hover:bg-rose-700 hover:shadow-lg transition-all"
                     >
                       Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeDeleteConversationModal}
+                      className="w-full px-5 py-3.5 text-sm font-extrabold rounded-xl border border-slate-200/80 text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+                    >
+                      Cancel
                     </button>
                   </div>
               </div>
@@ -1193,39 +1196,39 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
       <div className="flex h-full min-w-0">
         
         {/* Sidebar / Conversation List */}
-        <div className={`w-full md:w-80 lg:w-96 border-r border-slate-200 flex flex-col bg-slate-50 ${isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`w-full md:w-80 lg:w-96 border-r border-slate-200/60 flex flex-col bg-slate-50/50 backdrop-blur-md ${isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
           {/* Header */}
-          <div className="border-b border-slate-200 bg-white p-4 shadow-sm z-10 sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3 sm:mb-5">
+          <div className="border-b border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm z-10 sm:p-6">
+            <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6">
               <div className="flex items-center gap-3">
                 <SidebarToggleButton
                     onClick={onMenuClick}
-                    className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                    className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
                 />
-                <h2 className="text-xl font-bold text-slate-900">Messages</h2>
+                <h2 className="text-2xl font-extrabold tracking-tight text-slate-800">Messages</h2>
               </div>
               <button 
                 ref={newMessageButtonRef}
                 onClick={(event) => openNewMessageModal(event.currentTarget)}
-                className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all active:scale-95"
+                className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all active:scale-95 hover:-translate-y-0.5"
                 title="New Message"
                 aria-label="Start new conversation"
               >
-                <Plus size={20} />
+                <Plus size={20} strokeWidth={2.5} />
               </button>
             </div>
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+            <div className="relative group mb-4">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
               <input 
                 type="text" 
                 placeholder="Search messages..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 aria-label="Search conversations"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border border-transparent rounded-xl text-sm focus:bg-white focus:border-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
+                className="w-full pl-11 pr-4 py-3 bg-slate-100/80 border border-slate-200/50 rounded-xl text-sm font-semibold focus:bg-white focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-inner transition-all"
               />
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {([
                 { id: 'all', label: 'All' },
                 { id: 'intervention', label: 'Interventions' },
@@ -1235,10 +1238,10 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   key={filterOption.id}
                   type="button"
                   onClick={() => setContextFilter(filterOption.id)}
-                  className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                  className={`rounded-lg px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-widest transition-all shadow-sm ${
                     contextFilter === filterOption.id
-                      ? 'bg-indigo-100 text-indigo-700'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      ? 'bg-indigo-600 text-white border-transparent shadow-md'
+                      : 'bg-white border border-slate-200/80 text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                   }`}
                 >
                   {filterOption.label}
@@ -1248,10 +1251,10 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2" role="listbox" aria-label="Conversations">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar" role="listbox" aria-label="Conversations">
             {filteredConversations.length === 0 ? (
-                <div className="text-center py-10 text-slate-400">
-                    <p className="text-sm font-medium">
+                <div className="text-center py-12 text-slate-500">
+                    <p className="text-sm font-extrabold tracking-tight text-slate-700">
                       {hasActiveSearch
                         ? 'No matches for this search.'
                         : contextFilter === 'intervention'
@@ -1260,7 +1263,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             ? 'No referral threads yet.'
                             : 'No messages yet.'}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-2 text-xs font-semibold text-slate-500 max-w-[200px] mx-auto leading-relaxed">
                       {hasActiveSearch
                         ? 'Try a different keyword.'
                         : contextFilter === 'all'
@@ -1279,49 +1282,49 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             aria-selected={selectedConversationId === convo.id}
                             aria-label={`Open conversation with ${meta.name}`}
                             onClick={() => openConversation(convo.id)}
-                            className={`w-full text-left p-3 rounded-xl transition-all border border-transparent group relative ${
+                            className={`w-full text-left p-3.5 rounded-2xl transition-all border group relative ${
                                 selectedConversationId === convo.id 
-                                ? 'bg-white border-indigo-100 shadow-sm' 
-                                : 'hover:bg-white hover:border-slate-200 hover:shadow-sm'
+                                ? 'bg-white border-indigo-200/80 shadow-md ring-1 ring-indigo-500/10' 
+                                : 'bg-transparent border-transparent hover:bg-white/80 hover:border-slate-200/60 hover:shadow-sm'
                             }`}
                         >
-                            {selectedConversationId === convo.id && <div className="absolute left-0 top-3 bottom-3 w-1 bg-indigo-600 rounded-r-full" />}
+                            {selectedConversationId === convo.id && <div className="absolute left-0 top-4 bottom-4 w-1 bg-indigo-600 rounded-r-full shadow-[0_0_8px_rgba(79,70,229,0.5)]" />}
                             
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-3.5">
                                 <div className="relative shrink-0">
-                                    <div className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center text-slate-500 ${selectedConversationId === convo.id ? 'border-indigo-100' : 'border-white shadow-sm'}`}>
+                                    <div className={`w-14 h-14 rounded-2xl border-2 overflow-hidden flex items-center justify-center text-slate-500 transition-all ${selectedConversationId === convo.id ? 'border-indigo-200 shadow-sm' : 'border-white shadow-sm group-hover:border-indigo-100'}`}>
                                         {convo.isGroup ? (
-                                            <div className="w-full h-full flex items-center justify-center bg-slate-100">
-                                                <Users size={20} className="text-indigo-500" />
+                                            <div className="w-full h-full flex items-center justify-center bg-slate-100/80">
+                                                <Users size={22} strokeWidth={2.5} className="text-indigo-500" />
                                             </div>
                                         ) : (
                                             <img 
                                                 src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${meta.avatarSeed}&backgroundColor=e0e7ff`} 
                                                 alt={meta.name}
-                                                className="w-full h-full object-cover"
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                             />
                                         )}
                                     </div>
                                     {convo.unreadCount > 0 && (
-                                        <div className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm px-1">
+                                        <div className="absolute -top-1.5 -right-1.5 min-w-[22px] h-6 bg-rose-500 text-white rounded-xl flex items-center justify-center text-[11px] font-extrabold border-2 border-white shadow-sm px-1.5 animate-pulse">
                                         {convo.unreadCount}
                                         </div>
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0 py-0.5">
                                     <div className="flex justify-between items-baseline mb-1">
-                                        <h3 className={`text-sm truncate ${convo.unreadCount > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
+                                        <h3 className={`text-base tracking-tight truncate ${convo.unreadCount > 0 ? 'font-extrabold text-slate-900' : 'font-bold text-slate-800'}`}>
                                         {meta.name}
                                         </h3>
-                                        <span className={`text-[10px] whitespace-nowrap ${convo.unreadCount > 0 ? 'text-indigo-600 font-bold' : 'text-slate-400'}`}>
+                                        <span className={`text-[10px] font-extrabold uppercase tracking-widest whitespace-nowrap ${convo.unreadCount > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
                                             {formatMessageTimeLabel(convo.lastMessageTime) || 'New'}
                                         </span>
                                     </div>
-                                    <p className={`text-xs truncate leading-relaxed ${convo.unreadCount > 0 ? 'font-semibold text-slate-800' : 'text-slate-500 group-hover:text-slate-600'}`}>
+                                    <p className={`text-xs truncate leading-relaxed ${convo.unreadCount > 0 ? 'font-bold text-slate-800' : 'font-medium text-slate-500 group-hover:text-slate-700 transition-colors'}`}>
                                         {convo.lastMessage || <span className="italic opacity-70">Start a conversation</span>}
                                     </p>
                                     {convo.threadContext ? (
-                                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
+                                      <p className="mt-1.5 text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50/80 inline-block px-2 py-0.5 rounded-md border border-indigo-100/50 shadow-sm">
                                         {summarizeThreadContext(convo.threadContext)}
                                       </p>
                                     ) : null}
@@ -1335,13 +1338,13 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         </div>
 
         {/* Chat Window */}
-        <div className={`relative flex min-w-0 flex-1 flex-col bg-white ${!isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`relative flex min-w-0 flex-1 flex-col bg-white/50 backdrop-blur-sm rounded-r-3xl ${!isMobileChatOpen ? 'hidden md:flex' : 'flex'}`}>
           {activeConversation && activeMeta ? (
             <>
               {/* Chat Header */}
-              <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/80 px-4 py-4 backdrop-blur-sm sm:px-6">
+              <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/60 bg-white/80 px-5 py-4 backdrop-blur-md sm:px-8 shadow-sm">
                 <div
-                  className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 sm:gap-4"
+                  className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 sm:gap-5"
                   onClick={() => setShowGroupInfoModal(true)}
                   role="button"
                   tabIndex={0}
@@ -1354,33 +1357,33 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 >
                   <button 
                     onClick={(e) => { e.stopPropagation(); setIsMobileChatOpen(false); }}
-                    className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                    className="md:hidden p-2.5 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
                     aria-label="Back to conversations"
                   >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={20} strokeWidth={2.5} />
                   </button>
-                  <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center relative">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 border-2 border-white overflow-hidden flex items-center justify-center relative shadow-sm group-hover:shadow-md transition-all group-hover:border-indigo-100">
                     {activeConversation.isGroup ? (
-                        <Users size={18} className="text-indigo-600" />
+                        <Users size={20} strokeWidth={2.5} className="text-indigo-600" />
                     ) : (
                         <img 
                         src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${activeMeta.avatarSeed}&backgroundColor=e0e7ff`} 
                         alt={activeMeta.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         />
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="flex items-center gap-2 truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-indigo-600">
+                    <h3 className="flex items-center gap-2.5 truncate text-lg font-extrabold tracking-tight text-slate-800 transition-colors group-hover:text-indigo-700">
                         {activeMeta.name}
-                        {activeConversation.isGroup && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-medium">{activeConversation.participants?.length}</span>}
+                        {activeConversation.isGroup && <span className="text-[11px] bg-slate-100/80 px-2 py-0.5 rounded-md text-slate-500 font-bold shadow-sm">{activeConversation.participants?.length}</span>}
                     </h3>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getRoleBadgeStyle(activeMeta.role)}`}>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className={`text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md shadow-sm ${getRoleBadgeStyle(activeMeta.role)}`}>
                         {activeMeta.role}
                       </span>
                       {activeConversation.threadContext ? (
-                        <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-md shadow-sm">
                           {summarizeThreadContext(activeConversation.threadContext)}
                         </span>
                       ) : null}
@@ -1392,41 +1395,41 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     <>
                       <button 
                         onClick={() => alert("Sending SMS notification...")}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors hidden sm:block"
+                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-xl transition-all hidden sm:block hover:shadow-sm"
                         title="Send SMS"
                         aria-label="Send SMS"
                       >
-                        <Smartphone size={18} />
+                        <Smartphone size={20} strokeWidth={2.5} />
                       </button>
                       <button 
                         onClick={handleStartCall}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors hidden sm:block"
+                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-xl transition-all hidden sm:block hover:shadow-sm"
                         title="Start Video Call"
                         aria-label="Start video call"
                       >
-                        <Video size={18} />
+                        <Video size={20} strokeWidth={2.5} />
                       </button>
-                      <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+                      <div className="w-px h-8 bg-slate-200/80 mx-1 hidden sm:block" />
                     </>
                   )}
                   <button 
                     onClick={() => setShowGroupInfoModal(true)}
-                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100/80 rounded-xl transition-all hover:shadow-sm"
                     aria-label="Open chat details"
                   >
-                    <MoreVertical size={18} />
+                    <MoreVertical size={20} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
 
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-white">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50/30 relative">
                 {activeConversation.threadContext ? (
-                  <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs text-indigo-800">
-                    <p className="font-semibold">
+                  <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/80 backdrop-blur-sm px-5 py-4 text-xs font-semibold text-indigo-800 shadow-sm text-center mx-auto max-w-lg mb-6">
+                    <p className="font-extrabold text-sm mb-1 text-indigo-900 tracking-tight">
                       Linked context: {summarizeThreadContext(activeConversation.threadContext)}
                     </p>
-                    <p className="mt-1 text-indigo-700">
+                    <p className="text-indigo-700/80 font-medium">
                       Student: {activeConversation.threadContext.studentName}
                     </p>
                   </div>
@@ -1440,47 +1443,47 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     
                     {/* Hover Actions (Left side for Me) */}
                     {isMe && (
-                        <div className="flex items-center opacity-70 group-hover:opacity-100 transition-opacity mr-2">
+                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity mr-3">
                             <button 
                                 onClick={() => handleDeleteMessage(msg.id)}
-                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm bg-white border border-slate-200/50"
                                 title="Delete"
                                 aria-label="Delete message"
                             >
-                                <Trash2 size={14} />
+                                <Trash2 size={16} strokeWidth={2.5} />
                             </button>
                         </div>
                     )}
 
-                    <div className={`max-w-[85%] md:max-w-[70%] flex flex-col gap-1`}>
+                    <div className={`max-w-[85%] md:max-w-[75%] flex flex-col gap-1.5`}>
                         {!isMe && activeConversation.isGroup && (
-                            <p className="text-[10px] font-bold text-indigo-600 ml-1">{msg.senderName}</p>
+                            <p className="text-[11px] font-extrabold text-indigo-600 ml-1.5 uppercase tracking-wide">{msg.senderName}</p>
                         )}
 
-                        <div className={`rounded-2xl p-4 text-sm shadow-sm relative group-hover:shadow-md transition-shadow ${
+                        <div className={`rounded-2xl p-4 text-sm shadow-sm relative group-hover:shadow-md transition-all duration-300 ${
                         isMe 
-                            ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-br-sm' 
-                            : 'bg-white border border-slate-200 text-slate-700 rounded-bl-sm'
+                            ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-br-sm shadow-indigo-500/20' 
+                            : 'bg-white border border-slate-200/60 text-slate-700 rounded-bl-sm shadow-slate-200/50'
                         }`}>
                         
                         {/* Attachments */}
                         {msg.attachments && msg.attachments.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
+                            <div className="flex flex-wrap gap-2.5 mb-3.5">
                                 {msg.attachments.map(att => (
-                                    <div key={att.id} className={`rounded-lg overflow-hidden border ${isMe ? 'border-white/20' : 'border-slate-200'}`}>
+                                    <div key={att.id} className={`rounded-xl overflow-hidden border ${isMe ? 'border-white/20 shadow-sm' : 'border-slate-200/80 shadow-sm'}`}>
                                         {att.type === 'image' ? (
-                                            <img src={att.url} alt="attachment" className="w-full max-w-[240px] h-auto object-cover" />
+                                            <img src={att.url} alt="attachment" className="w-full max-w-[260px] h-auto object-cover" />
                                         ) : (
-                                            <div className={`flex items-center gap-3 p-3 ${isMe ? 'bg-white/10' : 'bg-slate-50'}`}>
-                                                <div className={`p-2 rounded-lg ${isMe ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
-                                                    <FileText size={20} />
+                                            <div className={`flex items-center gap-3.5 p-3.5 ${isMe ? 'bg-white/10 backdrop-blur-sm' : 'bg-slate-50/80 backdrop-blur-sm'}`}>
+                                                <div className={`p-2.5 rounded-xl shadow-sm ${isMe ? 'bg-white/20 text-white border border-white/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-100/50'}`}>
+                                                    <FileText size={20} strokeWidth={2.5} />
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-bold truncate max-w-[120px]">{att.name}</p>
-                                                    <p className={`text-[10px] ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>{att.size}</p>
+                                                <div className="flex-1 min-w-0 pr-2">
+                                                    <p className="text-xs font-bold truncate max-w-[130px] tracking-tight">{att.name}</p>
+                                                    <p className={`text-[10px] font-semibold uppercase tracking-widest mt-0.5 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>{att.size}</p>
                                                 </div>
-                                                <button className={`p-1.5 rounded-full transition-colors ${isMe ? 'hover:bg-white/20' : 'hover:bg-slate-200'}`}>
-                                                    <Download size={14} />
+                                                <button className={`p-2 rounded-xl transition-all shadow-sm ${isMe ? 'hover:bg-white/20 bg-white/10 text-white' : 'hover:bg-slate-200/80 bg-white border border-slate-200/60 text-slate-500'}`}>
+                                                    <Download size={16} strokeWidth={2.5} />
                                                 </button>
                                             </div>
                                         )}
@@ -1489,12 +1492,12 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             </div>
                         )}
 
-                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <p className={`whitespace-pre-wrap leading-relaxed ${isMe ? 'font-medium' : 'font-medium text-slate-700'}`}>{msg.content}</p>
                         
-                        <div className={`flex items-center gap-1.5 justify-end mt-1.5 text-[10px] font-medium ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                        <div className={`flex items-center gap-1.5 justify-end mt-2 text-[10px] font-extrabold uppercase tracking-widest ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                             <span>{formatMessageTimeLabel(msg.timestamp)}</span>
                             {isMe && (
-                                msg.isRead ? <CheckCheck size={14} className="opacity-90" /> : <Check size={14} className="opacity-90" />
+                                msg.isRead ? <CheckCheck size={14} strokeWidth={3} className="opacity-90" /> : <Check size={14} strokeWidth={3} className="opacity-90" />
                             )}
                         </div>
                         </div>
@@ -1502,14 +1505,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
                     {/* Hover Actions (Right side for Others) */}
                     {!isMe && (
-                        <div className="flex items-center opacity-70 group-hover:opacity-100 transition-opacity ml-2">
+                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-3">
                              <button 
                                 onClick={() => handleDeleteMessage(msg.id)}
-                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm bg-white border border-slate-200/50"
                                 title="Delete"
                                 aria-label="Delete message"
                             >
-                                <Trash2 size={14} />
+                                <Trash2 size={16} strokeWidth={2.5} />
                             </button>
                         </div>
                     )}
@@ -1520,32 +1523,32 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               </div>
 
               {/* Input Area */}
-              <div className="relative z-20 bg-white p-4 sm:p-6">
+              <div className="relative z-20 bg-white/80 backdrop-blur-md p-4 sm:p-6 border-t border-slate-200/50 shadow-[0_-4px_15px_-3px_rgba(0,0,0,0.05)]">
                  {composerError && (
-                    <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                    <div className="mb-4 rounded-xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm font-semibold text-rose-800 shadow-sm animate-in slide-in-from-top-2">
                       {composerError}
                     </div>
                  )}
                  
                  {/* Pending Attachments Preview */}
                  {pendingAttachments.length > 0 && (
-                     <div className="flex gap-3 mb-3 overflow-x-auto pb-2 animate-in fade-in slide-in-from-bottom-2">
+                     <div className="flex gap-3 mb-4 overflow-x-auto pb-2 animate-in fade-in slide-in-from-bottom-2 custom-scrollbar">
                          {pendingAttachments.map(att => (
-                             <div key={att.id} className="relative w-20 h-20 rounded-xl border border-slate-200 overflow-hidden shrink-0 group shadow-sm">
+                             <div key={att.id} className="relative w-24 h-24 rounded-2xl border border-slate-200/80 overflow-hidden shrink-0 group shadow-sm bg-white">
                                  {att.type === 'image' ? (
-                                     <img src={att.url} className="w-full h-full object-cover" alt="preview" />
+                                     <img src={att.url} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt="preview" />
                                  ) : (
-                                     <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center text-slate-400 gap-1">
-                                         <FileText size={24} />
-                                         <span className="text-[8px] font-bold uppercase px-1 truncate w-full text-center">{att.name.split('.').pop()}</span>
+                                     <div className="w-full h-full bg-slate-50/80 flex flex-col items-center justify-center text-slate-500 gap-1.5 transition-colors group-hover:bg-slate-100/80">
+                                         <FileText size={28} strokeWidth={2} />
+                                         <span className="text-[9px] font-extrabold uppercase px-2 truncate w-full text-center tracking-widest">{att.name.split('.').pop()}</span>
                                      </div>
                                  )}
                                  <button 
                                     onClick={() => handleRemoveAttachment(att.id)}
-                                    className="absolute top-1 right-1 bg-black/50 hover:bg-rose-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all"
+                                    className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm hover:bg-rose-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:shadow"
                                     aria-label="Remove attachment"
                                  >
-                                     <X size={10} />
+                                     <X size={12} strokeWidth={3} />
                                  </button>
                              </div>
                          ))}
@@ -1553,17 +1556,17 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                  )}
 
                  {/* Picker Popovers */}
-                 <div className="absolute bottom-20 left-2 right-2 z-30 flex max-w-[calc(100%-1rem)] gap-2 sm:left-6 sm:right-auto sm:max-w-none">
+                 <div className="absolute bottom-24 left-4 right-4 z-30 flex max-w-[calc(100%-2rem)] gap-3 sm:left-6 sm:right-auto sm:max-w-none">
                     {/* Emoji Picker */}
                     {showEmojiPicker && (
-                        <div className="picker-container w-[min(18rem,calc(100vw-1rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 origin-bottom-left">
-                            <p className="text-xs font-bold text-slate-400 mb-2 px-1 uppercase tracking-wider">Emojis</p>
-                            <div className="grid grid-cols-6 gap-1 max-h-60 overflow-y-auto custom-scrollbar">
+                        <div className="picker-container w-[min(20rem,calc(100vw-2rem))] rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-xl p-4 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 origin-bottom-left">
+                            <p className="text-[11px] font-extrabold text-slate-400 mb-3 px-1 uppercase tracking-widest">Emojis</p>
+                            <div className="grid grid-cols-6 gap-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                                 {EMOJIS.map((emoji, idx) => (
                                     <button 
                                         key={idx} 
                                         onClick={() => handleEmojiClick(emoji)}
-                                        className="text-2xl hover:bg-slate-100 p-2 rounded-lg transition-colors flex items-center justify-center"
+                                        className="text-2xl hover:bg-slate-100 p-2.5 rounded-xl transition-colors flex items-center justify-center hover:scale-110 active:scale-95"
                                     >
                                         {emoji}
                                     </button>
@@ -1574,37 +1577,37 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
                     {/* GIF Picker */}
                     {showGifPicker && (
-                        <div className="picker-container flex w-[min(20rem,calc(100vw-1rem))] flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 origin-bottom-left">
+                        <div className="picker-container flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-3 rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-xl p-4 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-4 origin-bottom-left">
                             <div className="relative">
-                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} strokeWidth={2.5} />
                                 <input 
                                     type="text" 
                                     placeholder="Search GIPHY..."
                                     value={gifSearchQuery}
                                     onChange={(e) => handleSearchGifs(e.target.value)}
-                                    className="w-full pl-8 pr-3 py-2 bg-slate-100 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-100/80 rounded-xl text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:bg-white focus:border-indigo-400 transition-all shadow-inner border border-transparent"
                                     autoFocus
                                 />
                             </div>
                             
-                            <p className="text-xs font-bold text-slate-400 px-1 uppercase tracking-wider flex justify-between">
+                            <p className="text-[11px] font-extrabold text-slate-400 px-1 uppercase tracking-widest flex justify-between mt-1">
                                 {gifSearchQuery ? 'Search Results' : 'Trending GIFs'}
-                                {isSearchingGifs && <Loader2 size={12} className="animate-spin text-indigo-500" />}
+                                {isSearchingGifs && <Loader2 size={14} className="animate-spin text-indigo-500" strokeWidth={3} />}
                             </p>
                             
-                            <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar min-h-[100px]">
+                            <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1 custom-scrollbar min-h-[120px]">
                                 {availableGifs.length === 0 && !isSearchingGifs ? (
-                                    <div className="col-span-2 text-center py-4 text-xs text-slate-400">No GIFs found.</div>
+                                    <div className="col-span-2 text-center py-6 text-sm font-semibold text-slate-500 italic">No GIFs found.</div>
                                 ) : (
                                     availableGifs.map(gif => (
                                         <div 
                                             key={gif.id} 
                                             onClick={() => handleGifSelect(gif.url)}
-                                            className="cursor-pointer hover:opacity-80 transition-opacity rounded-lg overflow-hidden h-24 bg-slate-100 relative group"
+                                            className="cursor-pointer hover:shadow-md transition-all rounded-xl overflow-hidden h-28 bg-slate-100 relative group border border-slate-200/50"
                                         >
-                                            <img src={gif.url} alt="GIF" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <span className="text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-full">Send</span>
+                                            <img src={gif.url} alt="GIF" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
+                                                <span className="text-white font-extrabold text-xs bg-black/60 px-3 py-1.5 rounded-full shadow-sm uppercase tracking-wide border border-white/20">Send</span>
                                             </div>
                                         </div>
                                     ))
@@ -1615,35 +1618,35 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                  </div>
 
                  {/* Main Input Bar */}
-                 <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-indigo-100 focus-within:border-indigo-300 focus-within:bg-white transition-all shadow-sm">
-                    <div className="flex items-center gap-1 pb-1 pl-1">
+                 <div className="flex items-end gap-2 bg-slate-50/80 border border-slate-200/80 rounded-[24px] p-2.5 focus-within:ring-4 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 focus-within:bg-white transition-all shadow-sm">
+                    <div className="flex items-center gap-1.5 pb-1 pl-1.5">
                         <button 
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-2 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+                            className="p-2.5 text-slate-400 hover:text-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors hover:shadow-sm"
                             title="Attach File"
                             aria-label="Attach file"
                         >
-                            <Plus size={20} />
+                            <Plus size={22} strokeWidth={2.5} />
                         </button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}
-                            className={`picker-trigger p-2 rounded-lg transition-colors ${showGifPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                            className={`picker-trigger p-2.5 rounded-xl transition-colors hover:shadow-sm ${showGifPicker ? 'text-indigo-600 bg-indigo-50/80 shadow-sm border border-indigo-100/50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent'}`}
                             title="Add GIF"
                             aria-label="Add GIF"
                         >
-                            <Sticker size={20} />
+                            <Sticker size={22} strokeWidth={2.5} />
                         </button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }}
-                            className={`picker-trigger p-2 rounded-lg transition-colors ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                            className={`picker-trigger p-2.5 rounded-xl transition-colors hover:shadow-sm ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50/80 shadow-sm border border-indigo-100/50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent'}`}
                             title="Add Emoji"
                             aria-label="Add emoji"
                         >
-                            <Smile size={20} />
+                            <Smile size={22} strokeWidth={2.5} />
                         </button>
                     </div>
                     
-                    <div className="flex-1 py-2">
+                    <div className="flex-1 py-3 px-2">
                         <textarea 
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
@@ -1654,7 +1657,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                             }
                         }}
                         placeholder="Type a message..."
-                        className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 min-h-[24px] text-sm text-slate-800 placeholder:text-slate-400 p-0 leading-relaxed"
+                        className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-40 min-h-[24px] text-[15px] font-medium text-slate-800 placeholder:text-slate-400 placeholder:font-semibold p-0 leading-relaxed custom-scrollbar"
                         rows={1}
                         style={{ height: 'auto', minHeight: '24px' }} 
                         onInput={(e) => {
@@ -1668,30 +1671,31 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     <button 
                         onClick={handleSendMessage}
                         disabled={(!newMessage.trim() && pendingAttachments.length === 0)}
-                        className="p-2.5 mb-0.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                        className="p-3.5 mb-1 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center disabled:hover:shadow-md disabled:hover:bg-indigo-600"
                         aria-label="Send message"
                     >
-                        <Send size={18} className={newMessage.trim() || pendingAttachments.length > 0 ? "ml-0.5" : ""} />
+                        <Send size={20} strokeWidth={2.5} className={newMessage.trim() || pendingAttachments.length > 0 ? "ml-0.5" : ""} />
                     </button>
                  </div>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50/30 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:16px_16px]"></div>
-                <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-indigo-50">
-                    <Send size={40} className="text-indigo-300 ml-1 mt-1" />
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-white/50 backdrop-blur-md relative overflow-hidden rounded-r-3xl">
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:24px_24px]"></div>
+                <div className="absolute -right-24 -top-24 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="w-28 h-28 bg-gradient-to-br from-indigo-50 to-white rounded-3xl flex items-center justify-center mb-8 shadow-sm border border-indigo-100/50 rotate-3 hover:rotate-6 transition-transform duration-500 relative z-10">
+                    <Send size={48} strokeWidth={2.5} className="text-indigo-400 ml-2 mt-2" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-700 mb-2">Your Messages</h3>
-                <p className="text-sm text-slate-500 max-w-xs text-center leading-relaxed mb-8">
+                <h3 className="text-2xl font-extrabold tracking-tight text-slate-800 mb-3 relative z-10">Your Messages</h3>
+                <p className="text-sm font-medium text-slate-500 max-w-sm text-center leading-relaxed mb-10 relative z-10">
                     Select a conversation from the list or start a new conversation to collaborate with your MTSS team.
                 </p>
                 <button 
                     ref={emptyStateNewMessageButtonRef}
                     onClick={(event) => openNewMessageModal(event.currentTarget)}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-extrabold shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-xl transition-all hover:-translate-y-1 flex items-center gap-3 relative z-10"
                 >
-                    <Plus size={18} /> New Conversation
+                    <Plus size={20} strokeWidth={2.5} /> Start New Conversation
                 </button>
             </div>
           )}

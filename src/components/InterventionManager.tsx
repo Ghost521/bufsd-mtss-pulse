@@ -1542,16 +1542,16 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
       </DraggableModal>
 
       {/* Header & Stats */}
-      <div className="bg-white border-b border-slate-200 p-6 pb-0">
+      <div className="bg-white/50 backdrop-blur-md border-b border-slate-200/50 p-6 pb-0 z-20 sticky top-0 rounded-t-2xl">
         <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 items-center gap-4">
                 <SidebarToggleButton
                     onClick={onMenuClick}
-                    className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                    className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
                 />
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Intervention Plans</h1>
-                    <p className="text-slate-500 text-sm mt-1">Manage and track support plans across the school.</p>
+                    <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Intervention Plans</h1>
+                    <p className="text-slate-500 text-sm font-medium mt-1">Manage and track support plans across the school.</p>
                 </div>
             </div>
             
@@ -1559,14 +1559,14 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 <button 
                     onClick={handleScanClass}
                     disabled={isScanning}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-indigo-200 text-indigo-700 rounded-xl font-semibold text-sm shadow-sm hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-70"
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-indigo-200/50 text-indigo-700 rounded-xl font-semibold text-sm shadow-sm hover:bg-indigo-50/50 hover:shadow-md transition-all active:scale-95 disabled:opacity-70"
                 >
                     {isScanning ? <Loader2 size={18} className="animate-spin" /> : <Bot size={18} />}
                     Scan Class for Needs
                 </button>
                 <button 
                 onClick={() => setIsNewPlanOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all active:scale-95"
                 >
                     <Plus size={18} /> New Plan
                 </button>
@@ -1580,79 +1580,79 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
             </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-5 mb-8">
+            <div className="p-5 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between hover:shadow-md hover:border-indigo-200/50 transition-all group">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Plans</p>
-                    <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
+                    <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Active Plans</p>
+                    <p className="text-3xl font-extrabold text-slate-800 tracking-tight mt-1">{stats.total}</p>
                 </div>
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Zap size={20} /></div>
+                <div className="p-3 bg-indigo-50/80 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50 group-hover:scale-110 transition-transform"><Zap size={24} strokeWidth={2.5} /></div>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+            <div className="p-5 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between hover:shadow-md hover:border-rose-200/50 transition-all group">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Critical Status</p>
-                    <p className="text-2xl font-bold text-rose-600">{stats.critical}</p>
+                    <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Critical Status</p>
+                    <p className="text-3xl font-extrabold text-rose-600 tracking-tight mt-1">{stats.critical}</p>
                 </div>
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><AlertCircle size={20} /></div>
+                <div className="p-3 bg-rose-50/80 text-rose-600 rounded-xl shadow-sm border border-rose-100/50 group-hover:scale-110 transition-transform"><AlertCircle size={24} strokeWidth={2.5} /></div>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+            <div className="p-5 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between hover:shadow-md hover:border-amber-200/50 transition-all group">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Review</p>
-                    <p className="text-2xl font-bold text-amber-600">{totalPendingReviewCount}</p>
+                    <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Pending Review</p>
+                    <p className="text-3xl font-extrabold text-amber-600 tracking-tight mt-1">{totalPendingReviewCount}</p>
                 </div>
-                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><ClipboardList size={20} /></div>
+                <div className="p-3 bg-amber-50/80 text-amber-600 rounded-xl shadow-sm border border-amber-100/50 group-hover:scale-110 transition-transform"><ClipboardList size={24} strokeWidth={2.5} /></div>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+            <div className="p-5 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between hover:shadow-md hover:border-emerald-200/50 transition-all group">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg Progress</p>
-                    <p className="text-2xl font-bold text-emerald-600">{stats.avgProgress}%</p>
+                    <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Avg Progress</p>
+                    <p className="text-3xl font-extrabold text-emerald-600 tracking-tight mt-1">{stats.avgProgress}%</p>
                 </div>
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp size={20} /></div>
+                <div className="p-3 bg-emerald-50/80 text-emerald-600 rounded-xl shadow-sm border border-emerald-100/50 group-hover:scale-110 transition-transform"><TrendingUp size={24} strokeWidth={2.5} /></div>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+            <div className="p-5 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between hover:shadow-md hover:border-rose-200/50 transition-all group">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Needs Reassessment</p>
-                    <p className="text-2xl font-bold text-rose-600">{stats.needsReassessment}</p>
+                    <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Needs Reassessment</p>
+                    <p className="text-3xl font-extrabold text-rose-600 tracking-tight mt-1">{stats.needsReassessment}</p>
                 </div>
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><XCircle size={20} /></div>
+                <div className="p-3 bg-rose-50/80 text-rose-600 rounded-xl shadow-sm border border-rose-100/50 group-hover:scale-110 transition-transform"><XCircle size={24} strokeWidth={2.5} /></div>
             </div>
-            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+            <div className="p-5 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between hover:shadow-md hover:border-slate-300 transition-all group">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tier 3 Load</p>
-                    <p className="text-2xl font-bold text-slate-800">{stats.tier3}</p>
+                    <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Tier 3 Load</p>
+                    <p className="text-3xl font-extrabold text-slate-800 tracking-tight mt-1">{stats.tier3}</p>
                 </div>
-                <div className="p-2 bg-slate-100 text-slate-700 rounded-lg"><Layers size={20} /></div>
+                <div className="p-3 bg-slate-100/80 text-slate-700 rounded-xl shadow-sm border border-slate-200/50 group-hover:scale-110 transition-transform"><Layers size={24} strokeWidth={2.5} /></div>
             </div>
         </div>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="mb-8 grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-orange-50/50 backdrop-blur-sm p-5 shadow-sm hover:shadow-md hover:border-amber-300/50 transition-all">
+                <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                        <h2 className="text-sm font-bold text-slate-900">Intervention Review Queue</h2>
-                        <p className="text-xs text-slate-600">Approve, deny, or provisionally approve interventions before activation.</p>
+                        <h2 className="text-lg font-extrabold text-amber-900 tracking-tight">Intervention Review Queue</h2>
+                        <p className="text-sm font-medium text-amber-700/80 mt-0.5">Approve, deny, or provisionally approve interventions before activation.</p>
                     </div>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-amber-700">
+                    <span className="rounded-xl bg-white shadow-sm border border-amber-100/50 px-3 py-1 text-xs font-bold text-amber-600">
                         {totalPendingReviewCount} pending
                     </span>
                 </div>
                 {totalPendingReviewCount === 0 ? (
-                    <p className="text-sm text-slate-600">No interventions currently waiting for review.</p>
+                    <p className="text-sm font-medium text-amber-700/60 mt-6 text-center italic">No interventions currently waiting for review.</p>
                 ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         {pendingReviewRecords.slice(0, 4).map((record) => (
-                            <div key={`pending-${record.id}`} className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div key={`pending-${record.id}`} className="rounded-xl border border-amber-200/60 bg-white/90 p-3.5 shadow-sm hover:border-amber-300 hover:shadow-md transition-all">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
-                                        <p className="text-sm font-semibold text-slate-900">{record.studentName}</p>
-                                        <p className="text-xs text-slate-500">{record.planName}</p>
+                                        <p className="text-base font-extrabold text-slate-800 tracking-tight">{record.studentName}</p>
+                                        <p className="text-xs font-semibold text-slate-500 mt-0.5 uppercase tracking-wider">{record.planName}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {getWorkflowBadge(record.workflowStatus)}
                                         <button
                                           type="button"
                                           onClick={() => openWorkflowModal(record)}
-                                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                          className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-all"
                                         >
                                           Review
                                         </button>
@@ -1661,22 +1661,22 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                             </div>
                         ))}
                         {pendingReferralWithoutIntervention.slice(0, 4).map((referral) => (
-                            <div key={`pending-referral-${referral.id}`} className="rounded-lg border border-indigo-200 bg-white px-3 py-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div key={`pending-referral-${referral.id}`} className="rounded-xl border border-indigo-200/60 bg-white/90 p-3.5 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
-                                        <p className="text-sm font-semibold text-slate-900">{referral.studentName}</p>
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-base font-extrabold text-slate-800 tracking-tight">{referral.studentName}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
                                           Referral {referral.id} • {referral.type} • {referral.urgency}
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                        <span className="inline-flex rounded-md border border-amber-200/60 bg-amber-50/50 px-2 py-1 text-[10px] font-extrabold uppercase tracking-widest text-amber-700">
                                           Pending Referral
                                         </span>
                                         <button
                                           type="button"
                                           onClick={() => openReferralWorkflow(referral)}
-                                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                          className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-all"
                                         >
                                           Review
                                         </button>
@@ -1688,26 +1688,26 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 )}
             </div>
 
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="rounded-2xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50/80 to-purple-50/50 backdrop-blur-sm p-5 shadow-sm hover:shadow-md hover:border-indigo-300/50 transition-all">
+                <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                        <h2 className="text-sm font-bold text-slate-900">Auto Recommendations</h2>
-                        <p className="text-xs text-slate-600">Students below benchmark for 6 weeks are queued with a proposed meeting slot.</p>
+                        <h2 className="text-lg font-extrabold text-indigo-900 tracking-tight">Auto Recommendations</h2>
+                        <p className="text-sm font-medium text-indigo-700/80 mt-0.5">Students below benchmark for 6 weeks are queued with a proposed meeting slot.</p>
                     </div>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                    <span className="rounded-xl bg-white shadow-sm border border-indigo-100/50 px-3 py-1 text-xs font-bold text-indigo-600">
                         {autoRecommendedRecords.length} total
                     </span>
                 </div>
-                <p className="text-xs text-slate-600 mb-3">
-                  Last scan created <span className="font-semibold text-slate-900">{scanCreatedCount}</span> recommendation{scanCreatedCount === 1 ? "" : "s"}.
+                <p className="text-xs font-medium text-indigo-700/60 mb-4">
+                  Last scan created <span className="font-extrabold text-indigo-900">{scanCreatedCount}</span> recommendation{scanCreatedCount === 1 ? "" : "s"}.
                 </p>
                 {canConfigureMathBenchmarks ? (
-                  <div className="mb-3 rounded-lg border border-indigo-200 bg-white p-3">
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Math GPA Thresholds (Admin)</p>
-                    <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+                  <div className="mb-4 rounded-xl border border-indigo-200/50 bg-white/60 backdrop-blur-sm p-4 shadow-sm">
+                    <p className="mb-3 text-[11px] font-extrabold uppercase tracking-widest text-indigo-800">Math GPA Thresholds (Admin)</p>
+                    <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
                       {["3", "4", "5", "6", "7", "8"].map((grade) => (
-                        <label key={`math-threshold-${grade}`} className="flex flex-col gap-1">
-                          <span className="text-[10px] font-semibold text-slate-500">Grade {grade}</span>
+                        <label key={`math-threshold-${grade}`} className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600/80">Grade {grade}</span>
                           <input
                             type="number"
                             min={0}
@@ -1715,27 +1715,27 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                             step={0.1}
                             value={mathBenchmarks[grade]?.minimumGpa ?? 2.5}
                             onChange={(event) => updateMathBenchmark(grade, Number.parseFloat(event.target.value))}
-                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700"
+                            className="rounded-lg border border-indigo-200/60 px-2 py-1.5 text-xs font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500/20 outline-none shadow-sm transition-all"
                           />
                         </label>
                       ))}
                     </div>
                   </div>
                 ) : null}
-                <div className="space-y-2">
+                <div className="space-y-3">
                     {autoRecommendedRecords.slice(0, 3).map((record) => (
-                        <div key={`auto-${record.id}`} className="rounded-lg border border-indigo-200 bg-white px-3 py-2">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div key={`auto-${record.id}`} className="rounded-xl border border-indigo-200/60 bg-white/90 p-3.5 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <p className="text-sm font-semibold text-slate-900">{record.studentName}</p>
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-base font-extrabold text-slate-800 tracking-tight">{record.studentName}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
                                       {record.autoRecommendation?.source.toUpperCase()} risk since {record.autoRecommendation?.belowSince}
                                     </p>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => openWorkflowModal(record)}
-                                  className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                  className="rounded-lg border border-indigo-200/80 bg-indigo-50/50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 shadow-sm transition-all"
                                 >
                                   Open
                                 </button>
@@ -1743,29 +1743,29 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                         </div>
                     ))}
                     {autoRecommendedRecords.length === 0 ? (
-                        <p className="text-sm text-slate-600">No benchmark-based recommendations yet.</p>
+                        <p className="text-sm font-medium text-indigo-700/60 text-center mt-6 italic">No benchmark-based recommendations yet.</p>
                     ) : null}
                 </div>
             </div>
         </div>
 
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
+        <div className="mb-8 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between">
                 <div>
-                    <h2 className="text-sm font-bold text-slate-900">Referral Queue</h2>
-                    <p className="text-xs text-slate-500">Most recent referrals awaiting review.</p>
+                    <h2 className="text-lg font-extrabold text-slate-800 tracking-tight">Referral Queue</h2>
+                    <p className="text-sm font-medium text-slate-500 mt-0.5">Most recent referrals awaiting review.</p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                <span className="rounded-xl bg-slate-100/80 border border-slate-200/50 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
                     {pendingReferrals.length} pending
                 </span>
             </div>
 
             {referralsCollection.query.isLoading ? (
-                <div className="py-4 text-sm text-slate-500">Loading referral queue...</div>
+                <div className="py-8 text-center text-sm font-semibold text-slate-500 animate-pulse">Loading referral queue...</div>
             ) : recentReferrals.length === 0 ? (
-                <div className="py-4 text-sm text-slate-500">No referrals in the queue yet.</div>
+                <div className="py-8 text-center text-sm font-semibold text-slate-500 italic">No referrals in the queue yet.</div>
             ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                     {recentReferrals.map((referral) => {
                         const isHighlighted = referral.id === highlightedReferralId;
                         const linkedIntervention = findLinkedInterventionForReferral(referral, records);
@@ -1773,73 +1773,75 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                             <div
                                 key={referral.id}
                                 onClick={() => openReferralWorkflow(referral)}
-                                className={`rounded-lg border p-3 transition-colors ${
+                                className={`rounded-xl border p-4 transition-all duration-300 ${
                                     isHighlighted
-                                        ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-300'
-                                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
-                                } cursor-pointer`}
+                                        ? 'border-indigo-300/80 bg-indigo-50/50 ring-2 ring-indigo-500/20 shadow-md'
+                                        : 'border-slate-200/60 bg-white hover:bg-slate-50 hover:border-slate-300/60 hover:shadow-sm'
+                                } cursor-pointer group`}
                             >
-                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div>
-                                        <p className="text-sm font-semibold text-slate-900">
+                                        <p className="text-base font-extrabold text-slate-800 tracking-tight group-hover:text-indigo-700 transition-colors">
                                             {referral.studentName}
-                                            <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                            <span className="ml-2.5 rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                                 {referral.id}
                                             </span>
                                         </p>
-                                        <p className="text-xs text-slate-500">
-                                            Grade {referral.grade ?? 'N/A'} | {referral.type} | {referral.urgency}
+                                        <p className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-widest">
+                                            Grade {referral.grade ?? 'N/A'} <span className="mx-1 opacity-50">•</span> {referral.type} <span className="mx-1 opacity-50">•</span> {referral.urgency}
                                         </p>
                                         {linkedIntervention ? (
-                                          <p className="mt-1 text-[11px] font-semibold text-indigo-700">
+                                          <p className="mt-2 text-[11px] font-extrabold text-indigo-700 bg-indigo-50 inline-flex items-center px-2 py-0.5 rounded-md">
                                             Linked intervention: {linkedIntervention.planName}
                                           </p>
                                         ) : (
-                                          <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                                          <p className="mt-2 text-[11px] font-bold text-amber-700 bg-amber-50 inline-flex items-center px-2 py-0.5 rounded-md">
                                             Not yet in review queue. Click to open and create workflow item.
                                           </p>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <div className="text-right">
-                                            <p className="text-xs text-slate-500">{formatReferralTime(referral.createdAt)}</p>
-                                            <p className="text-xs font-semibold text-amber-700">{referral.status ?? 'Pending Review'}</p>
+                                        <div className="text-right mr-2 hidden sm:block">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{formatReferralTime(referral.createdAt)}</p>
+                                            <p className="text-xs font-extrabold text-amber-600">{referral.status ?? 'Pending Review'}</p>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => { event.stopPropagation(); onStudentClick(referral.studentName); }}
-                                            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                                        >
-                                            Open Student
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => { event.stopPropagation(); handleReferralMessage(referral); }}
-                                            className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                                        >
-                                            Message Team
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => { event.stopPropagation(); approveFromReferralQueue(referral); }}
-                                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                        >
-                                            Approve
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => { event.stopPropagation(); denyFromReferralQueue(referral); }}
-                                            className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                                        >
-                                            Deny
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => { event.stopPropagation(); setupMeetingFromReferralQueue(referral); }}
-                                            className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
-                                        >
-                                            Set Meeting
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                              type="button"
+                                              onClick={(event) => { event.stopPropagation(); onStudentClick(referral.studentName); }}
+                                              className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-all"
+                                          >
+                                              Open Student
+                                          </button>
+                                          <button
+                                              type="button"
+                                              onClick={(event) => { event.stopPropagation(); handleReferralMessage(referral); }}
+                                              className="rounded-lg border border-indigo-200/80 bg-indigo-50/50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 shadow-sm transition-all"
+                                          >
+                                              Message Team
+                                          </button>
+                                          <button
+                                              type="button"
+                                              onClick={(event) => { event.stopPropagation(); approveFromReferralQueue(referral); }}
+                                              className="rounded-lg border border-emerald-200/80 bg-emerald-50/50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 shadow-sm transition-all"
+                                          >
+                                              Approve
+                                          </button>
+                                          <button
+                                              type="button"
+                                              onClick={(event) => { event.stopPropagation(); denyFromReferralQueue(referral); }}
+                                              className="rounded-lg border border-rose-200/80 bg-rose-50/50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 hover:text-rose-800 shadow-sm transition-all"
+                                          >
+                                              Deny
+                                          </button>
+                                          <button
+                                              type="button"
+                                              onClick={(event) => { event.stopPropagation(); setupMeetingFromReferralQueue(referral); }}
+                                              className="rounded-lg border border-indigo-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800 shadow-sm transition-all"
+                                          >
+                                              Set Meeting
+                                          </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1850,27 +1852,27 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
         </div>
 
         {/* Toolbar & Filters */}
-        <div className="flex flex-col gap-4 pb-6">
+        <div className="flex flex-col gap-5 pb-6">
             <div className="flex flex-col md:flex-row gap-4 items-center">
                 {/* Search & Filter Toggle */}
                 <div className="flex gap-3 flex-1 w-full">
                     <div className="relative flex-1">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input 
                             type="text" 
                             placeholder="Search students, teachers, or plans..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200/80 rounded-xl text-sm font-medium focus:bg-white focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all shadow-sm"
                         />
                     </div>
                     <button 
                         onClick={() => setShowFilters(!showFilters)} 
-                        className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 text-sm font-medium ${showFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                        className={`p-3 rounded-xl border transition-all flex items-center gap-2 text-sm font-semibold shadow-sm ${showFilters ? 'bg-indigo-50 border-indigo-200/80 text-indigo-700' : 'bg-white border-slate-200/80 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}
                     >
                         <Filter size={18} />
                         {activeFilterCount > 0 && (
-                            <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                            <span className="bg-indigo-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-md min-w-[20px] text-center shadow-sm">
                                 {activeFilterCount}
                             </span>
                         )}
@@ -1878,13 +1880,13 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                 </div>
 
                 {/* Group By */}
-                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                     <div className="relative shrink-0">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Layers size={14} /></span>
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Layers size={16} /></span>
                         <select 
                             value={groupBy} 
                             onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-                            className="pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            className="pl-10 pr-9 py-3 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold text-slate-700 appearance-none cursor-pointer hover:border-indigo-300 focus:ring-4 focus:ring-indigo-500/20 outline-none shadow-sm transition-all"
                         >
                             <option value="None">No Grouping</option>
                             <option value="Teacher">Group by Teacher</option>
@@ -1892,16 +1894,16 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                             <option value="Tier">Group by Tier</option>
                             <option value="Status">Group by Status</option>
                         </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     </div>
 
                     {/* Sort By */}
                     <div className="relative shrink-0">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><ArrowUpDown size={14} /></span>
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><ArrowUpDown size={16} /></span>
                         <select 
                             value={sortBy} 
                             onChange={(e) => setSortBy(e.target.value as SortBy)}
-                            className="pl-8 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            className="pl-10 pr-9 py-3 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold text-slate-700 appearance-none cursor-pointer hover:border-indigo-300 focus:ring-4 focus:ring-indigo-500/20 outline-none shadow-sm transition-all"
                         >
                             <option>Last Name</option>
                             <option>First Name</option>
@@ -1913,24 +1915,24 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                             <option>Tier</option>
                             <option>Plan Name</option>
                         </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     </div>
 
                     <button 
                         onClick={() => setSortDesc(!sortDesc)}
-                        className={`p-2.5 rounded-xl border transition-all ${sortDesc ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}
+                        className={`p-3 rounded-xl border transition-all shadow-sm ${sortDesc ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80' : 'bg-white text-slate-500 border-slate-200/80 hover:bg-slate-50'}`}
                         title={sortDesc ? "Descending" : "Ascending"}
                     >
-                        <ArrowUpDown size={16} className={sortDesc ? "rotate-180 transition-transform" : "transition-transform"} />
+                        <ArrowUpDown size={18} className={sortDesc ? "rotate-180 transition-transform" : "transition-transform"} />
                     </button>
 
-                    <div className="w-px h-8 bg-slate-200 mx-1"></div>
+                    <div className="w-px h-8 bg-slate-200/80 mx-1"></div>
 
-                    <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
-                        <button onClick={() => setLayout('List')} className={`p-1.5 rounded-lg transition-all ${layout === 'List' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                    <div className="flex bg-slate-100/80 p-1.5 rounded-xl shrink-0 shadow-inner border border-slate-200/50">
+                        <button onClick={() => setLayout('List')} className={`p-2 rounded-lg transition-all ${layout === 'List' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'}`}>
                             <LayoutList size={18} />
                         </button>
-                        <button onClick={() => setLayout('Cards')} className={`p-1.5 rounded-lg transition-all ${layout === 'Cards' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                        <button onClick={() => setLayout('Cards')} className={`p-2 rounded-lg transition-all ${layout === 'Cards' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'}`}>
                             <LayoutGrid size={18} />
                         </button>
                     </div>
@@ -1939,13 +1941,13 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
             {/* Collapsible Filter Row */}
             {showFilters && (
-                <div className="flex flex-wrap gap-4 pt-2 animate-in slide-in-from-top-2 border-t border-slate-100">
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tier Level</label>
+                <div className="flex flex-wrap gap-4 pt-4 animate-in slide-in-from-top-2 border-t border-slate-100/80">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Tier Level</label>
                         <select 
                             value={tierFilter}
                             onChange={(e) => setTierFilter(e.target.value)}
-                            className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                            className="p-2.5 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none shadow-sm"
                         >
                             <option value="All">All Tiers</option>
                             <option value={Tier.TIER_1}>{Tier.TIER_1}</option>
@@ -1954,12 +1956,12 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                         </select>
                     </div>
 
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Intervention Status</label>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Intervention Status</label>
                         <select 
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                            className="p-2.5 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none shadow-sm"
                         >
                             <option value="All">All Statuses</option>
                             <option value="Pending Review">Pending Review</option>
@@ -1969,12 +1971,12 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                         </select>
                     </div>
 
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Teacher</label>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Teacher</label>
                         <select 
                             value={teacherFilter}
                             onChange={(e) => setTeacherFilter(e.target.value)}
-                            className="p-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                            className="p-2.5 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none shadow-sm"
                         >
                             <option value="All">All Teachers</option>
                             {TEACHERS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -1982,12 +1984,12 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                     </div>
 
                     {(activeFilterCount > 0 || searchQuery) && (
-                        <div className="flex flex-col justify-end">
+                        <div className="flex flex-col justify-end pb-1">
                             <button 
                                 onClick={clearFilters}
-                                className="p-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1"
+                                className="p-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1.5 border border-transparent hover:border-rose-200"
                             >
-                                <X size={14} /> Clear All
+                                <X size={14} strokeWidth={3} /> Clear All
                             </button>
                         </div>
                     )}
@@ -2032,38 +2034,38 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
             )}
 
             {Object.keys(processedData).length === 0 ? (
-                <div className="text-center py-20 text-slate-400">
-                    <Filter size={48} className="mx-auto mb-3 opacity-20" />
-                    <p className="font-medium">No interventions match your filters.</p>
-                    <button onClick={clearFilters} className="text-indigo-600 font-semibold text-sm hover:underline mt-2">Clear Filters</button>
+                <div className="text-center py-20 text-slate-400 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200/50">
+                    <Filter size={48} className="mx-auto mb-4 text-slate-300" strokeWidth={1.5} />
+                    <p className="font-semibold text-lg text-slate-500">No interventions match your filters.</p>
+                    <button onClick={clearFilters} className="text-indigo-600 font-semibold text-sm hover:underline mt-3">Clear Filters</button>
                 </div>
             ) : (
                 Object.entries(processedData).map(([groupName, groupItems]: [string, InterventionRecord[]]) => {
                     const isCollapsed = collapsedGroups[groupName];
                     
                     return (
-                    <div key={groupName} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div key={groupName} className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden mb-6">
                         {groupBy !== 'None' && (
                             <div 
                                 onClick={() => toggleGroup(groupName)}
-                                className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors"
+                                className="p-5 bg-slate-50/80 border-b border-slate-200/60 flex justify-between items-center cursor-pointer hover:bg-slate-100/80 transition-colors"
                             >
                                 <div className="flex items-center gap-3">
                                     <span className={`text-slate-400 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`}>
-                                        <ChevronRight size={18} />
+                                        <ChevronRight size={20} />
                                     </span>
-                                    <h3 className="font-bold text-slate-800 text-base">{groupName}</h3>
-                                    <span className="bg-slate-200 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                                    <h3 className="font-extrabold text-slate-800 text-lg tracking-tight">{groupName}</h3>
+                                    <span className="bg-slate-200 text-slate-600 text-xs font-bold px-2.5 py-0.5 rounded-md shadow-sm">
                                         {groupItems.length}
                                     </span>
                                 </div>
                                 {/* Group Summary Stats */}
                                 <div className="hidden sm:flex items-center gap-6 text-xs text-slate-500 font-medium">
-                                    <span>Avg Progress: <span className="text-slate-800 font-bold">{groupItems.length > 0 ? Math.round(groupItems.reduce((a,b)=>a+b.progress,0)/groupItems.length) : 0}%</span></span>
+                                    <span>Avg Progress: <span className="text-emerald-700 font-extrabold text-sm">{groupItems.length > 0 ? Math.round(groupItems.reduce((a,b)=>a+b.progress,0)/groupItems.length) : 0}%</span></span>
                                     {groupBy !== 'Tier' && (
-                                        <div className="flex gap-1">
-                                            <span className="w-2 h-2 rounded-full bg-rose-500" title="Tier 3"></span>
-                                            <span>{groupItems.filter(i => i.tier === Tier.TIER_3).length} T3</span>
+                                        <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-md border border-slate-200/50 shadow-sm">
+                                            <span className="w-2 h-2 rounded-full bg-rose-500 shadow-sm" title="Tier 3"></span>
+                                            <span className="font-bold text-slate-700">{groupItems.filter(i => i.tier === Tier.TIER_3).length} T3</span>
                                         </div>
                                     )}
                                 </div>
@@ -2072,75 +2074,76 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
 
                         {/* Items Container - Default to expanded (NOT collapsed) */}
                         {!isCollapsed && (
-                            <div className={`p-4 ${layout === 'Cards' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4' : 'flex flex-col gap-0'}`}>
+                            <div className={`p-5 ${layout === 'Cards' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5' : 'flex flex-col gap-0 p-0'}`}>
                                 {groupItems.map((item) => (
                                     layout === 'Cards' ? (
                                         // CARD VIEW
                                         <div 
                                             key={item.id} 
                                             onClick={() => onStudentClick(item.studentName)}
-                                            className="bg-white border border-slate-200 rounded-xl p-4 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative"
+                                            className="bg-white border border-slate-200/80 rounded-2xl p-5 hover:border-indigo-300/80 hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden hover:-translate-y-1"
                                         >
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                                            <div className="absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br from-indigo-500/5 to-emerald-500/5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500 pointer-events-none" />
+                                            <div className="flex justify-between items-start mb-4 relative z-10">
+                                                <div className="flex items-center gap-3.5">
+                                                    <div className="w-12 h-12 rounded-full bg-slate-100 overflow-hidden border-2 border-slate-200 shadow-sm group-hover:border-indigo-200 transition-colors">
                                                         <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${item.avatarSeed}&backgroundColor=e0e7ff`} alt={item.studentName} />
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">{item.studentName}</h4>
-                                                        <p className="text-[10px] text-slate-500">{item.grade} • {item.teacher}</p>
+                                                        <h4 className="font-extrabold text-slate-800 text-base group-hover:text-indigo-700 transition-colors tracking-tight">{item.studentName}</h4>
+                                                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mt-0.5">{item.grade} <span className="mx-1 opacity-50">•</span> {item.teacher}</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col items-end gap-1">
+                                                <div className="flex flex-col items-end gap-1.5">
                                                     {getTierBadge(item.tier)}
                                                     {getWorkflowBadge(item.workflowStatus)}
                                                 </div>
                                             </div>
                                             
-                                            <div className="bg-slate-50 rounded-lg p-2 mb-3 border border-slate-100">
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Plan</span>
-                                                    <span className="text-[10px] font-bold text-indigo-600">{item.durationWeeks} wks</span>
+                                            <div className="bg-slate-50/80 rounded-xl p-3 mb-4 border border-slate-100 shadow-inner group-hover:bg-indigo-50/30 transition-colors relative z-10">
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Plan</span>
+                                                    <span className="text-[10px] font-extrabold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">{item.durationWeeks} wks</span>
                                                 </div>
-                                                <p className="text-xs font-semibold text-slate-700 truncate">{item.planName}</p>
+                                                <p className="text-sm font-bold text-slate-700 truncate">{item.planName}</p>
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-2 gap-5 relative z-10">
                                                 <div>
-                                                    <div className="flex justify-between text-[10px] mb-1">
-                                                        <span className="text-slate-500 font-bold">Progress</span>
-                                                        <span className="text-slate-800 font-bold">{item.progress}%</span>
+                                                    <div className="flex justify-between text-[10px] mb-1.5 uppercase tracking-widest">
+                                                        <span className="text-slate-500 font-extrabold">Progress</span>
+                                                        <span className="text-slate-800 font-extrabold">{item.progress}%</span>
                                                     </div>
-                                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full ${item.progress < 60 ? 'bg-rose-500' : item.progress < 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${item.progress}%` }} />
+                                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-200/50">
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${item.progress < 60 ? 'bg-rose-500' : item.progress < 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${item.progress}%` }} />
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <div className="flex justify-between text-[10px] mb-1">
-                                                        <span className="text-slate-500 font-bold">Attendance</span>
-                                                        <span className="text-slate-800 font-bold">{item.attendance}%</span>
+                                                    <div className="flex justify-between text-[10px] mb-1.5 uppercase tracking-widest">
+                                                        <span className="text-slate-500 font-extrabold">Attendance</span>
+                                                        <span className="text-slate-800 font-extrabold">{item.attendance}%</span>
                                                     </div>
-                                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full ${item.attendance < 90 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${item.attendance}%` }} />
+                                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-200/50">
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${item.attendance < 90 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${item.attendance}%` }} />
                                                     </div>
                                                 </div>
                                             </div>
                                             
                                             {/* Share Button (Cards) */}
-                                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                                            <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); openWorkflowModal(item); }}
-                                                    className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm"
+                                                    className="p-2 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm hover:shadow transition-all"
                                                     title="Open intervention workflow"
                                                 >
-                                                    <CalendarClock size={14} />
+                                                    <CalendarClock size={16} />
                                                 </button>
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
-                                                    className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm"
+                                                    className="p-2 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm hover:shadow transition-all"
                                                     title="Share Lesson Plan"
                                                 >
-                                                    <Share2 size={14} />
+                                                    <Share2 size={16} />
                                                 </button>
                                             </div>
                                         </div>
@@ -2149,21 +2152,21 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                         <div 
                                             key={item.id}
                                             onClick={() => onStudentClick(item.studentName)} 
-                                            className="group flex items-center justify-between gap-2 border-b border-slate-100 p-3 transition-colors last:border-0 cursor-pointer hover:bg-slate-50"
+                                            className="group flex items-center justify-between gap-3 border-b border-slate-100/80 p-4 transition-all duration-200 last:border-0 cursor-pointer hover:bg-indigo-50/30"
                                         >
-                                            <div className="flex min-w-0 flex-[1.4] items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
+                                            <div className="flex min-w-0 flex-[1.4] items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shrink-0 shadow-sm group-hover:border-indigo-200 transition-colors">
                                                     <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${item.avatarSeed}&backgroundColor=e0e7ff`} alt={item.studentName} />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <h4 className="truncate text-sm font-bold text-slate-800 group-hover:text-indigo-600">{item.studentName}</h4>
-                                                    <p className="text-[10px] text-slate-500 hidden sm:block">{item.id}</p>
+                                                    <h4 className="truncate text-base font-extrabold text-slate-800 tracking-tight group-hover:text-indigo-700 transition-colors">{item.studentName}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 hidden sm:block uppercase tracking-widest mt-0.5">{item.id}</p>
                                                 </div>
                                             </div>
 
                                             <div className="hidden flex-1 md:block">
-                                                <p className="text-xs font-semibold text-slate-700">{item.teacher}</p>
-                                                <p className="text-[10px] text-slate-500">{item.grade}</p>
+                                                <p className="text-sm font-bold text-slate-700">{item.teacher}</p>
+                                                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mt-0.5">Grade {item.grade}</p>
                                             </div>
 
                                             <div className="hidden flex-[0.8] sm:block">
@@ -2171,31 +2174,31 @@ export const InterventionManager: React.FC<InterventionManagerProps> = ({
                                             </div>
 
                                             <div className="min-w-0 flex-[1.2]">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-3">
                                                     {getProgressBar(item.progress)}
-                                                    <span className="text-xs font-bold text-slate-700 w-8 text-right">{item.progress}%</span>
+                                                    <span className="text-sm font-extrabold text-slate-700 w-10 text-right">{item.progress}%</span>
                                                 </div>
-                                                <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[120px]">{item.planName}</p>
-                                                <div className="mt-1">{getWorkflowBadge(item.workflowStatus)}</div>
+                                                <p className="text-xs font-semibold text-slate-500 mt-1.5 truncate max-w-[160px]">{item.planName}</p>
+                                                <div className="mt-1.5">{getWorkflowBadge(item.workflowStatus)}</div>
                                             </div>
 
                                             <div className="w-auto shrink-0 text-right flex justify-end gap-2">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); openWorkflowModal(item); }}
-                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors"
+                                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm hover:border hover:border-slate-200 rounded-xl transition-all"
                                                     title="Open intervention workflow"
                                                 >
-                                                    <CalendarClock size={16} />
+                                                    <CalendarClock size={18} />
                                                 </button>
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleSharePlan(item); }}
-                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors"
+                                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm hover:border hover:border-slate-200 rounded-xl transition-all"
                                                     title="Share Lesson Plan"
                                                 >
-                                                    <Share2 size={16} />
+                                                    <Share2 size={18} />
                                                 </button>
-                                                <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors">
-                                                    <MoreHorizontal size={16} />
+                                                <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm hover:border hover:border-slate-200 rounded-xl transition-all">
+                                                    <MoreHorizontal size={18} />
                                                 </button>
                                             </div>
                                         </div>

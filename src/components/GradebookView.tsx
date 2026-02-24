@@ -43,7 +43,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { LineChart, Line, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { CustomDatePicker } from './CustomDatePicker';
 import { generateParentMessage } from '../services/geminiService';
 import { DraggableModal } from './DraggableModal';
@@ -1094,12 +1094,12 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         isOpen={showMissingModal}
         onClose={closeMissingModal}
         title={
-            <div className="flex items-center gap-2">
-                <div className="p-2 bg-rose-100 text-rose-600 rounded-lg">
-                    <AlertCircle size={20} />
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-50/80 text-rose-600 rounded-xl shadow-sm border border-rose-100/50">
+                    <AlertCircle size={20} strokeWidth={2.5} />
                 </div>
                 <div>
-                    <span className="font-bold text-lg text-slate-900 block">Missing Assignments</span>
+                    <span className="font-extrabold text-xl tracking-tight text-slate-900 block">Missing Assignments</span>
                     <span className="text-xs text-slate-500 font-medium">{missingWorkList.length} flagged items in {selectedSubject}</span>
                 </div>
             </div>
@@ -1107,8 +1107,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         initialWidth={700}
         initialHeight={600}
         footer={
-            <div className="flex justify-between items-center w-full">
-                <span className="text-xs text-slate-500 italic">
+            <div className="flex justify-between items-center w-full border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
+                <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 pl-2">
                     Last synced: Just now
                 </span>
                 <div className="flex gap-3">
@@ -1119,32 +1119,32 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                               setMessageSent(false);
                               setBulkMessageSent(false);
                             }}
-                            className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                            className="px-5 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
                         >
                             Back to list
                         </button>
                     )}
                     <button 
                         onClick={closeMissingModal}
-                        className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                        className="px-6 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
                     >
                         Close
                     </button>
                     {missingModalMode === 'list' && missingWorkList.length > 0 && (
                         <button 
                             onClick={handleMessageAllParents}
-                            className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-all active:scale-95"
+                            className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg flex items-center gap-2.5 transition-all active:scale-95"
                         >
-                            <MessageSquare size={16} /> Message All Parents
+                            <MessageSquare size={16} strokeWidth={2.5} /> Message All Parents
                         </button>
                     )}
                     {missingModalMode === 'bulk' && missingWorkList.length > 0 && (
                       <button
                         onClick={handleConfirmBulkMessage}
                         disabled={isSendingBulkMessage || bulkMessageSent}
-                        className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                        className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2.5 transition-all"
                       >
-                        {isSendingBulkMessage ? <Loader2 size={16} className="animate-spin" /> : bulkMessageSent ? <CheckCircle2 size={16} /> : <Send size={16} />}
+                        {isSendingBulkMessage ? <Loader2 size={18} strokeWidth={2.5} className="animate-spin" /> : bulkMessageSent ? <CheckCircle2 size={18} strokeWidth={2.5} /> : <Send size={18} strokeWidth={2.5} />}
                         {isSendingBulkMessage ? 'Sending...' : bulkMessageSent ? 'Sent to families' : `Send to ${missingWorkList.length} families`}
                       </button>
                     )}
@@ -1305,36 +1305,36 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         isOpen={showAddAssignmentModal}
         onClose={() => setShowAddAssignmentModal(false)}
         title={
-            <div className="flex items-center gap-2">
-                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                    <FilePlus size={20} />
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50/80 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50">
+                    <FilePlus size={20} strokeWidth={2.5} />
                 </div>
                 <div>
-                    <span className="font-bold text-lg text-slate-900 block">New Assignment</span>
-                    <span className="text-xs text-slate-500 font-medium">Adding to <span className="text-indigo-600 font-bold">{selectedSubject}</span> | {selectedTerm}</span>
+                    <span className="font-extrabold text-xl tracking-tight text-slate-900 block">New Assignment</span>
+                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Adding to <span className="text-indigo-600">{selectedSubject}</span> | {selectedTerm}</span>
                 </div>
             </div>
         }
         initialWidth={600}
         initialHeight={500}
         footer={
-            <div className="flex justify-between items-center w-full">
-              <div className="text-xs text-slate-400 font-medium italic">
+            <div className="flex justify-between items-center w-full border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
+              <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest pl-2">
                  * Required fields
               </div>
               <div className="flex gap-3">
                 <button 
                     onClick={() => setShowAddAssignmentModal(false)} 
-                    className="px-5 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-colors"
+                    className="px-6 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-sm transition-all"
                 >
                     Cancel
                 </button>
                 <button 
                     onClick={handleCreateAssignment}
                     disabled={!newAssignmentData.title}
-                    className="px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all hover:shadow-lg transform active:scale-95"
+                    className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 transition-all active:scale-95"
                 >
-                    <Save size={18} /> Create Assignment
+                    <Save size={18} strokeWidth={2.5} /> Create Assignment
                 </button>
               </div>
             </div>
@@ -1429,35 +1429,35 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
           setEditAssignmentData(null);
         }}
         title={
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600">
-              <Settings size={20} />
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-indigo-50/80 p-2 text-indigo-600 shadow-sm border border-indigo-100/50">
+              <Settings size={20} strokeWidth={2.5} />
             </div>
             <div>
-              <span className="block text-lg font-bold text-slate-900">Edit Assignment</span>
-              <span className="text-xs font-medium text-slate-500">Update assignment details for this class.</span>
+              <span className="block text-xl font-extrabold tracking-tight text-slate-900">Edit Assignment</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Update assignment details for this class.</span>
             </div>
           </div>
         }
         initialWidth={600}
         initialHeight={500}
         footer={
-          <div className="flex w-full items-center justify-end gap-3">
+          <div className="flex w-full items-center justify-end gap-3 border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
             <button
               onClick={() => {
                 setShowEditAssignmentModal(false);
                 setEditAssignmentData(null);
               }}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+              className="px-6 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-sm transition-all"
             >
               Cancel
             </button>
             <button
               onClick={handleUpdateAssignment}
               disabled={!editAssignmentData?.title.trim()}
-              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-95"
             >
-              <Save size={18} /> Save Changes
+              <Save size={18} strokeWidth={2.5} /> Save Changes
             </button>
           </div>
         }
@@ -1551,66 +1551,69 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
         mobileMode="sheet"
         allowResize={false}
         title={
-          <div className="flex items-center gap-2">
-            <Calculator size={20} className="text-indigo-600" />
-            <span className="font-bold text-lg text-slate-900">Grade Weights</span>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50/80 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50">
+              <Calculator size={20} strokeWidth={2.5} />
+            </div>
+            <span className="font-extrabold text-xl tracking-tight text-slate-900">Grade Weights</span>
           </div>
         }
         initialWidth={560}
         initialHeight={640}
         footer={
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-slate-500">
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
+            <div className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 pl-2">
               <span>Esc to close.</span>
-              <span className="ml-1">Enter to save when balanced.</span>
+              <span className="ml-1.5 text-indigo-400">Enter to save when balanced.</span>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-3">
               {hasUnsavedWeightChanges && (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+                <span className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-amber-700 shadow-sm animate-pulse">
                   Unsaved changes
                 </span>
               )}
               <button
                 onClick={closeWeightsModal}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                className="px-5 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-sm transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={saveWeightsConfiguration}
                 disabled={weightValidationState !== 'balanced' || !hasUnsavedWeightChanges}
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 transition-all active:scale-95"
               >
-                <Save size={16} /> Save Configuration
+                <Save size={18} strokeWidth={2.5} /> Save Configuration
               </button>
             </div>
           </div>
         }
       >
-        <div onKeyDown={handleWeightsModalKeyDown} className="h-full space-y-5 overflow-y-auto p-5 sm:p-6">
+        <div onKeyDown={handleWeightsModalKeyDown} className="h-full space-y-6 overflow-y-auto p-5 sm:p-8 bg-slate-50/30 custom-scrollbar">
           <div
             aria-live="polite"
-            className={`rounded-xl border px-3 py-2 text-sm ${weightStatusCopy.badgeClassName}`}
+            className={`rounded-2xl border px-4 py-3 text-sm shadow-sm transition-all ${weightStatusCopy.badgeClassName.replace('bg-', 'bg-').replace('border-', 'border-').replace('50', '50/80')}`}
           >
-            <div className="flex items-center gap-2 font-semibold">
-              {weightValidationState === 'balanced' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+            <div className="flex items-center gap-2.5 font-extrabold tracking-tight text-[15px]">
+              {weightValidationState === 'balanced' ? <CheckCircle2 size={18} strokeWidth={2.5} /> : <AlertTriangle size={18} strokeWidth={2.5} />}
               <span>{weightStatusCopy.title}</span>
             </div>
-            <p className={`mt-1 text-xs ${weightStatusCopy.detailClassName}`}>{weightStatusCopy.description}</p>
+            <p className={`mt-1 text-sm font-semibold ${weightStatusCopy.detailClassName}`}>{weightStatusCopy.description}</p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-3 flex items-center justify-between gap-2 px-1">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                <LayoutTemplate size={14} /> Quick Presets
+          <div className="rounded-3xl border border-slate-200/60 bg-white/80 p-5 shadow-sm backdrop-blur-sm">
+            <div className="mb-4 flex items-center justify-between gap-3 px-1">
+              <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
+                <div className="p-1.5 bg-slate-100 rounded-lg text-slate-600"><LayoutTemplate size={16} strokeWidth={2.5} /></div>
+                Quick Presets
               </div>
               {activeWeightPresetName ? (
-                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+                <span className="rounded-lg border border-indigo-200/80 bg-indigo-50/80 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 shadow-sm">
                   {activeWeightPresetName}
                 </span>
               ) : null}
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {WEIGHT_PRESET_META.map((preset) => {
                 const isPresetActive = activeWeightPresetName === preset.name;
                 return (
@@ -1621,73 +1624,78 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                       setLockedWeightTypes(new Set());
                     }}
                     aria-pressed={isPresetActive}
-                    className={`rounded-lg border px-3 py-2 text-left transition-all ${
+                    className={`rounded-xl border px-4 py-3 text-left transition-all active:scale-95 ${
                       isPresetActive
-                        ? 'border-indigo-900 bg-indigo-900 text-white shadow-md'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700'
+                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:border-indigo-700'
+                        : 'border-slate-200/80 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50 hover:shadow-sm'
                     }`}
                     style={isPresetActive ? { color: '#ffffff' } : undefined}
                   >
-                    <span className={`block text-sm font-bold ${isPresetActive ? 'text-white' : 'text-slate-800'}`}>{preset.name}</span>
-                    <span className={`mt-1 block text-[11px] ${isPresetActive ? 'text-indigo-50' : 'text-slate-500'}`}>
+                    <span className={`block text-sm font-extrabold tracking-tight ${isPresetActive ? 'text-white' : 'text-slate-800'}`}>{preset.name}</span>
+                    <span className={`mt-1.5 block text-[11px] font-semibold leading-relaxed ${isPresetActive ? 'text-indigo-100' : 'text-slate-500'}`}>
                       {preset.description}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-2.5 pt-5 border-t border-slate-100/80">
               <button
                 onClick={resetWeightsToSaved}
                 disabled={!hasUnsavedWeightChanges}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 flex-1 text-center"
               >
-                Reset to saved
+                Reset
               </button>
               <button
                 onClick={autoBalanceWeights}
-                className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+                className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-widest text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 active:scale-95 flex-1 text-center"
               >
                 Auto-balance
               </button>
               <button
                 onClick={normalizeWeights}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                className="rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700 active:scale-95 flex-1 text-center"
               >
                 Normalize
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[180px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-[180px_minmax(0,1fr)]">
             <div className="flex w-full justify-center">
-              <div className="relative grid h-40 w-40 shrink-0 place-items-center overflow-hidden">
-                <PieChart width={160} height={160} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} className="block">
-                  <Pie
-                    data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
-                    innerRadius={42}
-                    outerRadius={55}
-                    paddingAngle={5}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                  >
-                    {Object.entries(tempWeights).map((entry, index) => (
-                      <Cell key={`cell-${entry[0]}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                    ))}
-                  </Pie>
-                </PieChart>
+              <div className="relative h-44 w-44 shrink-0 overflow-hidden drop-shadow-sm">
+                <div className="absolute inset-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }} className="block">
+                      <Pie
+                        data={Object.entries(tempWeights).map(([name, value]) => ({ name, value }))}
+                        innerRadius={48}
+                        outerRadius={65}
+                        paddingAngle={5}
+                        dataKey="value"
+                        cx="50%"
+                        cy="50%"
+                        stroke="none"
+                      >
+                        {Object.entries(tempWeights).map((entry, index) => (
+                          <Cell key={`cell-${entry[0]}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="flex w-[76px] flex-col items-center justify-center text-center leading-tight">
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Total</span>
+                  <div className="flex w-[84px] flex-col items-center justify-center text-center leading-tight bg-white/50 backdrop-blur-md h-[84px] rounded-full shadow-inner border border-white/60">
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">Total</span>
                     <span
-                      className={`text-lg font-bold transition-colors duration-300 ${
-                        totalTempWeight !== 100 ? 'text-rose-500' : 'text-slate-800'
+                      className={`text-xl font-extrabold tracking-tight transition-colors duration-300 mt-0.5 ${
+                        totalTempWeight !== 100 ? 'text-rose-600' : 'text-slate-800'
                       }`}
                     >
                       {totalTempWeight}%
                     </span>
-                    <span className={`text-[10px] font-bold ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    <span className={`text-[10px] font-bold mt-0.5 ${remainingWeight === 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                       {remainingWeight === 0 ? 'Balanced' : remainingWeight > 0 ? `${remainingWeight}% left` : `${Math.abs(remainingWeight)}% over`}
                     </span>
                   </div>
@@ -1695,32 +1703,31 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
               </div>
             </div>
 
-            <div className="w-full space-y-4">
+            <div className="w-full space-y-3.5">
               {WEIGHT_TYPES.map((type, idx) => {
                 const isLocked = lockedWeightTypes.has(type);
                 return (
-                  <div key={type} className="space-y-2 rounded-lg border border-slate-100 bg-white p-2.5">
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-2 font-bold text-slate-700">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[idx] }} />
-                        {type}
+                  <div key={type} className="space-y-3 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-sm p-4 shadow-sm transition-colors hover:border-slate-300/80">
+                    <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
+                      <span className="flex items-center gap-2.5 font-extrabold text-sm text-slate-800 tracking-tight min-w-0">
+                        <span className="h-3.5 w-3.5 rounded-md shadow-sm shrink-0" style={{ backgroundColor: COLORS[idx] }} />
+                        <span className="truncate">{type}</span>
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap justify-end">
                         <button
                           type="button"
                           onClick={() => toggleWeightLock(type)}
                           aria-pressed={isLocked}
                           aria-label={`${isLocked ? 'Unlock' : 'Lock'} ${type} for auto-balance and normalize`}
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                          className={`p-2.5 rounded-lg border transition-all shadow-sm flex items-center justify-center ${
                             isLocked
-                              ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                              ? 'border-indigo-300/80 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100/80'
+                              : 'border-slate-200/80 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
-                          {isLocked ? <Lock size={12} /> : <LockOpen size={12} />}
-                          {isLocked ? 'Locked' : 'Unlocked'}
+                          {isLocked ? <Lock size={16} strokeWidth={2.5} /> : <LockOpen size={16} strokeWidth={2.5} />}
                         </button>
-                        <div className="relative w-16">
+                        <div className="relative w-20">
                           <input
                             type="number"
                             min="0"
@@ -1730,9 +1737,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                             value={tempWeights[type]}
                             onChange={(event) => setWeightValue(type, Number(event.target.value))}
                             aria-label={`${type} weight percentage`}
-                            className="w-full rounded border border-slate-200 bg-slate-50 p-1 pr-4 text-right text-xs font-bold text-slate-700 focus:border-indigo-400 focus:outline-none"
+                            className="w-full rounded-lg border border-slate-200/80 bg-slate-50/80 p-2 pr-6 text-right text-sm font-extrabold text-slate-800 shadow-inner focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all"
                           />
-                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
                             %
                           </span>
                         </div>
@@ -1747,7 +1754,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
                       onChange={(event) => setWeightValue(type, Number(event.target.value))}
                       aria-label={`Adjust ${type} weight`}
                       style={{ accentColor: COLORS[idx] }}
-                      className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-slate-200"
+                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200/80 shadow-inner"
                     />
                   </div>
                 );
@@ -1756,155 +1763,159 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
           </div>
 
           {totalTempWeight !== 100 && (
-            <div className="flex items-center justify-center gap-2 rounded-lg border border-rose-100 bg-rose-50 p-3 text-xs font-bold text-rose-700">
-              <AlertCircle size={16} /> Weights must total exactly 100%.
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50/80 p-4 text-sm font-bold text-rose-700 shadow-sm animate-in zoom-in-95 duration-200">
+              <AlertCircle size={18} strokeWidth={2.5} /> Weights must total exactly 100%.
             </div>
           )}
         </div>
       </DraggableModal>
 
       {/* --- Header --- */}
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-5 mb-6 bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden z-10">
+        <div className="absolute -right-12 -top-12 w-48 h-48 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+          <div className="flex items-center gap-4">
             <SidebarToggleButton
               onClick={onMenuClick}
-              className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+              className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
             />
+            <div className="p-3 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600 hidden sm:block">
+              <Calculator size={24} strokeWidth={2.5} />
+            </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Gradebook</h2>
-              <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">
-                <span className="font-medium text-indigo-600">Class 4-B</span>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Gradebook</h2>
+              <p className="text-slate-500 mt-1.5 flex items-center gap-2.5 text-sm font-medium">
+                <span className="font-extrabold text-indigo-700">Class 4-B</span>
                 <span className="text-slate-300">|</span>
-                {assignments.length} Assignments
+                <span className="text-slate-600 font-semibold">{assignments.length} Assignments</span>
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => setShowAddAssignmentModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+              className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-xl font-extrabold text-sm shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg transition-all active:scale-95"
             >
-              <Plus size={18} /> New Assignment
+              <Plus size={18} strokeWidth={2.5} /> New Assignment
             </button>
             <button
               onClick={openWeightsModal}
-              className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200/80 rounded-xl text-slate-700 hover:bg-slate-50 hover:text-indigo-700 transition-colors shadow-sm font-extrabold text-sm"
               title="Configure grade weights"
             >
-              <PieChartIcon size={16} /> Grade Weights
+              <PieChartIcon size={18} strokeWidth={2.5} /> Grade Weights
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
           <div className="relative">
             <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
-              className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors w-full"
+              className="appearance-none pl-4 pr-10 py-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl text-sm font-extrabold text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white cursor-pointer transition-all w-full"
             >
               {SUBJECTS.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <ChevronDown size={16} strokeWidth={2.5} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
           <div className="relative">
             <select
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
-              className="appearance-none pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors w-full"
+              className="appearance-none pl-4 pr-10 py-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl text-sm font-extrabold text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white cursor-pointer transition-all w-full"
             >
               <option value="Q1">Quarter 1</option>
               <option value="Q2">Quarter 2</option>
               <option value="Q3">Quarter 3</option>
               <option value="Q4">Quarter 4</option>
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <ChevronDown size={16} strokeWidth={2.5} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
           <div className="relative">
-            <CalendarDays size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <CalendarDays size={18} strokeWidth={2.5} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value as 'All' | '30Days' | '7Days')}
-              className="appearance-none pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-50 transition-colors w-full"
+              className="appearance-none pl-11 pr-10 py-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl text-sm font-extrabold text-slate-700 shadow-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white cursor-pointer transition-all w-full"
             >
               <option value="All">All Time</option>
               <option value="30Days">Last 30 Days</option>
               <option value="7Days">Last 7 Days</option>
             </select>
-            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <ChevronDown size={16} strokeWidth={2.5} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-          <span className="text-xs font-semibold text-slate-500">Active filters</span>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/50 bg-slate-100/80 p-2.5 shadow-inner relative z-10">
+          <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest pl-1">Active filters</span>
           {activeFilters.map((filter) => (
             <span
               key={filter.id}
-              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600"
+              className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-[11px] font-extrabold text-slate-600 shadow-sm"
             >
               {filter.label}
             </span>
           ))}
-          <button onClick={resetFiltersToDefault} className="ml-auto rounded-lg px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+          <button onClick={resetFiltersToDefault} className="ml-auto rounded-lg px-3 py-1.5 text-xs font-extrabold text-rose-600 hover:bg-rose-50 transition-colors">
             Reset all
           </button>
         </div>
       </div>
 
       {/* Stats Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg ring-4 ring-indigo-50/50">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+        <div className="bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:-translate-y-0.5 group">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-extrabold text-xl shadow-inner border border-indigo-100/50 group-hover:bg-indigo-100/80 transition-colors">
             {classSubjectAverage}%
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Weighted Avg (Class)</p>
-            <p className="text-sm font-medium text-slate-600">Across {filteredAssignments.length} Items</p>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest group-hover:text-indigo-500 transition-colors">Weighted Avg (Class)</p>
+            <p className="text-[13px] font-bold text-slate-600 mt-0.5">Across {filteredAssignments.length} Items</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg ring-4 ring-blue-50/50">
+        <div className="bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:-translate-y-0.5 group">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 font-extrabold text-xl shadow-inner border border-blue-100/50 group-hover:bg-blue-100/80 transition-colors">
             {filteredAverage}%
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Weighted Avg (Filtered)</p>
-            <p className="text-sm font-medium text-slate-600">{filteredAndSortedStudents.length} Students</p>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest group-hover:text-blue-500 transition-colors">Weighted Avg (Filtered)</p>
+            <p className="text-[13px] font-bold text-slate-600 mt-0.5">{filteredAndSortedStudents.length} Students</p>
           </div>
         </div>
 
         <div
           onClick={openMissingModal}
-          className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group"
+          className="bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center gap-4 cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all group hover:-translate-y-0.5"
         >
-          <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ring-4 transition-transform group-hover:scale-110 ${missingCountInScope > 5 ? 'bg-rose-50 text-rose-600 ring-rose-50/50' : 'bg-emerald-50 text-emerald-600 ring-emerald-50/50'}`}>
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-extrabold text-xl transition-all shadow-inner border ${missingCountInScope > 5 ? 'bg-rose-50 text-rose-600 border-rose-100/50 group-hover:bg-rose-100/80' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50 group-hover:bg-emerald-100/80'}`}>
             {missingCountInScope}
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">Missing</p>
-            <p className="text-sm font-medium text-slate-600">In Current Scope</p>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest group-hover:text-indigo-500 transition-colors">Missing</p>
+            <p className="text-[13px] font-bold text-slate-600 mt-0.5">In Current Scope</p>
           </div>
         </div>
 
         <button
-          className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-700 to-violet-800 p-4 text-left text-white shadow-md transition-all hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-2 focus-visible:ring-offset-white group flex items-center justify-between cursor-pointer"
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 to-violet-800 p-5 text-left text-white shadow-md transition-all hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/20 group flex items-center justify-between cursor-pointer hover:-translate-y-0.5 border border-indigo-500/30 active:scale-95"
           onClick={() => setShowAiAnalysis(true)}
         >
-          <div className="pointer-events-none absolute inset-0 bg-slate-900/10" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/20 via-transparent to-transparent opacity-60" />
           <div className="relative z-10">
-            <h3 className="flex items-center gap-2 text-lg font-bold text-white" style={{ color: '#ffffff' }}>
-              <BrainCircuit size={20} className="text-white" /> Grade Analysis
+            <h3 className="flex items-center gap-2.5 text-lg font-extrabold text-white tracking-tight" style={{ color: '#ffffff' }}>
+              <BrainCircuit size={22} strokeWidth={2.5} className="text-white" /> Grade Analysis
             </h3>
-            <p className="text-sm text-slate-100" style={{ color: '#f1f5f9' }}>
+            <p className="text-[13px] font-medium text-indigo-100 mt-1" style={{ color: '#e0e7ff' }}>
               Open actionable AI insights for current filters.
             </p>
           </div>
-          <div className="relative z-10 rounded-lg bg-white/15 p-2 backdrop-blur-sm transition-colors group-hover:bg-white/25">
-            <TrendingUp size={24} className="text-white" />
+          <div className="relative z-10 rounded-2xl bg-white/20 p-2.5 backdrop-blur-md transition-all group-hover:bg-white/30 group-hover:scale-110 shadow-sm border border-white/20">
+            <TrendingUp size={24} strokeWidth={2.5} className="text-white" />
           </div>
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl transition-colors group-hover:bg-white/20"></div>
+          <div className="absolute -right-8 -bottom-8 h-32 w-32 rounded-full bg-indigo-400/20 blur-2xl transition-colors group-hover:bg-indigo-400/30"></div>
         </button>
       </div>
 
@@ -1949,53 +1960,53 @@ export const GradebookView: React.FC<GradebookViewProps> = ({ onMenuClick }) => 
       )}
 
       {/* Main Gradebook Table */}
-      <div className="app-responsive-pane relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="app-responsive-pane relative flex flex-1 min-w-0 flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md shadow-sm">
          
          {/* Toolbar */}
-         <div className="p-3 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50">
-             <div className="relative max-w-xs w-full">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+         <div className="p-4 border-b border-slate-200/60 flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white/50">
+             <div className="relative max-w-sm w-full">
+                <Search size={18} strokeWidth={2.5} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
                     type="text" 
                     placeholder="Filter students..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)} 
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="w-full pl-11 pr-4 py-2.5 text-sm font-semibold border border-slate-200/80 rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 bg-slate-50/50 focus:bg-white transition-all shadow-sm"
                 />
              </div>
-             <div className="flex items-center gap-2 flex-wrap">
-                 <div className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+             <div className="flex items-center gap-3 flex-wrap">
+                 <div className={`px-4 py-2 rounded-xl text-[11px] font-extrabold uppercase tracking-widest flex items-center gap-2 shadow-sm border ${
                     saveStatus === 'saving'
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      ? 'bg-amber-50/80 text-amber-700 border-amber-200/80'
                       : saveStatus === 'saved'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80'
                       : saveStatus === 'error'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      ? 'bg-rose-50/80 text-rose-700 border-rose-200/80'
+                      : 'bg-slate-100/80 text-slate-500 border-slate-200/80'
                  }`}>
-                    {saveStatus === 'saving' && <Loader2 size={12} className="animate-spin" />}
-                    {saveStatus === 'saved' && <CheckCircle2 size={12} />}
-                    {saveStatus === 'error' && <AlertTriangle size={12} />}
+                    {saveStatus === 'saving' && <Loader2 size={14} strokeWidth={3} className="animate-spin" />}
+                    {saveStatus === 'saved' && <CheckCircle2 size={14} strokeWidth={3} />}
+                    {saveStatus === 'error' && <AlertTriangle size={14} strokeWidth={3} />}
                     {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'error' ? 'Save failed' : 'Ready'}
                  </div>
                  <button
                     onClick={handleUndoLastEdit}
                     disabled={!lastEditedCell}
-                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-xl border border-transparent hover:border-indigo-200/80 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow"
                     title="Undo last edit"
                  >
-                    <RotateCcw size={16} />
+                    <RotateCcw size={18} strokeWidth={2.5} />
                  </button>
                  {saveStatus === 'error' && (
                   <button
                     onClick={retrySavingGrades}
-                    className="px-2.5 py-1 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs font-semibold hover:bg-rose-50"
+                    className="px-4 py-2 rounded-xl border border-rose-200/80 bg-rose-50/80 text-rose-700 text-xs font-extrabold hover:bg-rose-100 shadow-sm transition-all active:scale-95"
                   >
                     Retry Save
                   </button>
                  )}
-                 <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all" title="Download CSV">
-                     <Download size={16} />
+                 <button className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-xl border border-transparent hover:border-indigo-200/80 transition-all shadow-sm hover:shadow active:scale-95" title="Download CSV">
+                     <Download size={18} strokeWidth={2.5} />
                  </button>
              </div>
          </div>

@@ -455,41 +455,41 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
     <div className="h-full flex flex-col bg-slate-50/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 p-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div className="flex items-center gap-3">
+      <div className="bg-white/50 backdrop-blur-md border-b border-slate-200/50 p-6 z-10 sticky top-0 rounded-t-2xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5 mb-6">
+            <div className="flex items-center gap-4">
                 <SidebarToggleButton
                     onClick={onMenuClick}
-                    className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+                    className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
                 />
-                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                    <BookCopy size={24} />
+                <div className="p-3 bg-indigo-50/80 rounded-xl text-indigo-600 shadow-sm border border-indigo-100/50">
+                    <BookCopy size={24} strokeWidth={2.5} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Lesson Plan Library</h1>
-                    <p className="text-slate-500 text-sm mt-1">Build, refine, and share lesson plans with your MTSS team.</p>
+                    <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Lesson Plan Library</h1>
+                    <p className="text-slate-500 font-medium text-sm mt-1">Build, refine, and share lesson plans with your MTSS team.</p>
                 </div>
             </div>
             <button 
                 onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all active:scale-95 hover:-translate-y-0.5 w-full md:w-auto"
             >
-                <Sparkles size={18} /> Create Plan
+                <Sparkles size={18} strokeWidth={2.5} /> Create Plan
             </button>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-3 flex-1 items-center">
+        <div className="flex flex-wrap items-center justify-between gap-5">
+            <div className="flex flex-wrap gap-4 flex-1 items-center">
                 <div className="relative flex-1 min-w-[200px] max-w-sm">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input 
                         type="text" 
                         placeholder="Search plans, objective, student, subject..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         aria-label="Search lesson plans"
-                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200/80 rounded-xl text-sm font-medium focus:bg-white focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all shadow-sm"
                     />
                 </div>
 
@@ -497,26 +497,26 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                     <select 
                         value={gradeFilter}
                         onChange={(e) => setGradeFilter(e.target.value)}
-                        className="appearance-none pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-white transition-colors"
+                        className="appearance-none pl-5 pr-10 py-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer hover:bg-white transition-all shadow-sm"
                     >
                         <option value="All">All Grades</option>
                         {['K', '1st', '2nd', '3rd', '4th', '5th', '6th'].map(g => <option key={g} value={g}>{g} Grade</option>)}
                     </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
 
                 <div className="relative">
-                    <SlidersHorizontal size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <SlidersHorizontal size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     <select 
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value as LessonPlanSort)}
-                        className="appearance-none pl-8 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-white transition-colors"
+                        className="appearance-none pl-11 pr-10 py-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer hover:bg-white transition-all shadow-sm"
                     >
                         <option value="Newest">Newest</option>
                         <option value="Recently Updated">Recently Updated</option>
                         <option value="Title A-Z">Title A-Z</option>
                     </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
 
                 {canViewAllPrivatePlans ? (
@@ -524,28 +524,28 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                     <select
                       value={groupBy}
                       onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-                      className="appearance-none pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-white transition-colors"
+                      className="appearance-none pl-5 pr-10 py-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer hover:bg-white transition-all shadow-sm"
                     >
                       {groupByOptions.includes('none') ? <option value="none">No Grouping</option> : null}
                       {groupByOptions.includes('teacher') ? <option value="teacher">Group by Teacher</option> : null}
                       {groupByOptions.includes('grade') ? <option value="grade">Group by Grade</option> : null}
                       {groupByOptions.includes('school') ? <option value="school">Group by School</option> : null}
                     </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   </div>
                 ) : null}
 
-                <div className="w-px h-8 bg-slate-200 mx-1 hidden md:block"></div>
+                <div className="w-px h-8 bg-slate-200/80 mx-1 hidden md:block"></div>
 
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex items-center gap-3 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                     {['All', 'Math', 'Reading', 'Science', 'Social Studies'].map(subj => (
                         <button
                             key={subj}
                             onClick={() => setSubjectFilter(subj)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all whitespace-nowrap ${
+                            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all whitespace-nowrap shadow-sm ${
                                 subjectFilter === subj 
                                 ? 'bg-slate-800 text-white border-slate-800' 
-                                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                : 'bg-white text-slate-600 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
                             }`}
                         >
                             {subj}
@@ -554,13 +554,13 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                 </div>
             </div>
             
-            <div className="flex items-center gap-2">
-                <div className="flex bg-slate-100 p-1 rounded-xl">
+            <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex flex-1 md:flex-none bg-slate-100/80 p-1.5 rounded-xl shadow-inner border border-slate-200/50 overflow-x-auto">
                     {VIEW_FILTERS.map((view) => (
                         <button
                             key={view}
                             onClick={() => setViewFilter(view)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewFilter === view ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex-1 text-center ${viewFilter === view ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'}`}
                         >
                             {view}
                         </button>
@@ -570,9 +570,9 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                     <button
                         type="button"
                         onClick={clearFilters}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-transparent px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all shrink-0"
                     >
-                        <X size={14} />
+                        <X size={14} strokeWidth={3} />
                         Clear
                     </button>
                 ) : null}
@@ -584,12 +584,12 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
       <div className="p-6 overflow-y-auto flex-1">
         {actionNotice ? (
           <div
-            className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+            className={`mb-5 rounded-2xl border px-5 py-4 text-sm font-semibold shadow-sm backdrop-blur-sm ${
               actionNotice.tone === 'success'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                ? 'border-emerald-200/50 bg-emerald-50/80 text-emerald-800'
                 : actionNotice.tone === 'error'
-                  ? 'border-rose-200 bg-rose-50 text-rose-700'
-                  : 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                  ? 'border-rose-200/50 bg-rose-50/80 text-rose-800'
+                  : 'border-indigo-200/50 bg-indigo-50/80 text-indigo-800'
             }`}
             role="status"
             aria-live="polite"
@@ -599,24 +599,24 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
         ) : null}
 
         {filteredPlans.length === 0 ? (
-          <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-              <BookCopy size={24} />
+          <div className="mx-auto max-w-xl rounded-3xl border-2 border-dashed border-slate-200/60 bg-white/50 backdrop-blur-sm p-12 text-center shadow-sm mt-8">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-sm border border-indigo-100/50">
+              <BookCopy size={28} strokeWidth={2.5} />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900">
+            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">
               {hasActiveFilters ? 'No plans match these filters.' : 'No lesson plans yet.'}
             </h3>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-3 text-sm font-medium text-slate-500 leading-relaxed">
               {hasActiveFilters
                 ? 'Adjust filters or clear them to find plans in your library.'
                 : 'Generate your first plan to build your library.'}
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               {hasActiveFilters ? (
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="px-6 py-2.5 rounded-xl border border-slate-200/80 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-700 shadow-sm transition-all"
                 >
                   Clear Filters
                 </button>
@@ -624,7 +624,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
               >
                 Create Plan
               </button>
@@ -635,9 +635,9 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
             {groupedPlans.map((section) => (
               <section key={section.key}>
                 {groupBy !== 'none' ? (
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">{section.label}</h3>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                  <div className="mb-4 flex items-center justify-between bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-slate-200/60 shadow-sm">
+                    <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-700">{section.label}</h3>
+                    <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 shadow-inner border border-slate-200/50">
                       {section.plans.length} plan{section.plans.length === 1 ? '' : 's'}
                     </span>
                   </div>
@@ -648,25 +648,25 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                     return (
                       <article
                         key={plan.id}
-                        className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-indigo-300 hover:shadow-lg"
+                        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/90 backdrop-blur-sm p-6 shadow-sm transition-all duration-300 hover:border-indigo-300/80 hover:shadow-lg hover:-translate-y-1"
                       >
-                        <div className="mb-3 flex items-start justify-between">
-                          <div className="flex gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${getSubjectColor(plan.subject)}`}>
+                        <div className="mb-4 flex items-start justify-between relative z-10">
+                          <div className="flex gap-2.5 flex-wrap">
+                            <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-md border uppercase tracking-widest shadow-sm ${getSubjectColor(plan.subject)}`}>
                               {plan.subject}
                             </span>
                             {plan.studentGroup ? (
-                              <span className="flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700">
-                                <Users size={10} /> Group ({plan.studentGroup.length})
+                              <span className="flex items-center gap-1.5 rounded-md border border-violet-200/80 bg-violet-50/80 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest text-violet-700 shadow-sm">
+                                <Users size={12} strokeWidth={2.5} /> Group ({plan.studentGroup.length})
                               </span>
                             ) : null}
                           </div>
                           {isMine ? (
-                            <div className="flex gap-1">
+                            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                               <button
                                 type="button"
                                 onClick={(event) => toggleShare(plan.id, event)}
-                                className={`rounded p-1.5 transition-colors hover:bg-slate-100 ${plan.isShared ? 'text-emerald-600' : 'text-slate-400'}`}
+                                className={`rounded-lg p-2 transition-all shadow-sm border ${plan.isShared ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50'}`}
                                 title={plan.isShared ? "Set private" : "Share with team"}
                                 aria-label={plan.isShared ? `Set ${plan.title} to private` : `Share ${plan.title} with team`}
                               >
@@ -675,7 +675,7 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                               <button
                                 type="button"
                                 onClick={(event) => requestDeletePlan(plan.id, event)}
-                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                className="rounded-lg p-2 text-slate-400 bg-white border border-slate-200 transition-all hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm"
                                 aria-label={`Delete ${plan.title}`}
                               >
                                 <Trash2 size={16} />
@@ -687,49 +687,49 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                         <button
                           type="button"
                           onClick={() => { setSelectedPlan(plan); setIsEditMode(false); setEditedPlan(null); }}
-                          className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-lg"
+                          className="flex flex-1 flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-xl relative z-10 transition-all"
                           aria-label={`Open lesson plan ${plan.title}`}
                         >
-                          <h3 className="mb-2 line-clamp-2 text-lg font-bold leading-tight text-slate-800 transition-colors hover:text-indigo-700">
+                          <h3 className="mb-2 line-clamp-2 text-xl font-extrabold leading-tight text-slate-800 transition-colors group-hover:text-indigo-700 tracking-tight">
                             {plan.title}
                           </h3>
 
-                          <div className="mb-4 flex-1 line-clamp-3 text-sm text-slate-500">
+                          <div className="mb-5 flex-1 line-clamp-3 text-sm font-medium text-slate-500 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-100/50 group-hover:bg-indigo-50/30 transition-colors">
                             <RichTextRenderer content={plan.lessonPlan.objective} />
                           </div>
 
                           {plan.studentGroup ? (
-                            <div className="mb-4 flex flex-wrap gap-1">
+                            <div className="mb-5 flex flex-wrap gap-1.5">
                               {plan.studentGroup.slice(0, 3).map((name, index) => (
-                                <span key={index} className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                                <span key={index} className="rounded-md border border-slate-200/80 bg-slate-100/80 px-2 py-0.5 text-[11px] font-bold text-slate-600 shadow-sm">
                                   {name.split(' ')[0]}
                                 </span>
                               ))}
                               {plan.studentGroup.length > 3 ? (
-                                <span className="px-1 text-[10px] text-slate-400">+{plan.studentGroup.length - 3}</span>
+                                <span className="px-1.5 py-0.5 text-[11px] font-extrabold text-slate-400">+{plan.studentGroup.length - 3}</span>
                               ) : null}
                             </div>
                           ) : null}
 
-                          <div className="mt-auto flex items-center gap-4 border-t border-slate-100 pt-4 text-xs font-medium text-slate-400">
+                          <div className="mt-auto flex items-center gap-4 border-t border-slate-100/80 pt-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
                             <span className="flex items-center gap-1.5">
-                              <Clock size={14} /> {plan.duration}
+                              <Clock size={14} strokeWidth={2.5} /> {plan.duration}
                             </span>
                             <span className="flex items-center gap-1.5">
-                              <User size={14} /> {isMine ? 'You' : plan.author}
+                              <User size={14} strokeWidth={2.5} /> {isMine ? 'You' : plan.author}
                             </span>
-                            <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
+                            <span className="ml-auto rounded-md bg-slate-100/80 border border-slate-200/50 px-2 py-1 text-slate-500 shadow-sm">
                               {plan.grade}
                             </span>
                           </div>
                           {canViewAllPrivatePlans && groupBy !== 'school' && plan.schoolName ? (
-                            <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                            <div className="mt-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-400 text-right">
                               {plan.schoolName}
                             </div>
                           ) : null}
                         </button>
 
-                        <div className="pointer-events-none absolute -bottom-6 -right-6 h-24 w-24 rounded-full bg-indigo-50/50 blur-2xl transition-colors group-hover:bg-indigo-100/50" />
+                        <div className="pointer-events-none absolute -bottom-8 -right-8 h-32 w-32 rounded-full bg-gradient-to-br from-indigo-500/10 to-purple-500/10 blur-2xl transition-all duration-500 group-hover:scale-150 group-hover:from-indigo-500/20 group-hover:to-purple-500/20" />
                       </article>
                     );
                   })}
@@ -745,22 +745,24 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
         isOpen={isCreateModalOpen}
         onClose={closeCreateModal}
         title={
-            <div className="flex items-center gap-2">
-                <Sparkles size={20} className="text-indigo-600" />
-                <span className="font-bold text-lg text-slate-900">AI Lesson Generator</span>
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600">
+                    <Sparkles size={20} strokeWidth={2.5} />
+                </div>
+                <span className="font-extrabold text-xl tracking-tight text-slate-900">AI Lesson Generator</span>
             </div>
         }
         initialWidth={1000}
         initialHeight={800}
         footer={
-            <div className="flex justify-end gap-3 w-full">
-                <button onClick={closeCreateModal} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <div className="flex justify-end gap-3 w-full border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
+                <button onClick={closeCreateModal} className="px-5 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-sm transition-all">Cancel</button>
                 <button 
                     onClick={handleSave} 
                     disabled={!generatedPlan}
-                    className="px-6 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-95"
                 >
-                    <Save size={16} /> Save Plan
+                    <Save size={18} strokeWidth={2.5} /> Save Plan
                 </button>
             </div>
         }
@@ -924,44 +926,46 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                   </div>
 
                   {/* Right Column: Preview / Edit */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 overflow-y-auto max-h-[600px] relative">
+                  <div className="bg-slate-50/50 backdrop-blur-sm border border-slate-200/80 rounded-3xl p-6 sm:p-8 overflow-y-auto h-full max-h-[640px] relative shadow-inner custom-scrollbar">
                       {!generatedPlan ? (
-                          <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center">
-                              <Layout size={48} className="mb-4 opacity-20" />
-                              <p className="text-sm font-medium">No plan generated yet.</p>
-                              <p className="text-xs">Fill in the details and click Generate to see the AI magic.</p>
+                          <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center animate-in zoom-in-95 duration-500">
+                              <div className="w-24 h-24 rounded-3xl bg-white/60 border border-slate-200/60 shadow-sm flex items-center justify-center mb-6 rotate-3 hover:rotate-6 transition-transform duration-500">
+                                <Layout size={40} strokeWidth={2.5} className="text-indigo-200/50" />
+                              </div>
+                              <p className="text-lg font-extrabold tracking-tight text-slate-700">No plan generated yet.</p>
+                              <p className="text-sm font-medium mt-2 max-w-xs leading-relaxed">Fill in the details and click Generate to see the AI magic.</p>
                           </div>
                       ) : (
-                          <div className="space-y-5 animate-in fade-in">
+                          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                               {/* Header Editable */}
-                              <div className="border-b border-slate-200 pb-3 space-y-3">
+                              <div className="border-b border-slate-200/60 pb-5 space-y-4">
                                   <input 
                                     type="text" 
-                                    className="w-full text-xl font-bold text-indigo-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none transition-colors"
+                                    className="w-full text-2xl font-extrabold tracking-tight text-indigo-900 bg-transparent border-b-2 border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none transition-colors px-1 py-0.5"
                                     value={generatedPlan.title}
                                     onChange={(e) => setGeneratedPlan({...generatedPlan, title: e.target.value})}
                                   />
                                   <input 
                                     type="text" 
-                                    className="w-full text-sm text-slate-600 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none transition-colors"
+                                    className="w-full text-sm font-semibold text-slate-600 bg-transparent border-b-2 border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none transition-colors px-1 py-0.5"
                                     value={generatedPlan.strategy}
                                     onChange={(e) => setGeneratedPlan({...generatedPlan, strategy: e.target.value})}
                                   />
-                                  <div className="flex gap-4">
+                                  <div className="flex gap-5 px-1">
                                       <div className="flex-1">
-                                          <label className="text-[10px] uppercase font-bold text-slate-400">Frequency</label>
+                                          <label className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 block mb-1.5">Frequency</label>
                                           <input 
                                             type="text" 
-                                            className="w-full text-xs text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200/80 rounded-lg px-3 py-2 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none shadow-sm transition-all"
                                             value={generatedPlan.frequency}
                                             onChange={(e) => setGeneratedPlan({...generatedPlan, frequency: e.target.value})}
                                           />
                                       </div>
                                       <div className="flex-1">
-                                          <label className="text-[10px] uppercase font-bold text-slate-400">Duration</label>
+                                          <label className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 block mb-1.5">Duration</label>
                                           <input 
                                             type="text" 
-                                            className="w-full text-xs text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            className="w-full text-xs font-semibold text-slate-700 bg-white border border-slate-200/80 rounded-lg px-3 py-2 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none shadow-sm transition-all"
                                             value={generatedPlan.duration}
                                             onChange={(e) => setGeneratedPlan({...generatedPlan, duration: e.target.value})}
                                           />
@@ -969,12 +973,12 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                                   </div>
                               </div>
                               
-                              <div className="space-y-4">
+                              <div className="space-y-5 px-1">
                                   <div>
-                                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Objective</h4>
+                                      <h4 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">Objective</h4>
                                       <textarea 
                                         rows={2}
-                                        className="w-full text-sm text-slate-800 bg-white p-3 rounded border border-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                        className="w-full text-sm font-medium text-slate-800 bg-white p-3.5 rounded-xl border border-slate-200/80 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none shadow-sm transition-all leading-relaxed custom-scrollbar"
                                         value={generatedPlan.lessonPlan.objective}
                                         onChange={(e) => setGeneratedPlan({
                                             ...generatedPlan, 
@@ -983,12 +987,12 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                                       />
                                   </div>
 
-                                  <div className="grid grid-cols-1 gap-4">
+                                  <div className="grid grid-cols-1 gap-5">
                                     <div>
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Differentiation / Support</h4>
+                                        <h4 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">Differentiation / Support</h4>
                                         <textarea 
                                             rows={3}
-                                            className="w-full text-sm text-indigo-800 bg-indigo-50 p-3 rounded border border-indigo-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                            className="w-full text-sm font-semibold text-indigo-900 bg-indigo-50/80 p-3.5 rounded-xl border border-indigo-200/80 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none shadow-sm transition-all leading-relaxed custom-scrollbar"
                                             value={generatedPlan.lessonPlan.differentiation}
                                             onChange={(e) => setGeneratedPlan({
                                                 ...generatedPlan, 
@@ -997,10 +1001,10 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                                         />
                                     </div>
                                     <div>
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Procedure</h4>
+                                        <h4 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">Procedure</h4>
                                         <textarea 
                                             rows={6}
-                                            className="w-full text-sm text-slate-700 bg-white p-3 rounded border border-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                            className="w-full text-sm font-medium text-slate-700 bg-white p-3.5 rounded-xl border border-slate-200/80 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none shadow-sm transition-all leading-relaxed custom-scrollbar"
                                             value={generatedPlan.lessonPlan.procedure.join('\n')}
                                             onChange={(e) => setGeneratedPlan({
                                                 ...generatedPlan, 
@@ -1010,10 +1014,10 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                                         />
                                     </div>
                                     <div>
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Assessment</h4>
+                                        <h4 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">Assessment</h4>
                                         <textarea 
                                             rows={2}
-                                            className="w-full text-sm text-slate-700 bg-white p-3 rounded border border-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                            className="w-full text-sm font-medium text-slate-700 bg-white p-3.5 rounded-xl border border-slate-200/80 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none shadow-sm transition-all leading-relaxed custom-scrollbar"
                                             value={generatedPlan.lessonPlan.assessment}
                                             onChange={(e) => setGeneratedPlan({
                                                 ...generatedPlan, 
@@ -1022,10 +1026,10 @@ export const LessonPlanLibrary: React.FC<LessonPlanLibraryProps> = ({
                                         />
                                     </div>
                                     <div>
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Materials</h4>
+                                        <h4 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">Materials</h4>
                                         <textarea 
                                             rows={2}
-                                            className="w-full text-sm text-slate-700 bg-white p-3 rounded border border-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                            className="w-full text-sm font-medium text-slate-700 bg-white p-3.5 rounded-xl border border-slate-200/80 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none shadow-sm transition-all leading-relaxed custom-scrollbar"
                                             value={generatedPlan.lessonPlan.materials.join('\n')}
                                             onChange={(e) => setGeneratedPlan({
                                                 ...generatedPlan, 

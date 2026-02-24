@@ -179,65 +179,65 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
   const caseCountLabel = `${localItems.length} ${localItems.length === 1 ? 'case' : 'cases'} ready for review.`;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full relative overflow-hidden">
+    <div className="flex flex-col h-full relative overflow-hidden bg-white/50 backdrop-blur-sm rounded-2xl">
       
-      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+      <div className="p-5 border-b border-slate-100/50 flex justify-between items-center bg-white/80 z-10 sticky top-0">
         <div>
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <h2 className="text-lg font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">
             Priority Support Queue
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs font-semibold text-slate-500 mt-0.5 uppercase tracking-wider">
              {caseCountLabel.replace("review", "triage")}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50/80 px-2.5 py-1 rounded-full border border-amber-200/50 uppercase tracking-wide">
            <BrainCircuit size={14} />
            Decision Support
         </div>
       </div>
       
-      <div className="flex-1 overflow-auto bg-slate-50/30">
+      <div className="flex-1 overflow-auto bg-slate-50/30 p-2 space-y-2">
         {localItems.length === 0 ? (
-           <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
-              <CheckCircle2 size={48} className="text-emerald-200 mb-4" />
-              <p className="font-medium text-slate-600">All caught up!</p>
-              <p className="text-sm">No student support cases are currently flagged.</p>
+           <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-slate-400 p-8">
+              <CheckCircle2 size={48} className="text-emerald-300 mb-4 drop-shadow-sm" />
+              <p className="font-bold text-slate-600 text-lg">All caught up!</p>
+              <p className="text-sm font-medium">No student support cases are currently flagged.</p>
               <button
                 type="button"
                 onClick={onViewAll}
-                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-sm px-4 py-2 text-sm font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-700 hover:-translate-y-0.5 transition-all"
               >
                 Review reports
-                <ArrowRight size={13} />
+                <ArrowRight size={14} />
               </button>
            </div>
         ) : (
           localItems.map((item) => (
-            <div key={item.id} className="p-6 border-b border-slate-100 last:border-0 hover:bg-white transition-colors group relative">
+            <div key={item.id} className="p-4 bg-white border border-slate-100/50 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-100 transition-all group relative">
               
               {/* Processing Overlay */}
               {processingId === item.id && (
-                 <div className="absolute inset-0 bg-white/90 z-20 flex items-center justify-center backdrop-blur-[1px]">
+                 <div className="absolute inset-0 bg-white/90 z-20 flex items-center justify-center backdrop-blur-sm rounded-xl">
                     <div className="flex flex-col items-center gap-2 text-emerald-600 animate-in fade-in zoom-in duration-300">
                         <CheckCircle2 size={32} />
-                        <span className="font-bold text-sm">Support Plan Added</span>
+                        <span className="font-extrabold text-sm">Support Plan Added</span>
                     </div>
                  </div>
               )}
 
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-baseline gap-3">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 
                     onClick={() => onStudentClick(item.studentName)}
-                    className="text-base font-bold text-slate-800 cursor-pointer hover:text-indigo-600 hover:underline decoration-indigo-200 decoration-2 underline-offset-2 transition-all"
+                    className="text-base font-extrabold text-slate-800 cursor-pointer hover:text-indigo-600 hover:underline decoration-indigo-300 decoration-2 underline-offset-4 transition-all"
                   >
                     {item.studentName}
                   </h3>
-                  <span className="text-xs text-slate-400 font-medium">{item.grade} Grade</span>
-                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${getBadgeColor(item.category)}`}>
+                  <span className="text-[11px] text-slate-400 font-bold bg-slate-50 px-2 py-0.5 rounded-md">{item.grade} Grade</span>
+                  <span className={`text-[9px] uppercase tracking-widest font-extrabold px-2 py-0.5 rounded-md border ${getBadgeColor(item.category)}`}>
                     {item.category}
                   </span>
-                  <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600">
+                  <span className="text-[9px] uppercase tracking-widest font-extrabold px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-slate-600">
                     {getPriority(item.category)} Priority
                   </span>
                 </div>
@@ -245,20 +245,20 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                     onClick={(e) => handleDismiss(item.id, e)}
                     type="button"
                     aria-label={`Snooze case for ${item.studentName}`}
-                    className="text-xs font-medium text-slate-400 hover:text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                    className="text-[11px] font-semibold text-slate-400 hover:text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-md transition-colors flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100"
                 >
                   <X size={14} /> Snooze
                 </button>
               </div>
               
-              <div className="flex gap-3 mb-4">
-                  <div className="mt-1 shrink-0">
-                      <div className="p-1.5 bg-amber-50 rounded-full border border-amber-100 text-amber-600">
+              <div className="flex gap-3 mb-4 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                  <div className="shrink-0 mt-0.5">
+                      <div className="p-1.5 bg-amber-100/50 rounded-full text-amber-600">
                           <AlertTriangle size={14} />
                       </div>
                   </div>
-                  <p className="text-sm text-slate-600 leading-relaxed py-1">
-                    <span className="font-semibold text-slate-700">Signal: </span>
+                  <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                    <span className="font-bold text-slate-800">Signal: </span>
                     {item.insight}
                   </p>
               </div>
@@ -269,7 +269,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                       void handleReviewClick(item);
                     }}
                     type="button"
-                    className="bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-600 text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2 group/btn"
+                    className="bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700 text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 group/btn"
                  >
                    <Sparkles size={16} className="text-indigo-500 group-hover/btn:animate-pulse" />
                    Review Recommended Plan
@@ -281,13 +281,13 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
       </div>
       
       {localItems.length > 0 && (
-        <div className="p-3 border-t border-slate-100 bg-white text-center">
+        <div className="p-3 border-t border-slate-100/50 bg-white/80 backdrop-blur-md text-center sticky bottom-0">
             <button
               type="button"
               onClick={onViewAll}
-              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
+              className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1 mx-auto"
             >
-            View all cases in reports ({visibleTotal})
+            View all cases in reports ({visibleTotal}) <ArrowRight size={12} />
             </button>
         </div>
       )}
@@ -327,7 +327,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
             <div className="flex gap-3 w-full">
                 <button 
                     onClick={() => setReviewMode(false)}
-                    className="px-5 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-white transition-colors text-sm"
+                    className="px-5 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-lg hover:bg-white transition-colors text-sm"
                 >
                     Cancel
                 </button>
@@ -391,7 +391,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                             <label className="block text-xs font-bold text-slate-500 uppercase">Reasoning & Notes</label>
                             <button 
                                 onClick={() => setIsEditingNotes(!isEditingNotes)}
-                                className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
+                                className="text-xs font-semibold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
                             >
                                 {isEditingNotes ? <><Eye size={14} /> Preview</> : <><Edit size={14} /> Edit Content</>}
                             </button>

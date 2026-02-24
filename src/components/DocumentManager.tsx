@@ -798,7 +798,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   };
 
   return (
-    <div ref={rootRef} className="app-responsive-pane relative flex min-h-[600px] min-w-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div ref={rootRef} className="app-responsive-pane relative flex min-h-[600px] min-w-0 flex-col rounded-2xl border border-slate-200/50 bg-white/80 shadow-sm backdrop-blur-md overflow-hidden">
       
       {/* View Document Modal (Draggable) */}
       <DraggableModal
@@ -931,49 +931,51 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       )}
 
       {/* Header */}
-      <div className="flex flex-col items-start justify-between gap-4 border-b border-slate-200 p-4 sm:p-6 md:flex-row md:items-center">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-col items-start justify-between gap-5 border-b border-slate-200/50 p-6 md:flex-row md:items-center bg-white/50 backdrop-blur-md z-10 sticky top-0 rounded-t-2xl">
+        <div className="flex min-w-0 items-center gap-4">
           <SidebarToggleButton
             onClick={onMenuClick}
-            className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
+            className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
           />
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-slate-900">Resource Library</h2>
-            <p className="text-slate-500 text-sm">Upload, organize, and share school resources securely.</p>
+            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Resource Library</h2>
+            <p className="text-slate-500 text-sm font-medium mt-1">Upload, organize, and share school resources securely.</p>
           </div>
         </div>
-        <div className="app-responsive-actions w-full md:w-auto md:justify-end">
-          <button
-            type="button"
-            onClick={() => setActiveTab('browse')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'browse' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-          >
-            Browse
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('upload')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'upload' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-          >
-            Upload File
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('link')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'link' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-          >
-            Add Resource
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('approvals')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-indigo-600 text-white' : 'text-indigo-600 bg-indigo-50 border border-indigo-100'}`}
-          >
-            Approvals
-            {myApprovals.length > 0 && (
-              <span className="bg-white text-indigo-600 text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">{myApprovals.length}</span>
-            )}
-          </button>
+        <div className="app-responsive-actions w-full md:w-auto md:justify-end bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 shadow-inner overflow-x-auto">
+          <div className="flex items-center min-w-max">
+            <button
+              type="button"
+              onClick={() => setActiveTab('browse')}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'browse' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'}`}
+            >
+              Browse
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('upload')}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'upload' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'}`}
+            >
+              Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('link')}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'link' ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'}`}
+            >
+              Add Resource
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('approvals')}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === 'approvals' ? 'bg-indigo-600 text-white shadow-md' : 'text-indigo-600 hover:bg-indigo-50/50'}`}
+            >
+              Approvals
+              {myApprovals.length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-md shadow-sm ${activeTab === 'approvals' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'}`}>{myApprovals.length}</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -984,33 +986,33 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         {activeTab === 'browse' && (
           <div className="space-y-4">
             {documents.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                  <FileText size={20} />
+              <div className="rounded-3xl border-2 border-dashed border-slate-200/60 bg-white/50 backdrop-blur-sm p-12 text-center shadow-sm max-w-2xl mx-auto mt-8">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-sm border border-indigo-100/50">
+                  <FileText size={24} strokeWidth={2.5} />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">No resources yet</h3>
-                <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
+                <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">No resources yet</h3>
+                <p className="mt-3 text-sm font-medium text-slate-500 max-w-sm mx-auto leading-relaxed">
                   Start your library by uploading a document or adding a website resource your team can use.
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2 justify-center">
+                <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     type="button"
                     onClick={() => setActiveTab('upload')}
-                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                    className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 flex justify-center items-center gap-2"
                   >
-                    Upload File
+                    <Upload size={16} /> Upload File
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab('link')}
-                    className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+                    className="px-6 py-2.5 rounded-xl border border-slate-200/80 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-700 shadow-sm transition-all flex justify-center items-center gap-2"
                   >
-                    Add Resource
+                    <LinkIcon size={16} /> Add Resource
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {documents.map((doc) => {
                   const ytId = doc.type === 'YOUTUBE' && doc.sourceUrl ? getYoutubeId(doc.sourceUrl) : null;
                   const domain = doc.type === 'WEBSITE' && doc.sourceUrl ? getDomain(doc.sourceUrl) : null;
@@ -1018,12 +1020,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                   const statusMenuOpen = openMenu?.docId === doc.id && openMenu.type === 'status';
 
                   return (
-                    <div key={doc.id} className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group bg-white flex flex-col relative">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className={`p-2 rounded-lg border border-slate-100 flex items-center justify-center w-10 h-10 shrink-0 ${
-                          doc.type === 'YOUTUBE' ? 'text-red-600 bg-red-50' :
-                          doc.type === 'WEBSITE' ? 'text-blue-600 bg-blue-50' :
-                          'text-indigo-600 bg-indigo-50'
+                    <div key={doc.id} className="p-5 rounded-2xl border border-slate-200/60 hover:border-indigo-300/60 hover:shadow-lg transition-all duration-300 group bg-white/90 backdrop-blur-sm flex flex-col relative overflow-hidden hover:-translate-y-1">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className={`p-2.5 rounded-xl flex items-center justify-center w-11 h-11 shrink-0 shadow-sm ${
+                          doc.type === 'YOUTUBE' ? 'text-red-600 bg-gradient-to-br from-red-50 to-red-100/50' :
+                          doc.type === 'WEBSITE' ? 'text-blue-600 bg-gradient-to-br from-blue-50 to-blue-100/50' :
+                          'text-indigo-600 bg-gradient-to-br from-indigo-50 to-indigo-100/50'
                         }`}>
                           {getIconForType(doc.type)}
                         </div>
@@ -1106,7 +1108,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
                       <button
                         type="button"
-                        className="font-semibold text-slate-800 text-sm mb-1 truncate leading-tight text-left hover:text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+                        className="font-extrabold text-slate-800 text-base mb-1.5 truncate leading-tight text-left hover:text-indigo-600 hover:underline decoration-indigo-300 decoration-2 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded transition-all"
                         title={doc.name}
                         onClick={() => setViewingDoc(doc)}
                         aria-label={`Open ${doc.name}`}
@@ -1115,19 +1117,19 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                       </button>
 
                       {domain && (
-                        <p className="text-[11px] text-slate-500 mb-2 truncate">{domain}</p>
+                        <p className="text-[11px] font-semibold text-slate-400 mb-3 truncate uppercase tracking-widest">{domain}</p>
                       )}
 
-                      <div className="bg-slate-50 p-2 rounded-lg mb-3 flex-1">
+                      <div className="bg-slate-50/80 p-3 rounded-xl mb-4 flex-1 border border-slate-100/50 group-hover:bg-indigo-50/30 transition-colors">
                         {doc.summary ? (
-                          <p className="text-xs text-slate-600 leading-snug line-clamp-3">{doc.summary}</p>
+                          <p className="text-sm font-medium text-slate-600 leading-snug line-clamp-3">{doc.summary}</p>
                         ) : (
-                          <p className="text-xs text-slate-400 italic">Summary unavailable.</p>
+                          <p className="text-sm font-medium text-slate-400 italic">Summary unavailable.</p>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
-                        <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100/50 mt-auto">
+                        <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
                           {doc.uploadDate} <span className="text-slate-300">&bull;</span> {doc.size}
                         </div>
 
@@ -1138,28 +1140,28 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                               aria-haspopup="menu"
                               aria-expanded={statusMenuOpen}
                               onClick={() => setOpenMenu(statusMenuOpen ? null : { docId: doc.id, type: 'status' })}
-                              className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadgeColor(doc.status)} hover:opacity-80`}
+                              className={`flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md border shadow-sm transition-all hover:-translate-y-0.5 ${getStatusBadgeColor(doc.status)} hover:brightness-95`}
                             >
-                              {doc.status} <ChevronDown size={10} />
+                              {doc.status} <ChevronDown size={12} strokeWidth={3} />
                             </button>
                             {statusMenuOpen && (
-                              <div className="absolute bottom-full right-0 mb-1 w-40 bg-white rounded-lg shadow-xl border border-slate-100 p-1">
+                              <div className="absolute bottom-full right-0 mb-2 w-48 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200/50 p-1.5 z-50">
                                 {Object.values(ApprovalStatus).filter((s) => s !== ApprovalStatus.NONE).map((s) => (
                                   <button
                                     type="button"
                                     key={s}
                                     onClick={() => requestStatusChange(doc, s)}
-                                    className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-slate-50 flex items-center justify-between ${doc.status === s ? 'font-bold text-indigo-600' : 'text-slate-600'}`}
+                                    className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center justify-between ${doc.status === s ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
                                   >
                                     {s}
-                                    {doc.status === s && <CheckCircle2 size={10} />}
+                                    {doc.status === s && <CheckCircle2 size={14} className="text-indigo-600" />}
                                   </button>
                                 ))}
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadgeColor(doc.status)}`}>
+                          <span className={`text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-md border shadow-sm ${getStatusBadgeColor(doc.status)}`}>
                             {doc.status}
                           </span>
                         )}
@@ -1173,26 +1175,29 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         )}
         {/* UPLOAD TAB */}
         {activeTab === 'upload' && (
-           <div className="max-w-2xl mx-auto">
-              <form onSubmit={handleUploadSubmit} className="space-y-6 bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-                 <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <Upload size={20} className="text-indigo-600" /> Upload File to Resource Library
+           <div className="max-w-2xl mx-auto py-6">
+              <form onSubmit={handleUploadSubmit} className="space-y-8 bg-white/80 backdrop-blur-md p-10 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden">
+                 <h3 className="text-xl font-extrabold text-slate-800 mb-6 flex items-center gap-3 tracking-tight">
+                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50">
+                        <Upload size={20} strokeWidth={2.5} /> 
+                    </div>
+                    Upload File to Resource Library
                  </h3>
                  
                  {isProcessingFile ? (
-                    <div className="py-8 space-y-6 animate-in fade-in duration-300">
-                        <div className="space-y-2 text-center">
-                            <Loader2 size={40} className="animate-spin text-indigo-600 mx-auto" />
-                            <h4 className="text-lg font-bold text-slate-800">{ingestionStage}</h4>
-                            <p className="text-sm text-slate-500">Preparing this resource for secure search and retrieval...</p>
+                    <div className="py-12 space-y-8 animate-in fade-in duration-300">
+                        <div className="space-y-4 text-center">
+                            <Loader2 size={48} className="animate-spin text-indigo-600 mx-auto drop-shadow-sm" />
+                            <h4 className="text-xl font-extrabold text-slate-800 tracking-tight">{ingestionStage}</h4>
+                            <p className="text-sm font-medium text-slate-500 max-w-sm mx-auto">Preparing this resource for secure search and retrieval...</p>
                         </div>
                         
-                        <div className="max-w-md mx-auto space-y-2">
-                             <div className="flex justify-between text-xs font-bold text-slate-600 uppercase tracking-wide">
+                        <div className="max-w-md mx-auto space-y-3">
+                             <div className="flex justify-between text-xs font-extrabold text-slate-500 uppercase tracking-widest">
                                 <span>Progress</span>
-                                <span>{uploadProgress}%</span>
+                                <span className="text-indigo-600">{uploadProgress}%</span>
                              </div>
-                             <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner relative">
+                             <div className="w-full bg-slate-100/80 rounded-full h-4 overflow-hidden shadow-inner relative border border-slate-200/50">
                                 <div 
                                     className="bg-indigo-600 h-full rounded-full transition-all duration-300 ease-out relative overflow-hidden" 
                                     style={{ width: `${uploadProgress}%` }} 
@@ -1202,76 +1207,80 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                              </div>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2 pt-4 border-t border-slate-100 max-w-lg mx-auto">
-                             <div className={`flex flex-col items-center gap-1 text-xs font-medium transition-colors duration-300 ${uploadProgress > 20 ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                <CheckCircle2 size={16} /> Reading
+                        <div className="grid grid-cols-4 gap-2 pt-6 border-t border-slate-100 max-w-lg mx-auto">
+                             <div className={`flex flex-col items-center gap-2 text-xs font-bold transition-colors duration-300 ${uploadProgress > 20 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                <CheckCircle2 size={20} /> Reading
                              </div>
-                             <div className={`flex flex-col items-center gap-1 text-xs font-medium transition-colors duration-300 ${uploadProgress > 50 ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                <CheckCircle2 size={16} /> Chunking
+                             <div className={`flex flex-col items-center gap-2 text-xs font-bold transition-colors duration-300 ${uploadProgress > 50 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                <CheckCircle2 size={20} /> Chunking
                              </div>
-                             <div className={`flex flex-col items-center gap-1 text-xs font-medium transition-colors duration-300 ${uploadProgress > 80 ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                <CheckCircle2 size={16} /> Indexing
+                             <div className={`flex flex-col items-center gap-2 text-xs font-bold transition-colors duration-300 ${uploadProgress > 80 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                <CheckCircle2 size={20} /> Indexing
                              </div>
-                             <div className={`flex flex-col items-center gap-1 text-xs font-medium transition-colors duration-300 ${uploadProgress === 100 ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                <CheckCircle2 size={16} /> Ready
+                             <div className={`flex flex-col items-center gap-2 text-xs font-bold transition-colors duration-300 ${uploadProgress === 100 ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                <CheckCircle2 size={20} /> Ready
                              </div>
                         </div>
                     </div>
                  ) : (
                     <>
                         {uploadError && (
-                            <div className="p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-lg text-sm flex items-center gap-2">
-                                <AlertCircle size={16} />
+                            <div className="p-4 bg-rose-50/80 backdrop-blur-sm text-rose-800 border border-rose-200/50 rounded-xl text-sm font-semibold flex items-center gap-3 shadow-sm">
+                                <AlertCircle size={20} className="text-rose-600 shrink-0" />
                                 {uploadError}
                             </div>
                         )}
 
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Access Scope</label>
-                            <select 
-                            value={scope} 
-                            onChange={(e) => setScope(e.target.value as DocumentScope)}
-                            className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                            >
-                                {renderScopeOptions()}
-                            </select>
-                        </div>
-
-                        {scope === DocumentScope.STUDENT && (
+                        <div className="space-y-6">
                             <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Student Name</label>
-                            <input 
-                                type="text" 
-                                placeholder="e.g. Leo Martinez"
-                                value={targetId}
-                                onChange={(e) => setTargetId(e.target.value)}
-                                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm"
-                                required
-                            />
+                                <label className="block text-sm font-extrabold text-slate-700 mb-2.5">Access Scope</label>
+                                <select 
+                                value={scope} 
+                                onChange={(e) => setScope(e.target.value as DocumentScope)}
+                                className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                                >
+                                    {renderScopeOptions()}
+                                </select>
                             </div>
-                        )}
 
-                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors">
-                            <input 
-                            type="file" 
-                            onChange={(e) => { setUploadFile(e.target.files?.[0] || null); setUploadError(null); }}
-                            className="hidden" 
-                            id="file-upload"
-                            accept=".pdf,.doc,.docx,.rtf,.txt,.png,.jpg,.jpeg"
-                            />
-                            <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
-                            <Upload size={32} className="text-slate-400" />
-                            <span className="text-sm font-bold text-slate-600">
-                                {uploadFile ? uploadFile.name : "Click to select a document"}
-                            </span>
-                            <span className="text-xs text-slate-400">PDF, DOC, DOCX, RTF, TXT, PNG, JPG, JPEG supported</span>
-                            </label>
+                            {scope === DocumentScope.STUDENT && (
+                                <div className="animate-in slide-in-from-top-2 duration-200">
+                                <label className="block text-sm font-extrabold text-slate-700 mb-2.5">Student Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Leo Martinez"
+                                    value={targetId}
+                                    onChange={(e) => setTargetId(e.target.value)}
+                                    className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
+                                    required
+                                />
+                                </div>
+                            )}
+
+                            <div className="border-2 border-dashed border-slate-300/80 rounded-2xl p-10 text-center hover:bg-slate-50/50 hover:border-indigo-300 transition-all group">
+                                <input 
+                                type="file" 
+                                onChange={(e) => { setUploadFile(e.target.files?.[0] || null); setUploadError(null); }}
+                                className="hidden" 
+                                id="file-upload"
+                                accept=".pdf,.doc,.docx,.rtf,.txt,.png,.jpg,.jpeg"
+                                />
+                                <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-3">
+                                <div className="w-16 h-16 bg-slate-100 group-hover:bg-indigo-50 rounded-full flex items-center justify-center transition-colors">
+                                    <Upload size={28} className="text-slate-400 group-hover:text-indigo-500 transition-colors" strokeWidth={2.5} />
+                                </div>
+                                <span className="text-base font-extrabold text-slate-700 group-hover:text-indigo-700 transition-colors mt-2">
+                                    {uploadFile ? uploadFile.name : "Click to select a document"}
+                                </span>
+                                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">PDF, DOC, DOCX, RTF, TXT, PNG, JPG, JPEG supported</span>
+                                </label>
+                            </div>
                         </div>
 
                         <button 
                             type="submit" 
                             disabled={!uploadFile}
-                            className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex justify-center items-center gap-2"
+                            className="w-full py-4 bg-indigo-600 text-white font-extrabold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-all flex justify-center items-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5"
                         >
                             Upload & Process
                         </button>
@@ -1283,69 +1292,72 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
         {/* ADD LINK TAB */}
         {activeTab === 'link' && (
-           <div className="max-w-2xl mx-auto">
-              <form onSubmit={handleLinkSubmit} className="space-y-6 bg-white p-8 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+           <div className="max-w-2xl mx-auto py-6">
+              <form onSubmit={handleLinkSubmit} className="space-y-6 bg-white/80 backdrop-blur-md p-10 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden">
                  
                  {isSummarizing && (
-                    <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center text-indigo-600 gap-4 p-8">
+                    <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-20 flex flex-col items-center justify-center text-indigo-600 gap-5 p-8 rounded-3xl">
                         <div className="relative">
-                            <div className="w-16 h-16 border-4 border-indigo-100 rounded-full animate-pulse"></div>
+                            <div className="w-20 h-20 border-4 border-indigo-100/50 rounded-full animate-pulse shadow-inner"></div>
                             <div className="absolute inset-0 border-t-4 border-indigo-600 rounded-full animate-spin"></div>
-                            <Sparkles size={24} className="absolute inset-0 m-auto text-indigo-500 animate-pulse" />
+                            <Sparkles size={28} className="absolute inset-0 m-auto text-indigo-500 animate-pulse drop-shadow-md" />
                         </div>
-                        <div className="text-center space-y-1">
-                            <p className="font-bold text-lg text-indigo-900">{ingestionStage}</p>
-                            <p className="text-sm text-indigo-400">AI is analyzing content and generating metadata...</p>
+                        <div className="text-center space-y-2">
+                            <p className="font-extrabold text-xl text-indigo-900 tracking-tight">{ingestionStage}</p>
+                            <p className="text-sm font-medium text-indigo-500">AI is analyzing content and generating metadata...</p>
                         </div>
-                        <div className="w-64 h-1.5 bg-indigo-100 rounded-full overflow-hidden mt-4">
-                             <div className="h-full bg-indigo-500 animate-[translateX_1s_ease-in-out_infinite] w-1/3 rounded-full" />
+                        <div className="w-64 h-2 bg-indigo-100/50 rounded-full overflow-hidden mt-6 shadow-inner border border-indigo-100">
+                             <div className="h-full bg-indigo-500 animate-[translateX_1s_ease-in-out_infinite] w-1/3 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
                         </div>
                     </div>
                  )}
 
-                 <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <LinkIcon size={20} className="text-indigo-600" /> Add External Resource
+                 <h3 className="text-xl font-extrabold text-slate-800 mb-6 flex items-center gap-3 tracking-tight">
+                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100/50">
+                        <LinkIcon size={20} strokeWidth={2.5} /> 
+                    </div>
+                    Add External Resource
                  </h3>
 
-                 <div className="flex gap-4 mb-4">
+                 <div className="flex gap-4 mb-6 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
                      <button
                         type="button"
                         onClick={() => { setLinkType('WEBSITE'); setLinkError(null); }}
-                        className={`flex-1 py-3 border rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all ${linkType === 'WEBSITE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600'}`}
+                        className={`flex-1 py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all ${linkType === 'WEBSITE' ? 'bg-white shadow-sm border border-slate-200/50 text-blue-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}
                      >
-                         <Globe size={18} /> Website
+                         <Globe size={18} strokeWidth={2.5} /> Website
                      </button>
                      <button
                         type="button"
                         onClick={() => { setLinkType('YOUTUBE'); setLinkError(null); }}
-                        className={`flex-1 py-3 border rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all ${linkType === 'YOUTUBE' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-slate-200 text-slate-600'}`}
+                        className={`flex-1 py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all ${linkType === 'YOUTUBE' ? 'bg-white shadow-sm border border-slate-200/50 text-red-600' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'}`}
                      >
-                         <Youtube size={18} /> YouTube Video
+                         <Youtube size={18} strokeWidth={2.5} /> YouTube Video
                      </button>
                  </div>
 
                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Resource URL</label>
+                    <label className="block text-sm font-extrabold text-slate-700 mb-2.5">Resource URL</label>
                     <input 
                         type="url"
                         placeholder={linkType === 'YOUTUBE' ? "https://youtube.com/watch?v=..." : "https://example.org/article"}
                         value={linkUrl}
                         onChange={(e) => { setLinkUrl(e.target.value); if (linkError) setLinkError(null); }}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                        className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
                         required
                     />
                  </div>
 
                  {linkError && (
-                    <div className="p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-lg text-sm flex items-center justify-between gap-3">
+                    <div className="p-4 bg-rose-50/80 backdrop-blur-sm text-rose-800 border border-rose-200/50 rounded-xl text-sm font-semibold flex items-center justify-between gap-3 shadow-sm animate-in slide-in-from-top-2">
                       <div className="flex items-center gap-2">
-                        <AlertCircle size={16} />
+                        <AlertCircle size={20} className="text-rose-600 shrink-0" />
                         <span>{linkError}</span>
                       </div>
                       <button
                         type="submit"
                         disabled={isSummarizing || !linkUrl.trim()}
-                        className="px-3 py-1.5 rounded-md border border-rose-200 bg-white text-rose-700 font-semibold text-xs hover:bg-rose-50 disabled:opacity-50"
+                        className="px-4 py-2 rounded-lg border border-rose-200 bg-white text-rose-700 font-semibold text-xs hover:bg-rose-50 hover:shadow-sm disabled:opacity-50 transition-all"
                       >
                         Retry
                       </button>
@@ -1353,41 +1365,43 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                  )}
 
                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Access Scope</label>
+                    <label className="block text-sm font-extrabold text-slate-700 mb-2.5">Access Scope</label>
                     <select 
                       value={scope} 
                       onChange={(e) => setScope(e.target.value as DocumentScope)}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                     >
                       {renderScopeOptions()}
                     </select>
                  </div>
 
                  {scope === DocumentScope.STUDENT && (
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Student Name</label>
+                    <div className="animate-in slide-in-from-top-2 duration-200">
+                      <label className="block text-sm font-extrabold text-slate-700 mb-2.5">Student Name</label>
                       <input
                         type="text"
                         placeholder="e.g. Leo Martinez"
                         value={targetId}
                         onChange={(e) => setTargetId(e.target.value)}
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm"
+                        className="w-full p-3.5 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
                         required
                       />
                     </div>
                  )}
 
-                 <div className="bg-indigo-50 p-4 rounded-lg flex items-start gap-3 border border-indigo-100">
-                     <Sparkles size={18} className="text-indigo-600 mt-0.5 shrink-0" />
-                     <p className="text-xs text-indigo-800 leading-relaxed">
-                         <strong>AI Auto-Summary:</strong> When you add this link, Gemini will automatically generate a summary to help the chatbot answer questions about it effectively.
+                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50/50 p-5 rounded-2xl flex items-start gap-4 border border-indigo-100/50 shadow-sm mt-8">
+                     <div className="bg-white p-2 rounded-xl shadow-sm border border-indigo-100">
+                         <Sparkles size={20} className="text-indigo-600 shrink-0" />
+                     </div>
+                     <p className="text-sm text-indigo-900 leading-relaxed font-medium">
+                         <strong className="font-extrabold tracking-tight">AI Auto-Summary:</strong> When you add this link, Gemini will automatically generate a summary to help the chatbot answer questions about it effectively.
                      </p>
                  </div>
 
                  <button 
                     type="submit" 
                     disabled={!linkUrl || isSummarizing}
-                    className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    className="w-full py-4 bg-indigo-600 text-white font-extrabold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-all flex justify-center items-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 mt-8"
                  >
                     Add Resource
                  </button>
@@ -1397,43 +1411,46 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
         {/* APPROVALS TAB */}
         {activeTab === 'approvals' && (
-           <div className="space-y-4">
+           <div className="space-y-4 max-w-4xl mx-auto">
               {myApprovals.length === 0 ? (
-                 <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
-                   <p className="font-semibold text-slate-700">All caught up.</p>
-                   <p className="text-sm mt-1">No resources are waiting for approval right now.</p>
+                 <div className="text-center py-16 text-slate-500 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-sm">
+                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-sm border border-indigo-100/50">
+                       <CheckCircle2 size={24} strokeWidth={2.5} />
+                   </div>
+                   <p className="text-xl font-extrabold text-slate-800 tracking-tight">All caught up.</p>
+                   <p className="text-sm font-medium mt-2 max-w-sm mx-auto">No resources are waiting for your approval right now.</p>
                  </div>
               ) : (
                 myApprovals.map(doc => (
-                  <div key={doc.id} className="flex flex-col md:flex-row md:items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-sm gap-4">
+                  <div key={doc.id} className="flex flex-col md:flex-row md:items-center justify-between bg-white/90 backdrop-blur-sm border border-slate-200/60 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow gap-5">
                      <div className="flex items-start gap-4">
-                        <div className="p-3 bg-amber-50 text-amber-600 rounded-lg shrink-0">
-                           <AlertCircle size={24} />
+                        <div className="p-3.5 bg-amber-50 text-amber-600 rounded-xl shrink-0 shadow-sm border border-amber-100/50">
+                           <AlertCircle size={24} strokeWidth={2.5} />
                         </div>
                         <div>
-                           <h3 className="font-bold text-slate-800">{doc.name}</h3>
-                           <p className="text-sm text-slate-500 mb-1">
-                              Uploaded by <span className="font-medium text-slate-700">{doc.uploaderName}</span> ({doc.uploaderRole})
+                           <h3 className="text-lg font-extrabold text-slate-800">{doc.name}</h3>
+                           <p className="text-sm font-medium text-slate-500 mb-2">
+                              Uploaded by <span className="font-bold text-slate-700">{doc.uploaderName}</span> ({doc.uploaderRole})
                            </p>
-                           <p className="text-xs text-indigo-600 bg-indigo-50 inline-block px-2 py-0.5 rounded border border-indigo-100">
-                              Requesting Scope: <strong>{doc.scope}</strong>
+                           <p className="text-[11px] font-bold text-indigo-700 bg-indigo-50 inline-flex items-center px-2.5 py-1 rounded-md border border-indigo-100 uppercase tracking-widest">
+                              Requesting Scope: <span className="ml-1 font-extrabold">{doc.scope}</span>
                            </p>
                         </div>
                      </div>
-                     <div className="flex gap-2 shrink-0">
+                     <div className="flex gap-3 shrink-0 mt-2 md:mt-0">
                         <button
                            type="button"
                            onClick={() => onReject(doc.id)}
-                           className="px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-sm transition-colors"
+                           className="px-5 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-sm transition-all flex-1 md:flex-none"
                         >
                            Reject
                         </button>
                         <button
                            type="button"
                            onClick={() => onApprove(doc.id)}
-                           className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-sm text-sm transition-colors flex items-center gap-2"
+                           className="px-5 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 shadow-sm hover:shadow-md text-sm transition-all flex justify-center items-center gap-2 flex-1 md:flex-none hover:-translate-y-0.5"
                         >
-                           <CheckCircle2 size={16} /> Approve
+                           <CheckCircle2 size={16} strokeWidth={2.5} /> Approve
                         </button>
                      </div>
                   </div>

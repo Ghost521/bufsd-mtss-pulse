@@ -642,34 +642,34 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
     ? undefined
     : showClosePrompt
       ? (
-          <div className="flex flex-wrap gap-2 justify-end w-full">
+          <div className="flex flex-wrap gap-3 justify-end w-full border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
             <button
               type="button"
               onClick={() => setShowClosePrompt(false)}
-              className="px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+              className="px-5 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-sm transition-all"
             >
               Continue Editing
             </button>
             <button
               type="button"
               onClick={handleCloseWithSavedDraft}
-              className="px-4 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors"
+              className="px-5 py-2.5 text-sm font-extrabold text-indigo-700 bg-indigo-50/80 border border-indigo-200/80 rounded-xl hover:bg-indigo-100 shadow-sm transition-all"
             >
               Keep Draft
             </button>
             <button
               type="button"
               onClick={handleDiscardDraftAndClose}
-              className="px-4 py-2.5 text-sm font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors"
+              className="px-5 py-2.5 text-sm font-extrabold text-white bg-rose-600 rounded-xl shadow-md shadow-rose-500/20 hover:bg-rose-700 hover:shadow-lg transition-all active:scale-95"
             >
               Discard Draft
             </button>
           </div>
         )
       : (
-          <div className="flex w-full flex-col items-end gap-2">
+          <div className="flex w-full flex-col items-end gap-3 border-t border-slate-200/60 bg-slate-50/50 p-4 rounded-b-3xl">
             {submitDisabledReason ? (
-              <p className="text-xs font-medium text-amber-700" aria-live="polite">
+              <p className="text-xs font-extrabold tracking-wide text-amber-700 uppercase" aria-live="polite">
                 {submitDisabledReason}
               </p>
             ) : null}
@@ -677,7 +677,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
             <button
               type="button"
               onClick={handleRequestClose}
-              className="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+              className="px-5 py-2.5 text-sm font-extrabold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-sm transition-all flex-1 sm:flex-none"
             >
               Cancel
             </button>
@@ -686,15 +686,15 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
               onClick={handleSubmit}
               disabled={isSubmitDisabled}
               title={submitDisabledReason ?? undefined}
-              className="px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all active:scale-95"
+              className="px-6 py-2.5 text-sm font-extrabold text-white bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 transition-all active:scale-95 flex-1 sm:flex-none"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 size={18} className="animate-spin" /> Submitting...
+                  <Loader2 size={18} strokeWidth={2.5} className="animate-spin" /> Submitting...
                 </>
               ) : (
                 <>
-                  <ShieldAlert size={18} /> Submit Referral
+                  <ShieldAlert size={18} strokeWidth={2.5} /> Submit Referral
                 </>
               )}
             </button>
@@ -707,11 +707,11 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       isOpen={isOpen}
       onClose={handleRequestClose}
       title={
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-rose-100 text-rose-600 rounded-lg">
-            <AlertCircle size={20} />
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-rose-50/80 text-rose-600 rounded-xl shadow-sm border border-rose-100/50">
+            <AlertCircle size={20} strokeWidth={2.5} />
           </div>
-          <span className="text-xl font-bold text-slate-900">New Referral</span>
+          <span className="text-xl font-extrabold tracking-tight text-slate-900">New Referral</span>
         </div>
       }
       initialWidth={640}
@@ -721,32 +721,32 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
       mobileMode="sheet"
     >
       {isSuccess && submitResult ? (
-        <div className="p-8 flex flex-col items-center justify-center text-center h-full">
-          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-sm">
-            <CheckCircle2 size={40} />
+        <div className="p-8 sm:p-10 flex flex-col items-center justify-center text-center h-full animate-in zoom-in-95 duration-500 bg-slate-50/30">
+          <div className="w-24 h-24 bg-emerald-50/80 border border-emerald-200/80 text-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-sm rotate-3 hover:rotate-6 transition-transform duration-500">
+            <CheckCircle2 size={48} strokeWidth={2.5} />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Referral Submitted</h3>
-          <p className="text-slate-500 text-sm">The referral has been routed and is ready for review.</p>
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-left">
-              <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Referral ID</p>
-              <p className="text-sm font-bold text-slate-800">{submitResult.referralId}</p>
+          <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2">Referral Submitted</h3>
+          <p className="text-slate-500 font-medium text-sm max-w-sm leading-relaxed">The referral has been routed and is ready for review.</p>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-xl">
+            <div className="rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-sm p-4 text-left shadow-sm">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Referral ID</p>
+              <p className="mt-1 text-sm font-bold text-slate-800">{submitResult.referralId}</p>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-left">
-              <p className="text-[11px] uppercase tracking-wide text-amber-700 font-semibold">Status</p>
-              <p className="text-sm font-bold text-amber-800">{submitResult.status}</p>
+            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 backdrop-blur-sm p-4 text-left shadow-sm">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-700">Status</p>
+              <p className="mt-1 text-sm font-bold text-amber-800">{submitResult.status}</p>
             </div>
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-left">
-              <p className="text-[11px] uppercase tracking-wide text-indigo-700 font-semibold">Routed To</p>
-              <p className="text-sm font-bold text-indigo-800">{submitResult.routedTo}</p>
+            <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/80 backdrop-blur-sm p-4 text-left shadow-sm">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-700">Routed To</p>
+              <p className="mt-1 text-sm font-bold text-indigo-800">{submitResult.routedTo}</p>
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
             {onViewQueue ? (
               <button
                 type="button"
                 onClick={handleViewQueue}
-                className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 border border-indigo-600 rounded-lg hover:bg-indigo-700"
+                className="px-6 py-3 text-sm font-extrabold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all active:scale-95"
               >
                 View Referral Queue
               </button>
@@ -754,10 +754,10 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
             <button
               type="button"
               onClick={handleCreateAnother}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg border ${
+              className={`px-6 py-3 text-sm font-extrabold rounded-xl transition-all shadow-sm ${
                 onViewQueue
-                  ? 'text-slate-700 bg-white border-slate-200 hover:bg-slate-50'
-                  : 'text-white bg-indigo-600 border-indigo-600 hover:bg-indigo-700'
+                  ? 'text-slate-700 bg-white border border-slate-200/80 hover:bg-slate-50 hover:shadow active:scale-95'
+                  : 'text-white bg-indigo-600 border border-transparent hover:bg-indigo-700 shadow-md shadow-indigo-500/20 hover:shadow-lg active:scale-95'
               }`}
             >
               Create Another Referral
@@ -765,7 +765,7 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
             <button
               type="button"
               onClick={closeAndReset}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-transparent rounded-lg hover:text-slate-800"
+              className="px-6 py-3 text-sm font-extrabold text-slate-600 bg-transparent rounded-xl hover:bg-slate-100 hover:text-slate-800 transition-colors"
             >
               Close
             </button>
@@ -773,17 +773,17 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
         </div>
       ) : (
         <form
-          className="p-6 space-y-5"
+          className="p-6 sm:p-8 space-y-6 bg-slate-50/30"
           onSubmit={(event) => {
             event.preventDefault();
             handleSubmit();
           }}
         >
           {showDraftRestoredBanner ? (
-            <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-start justify-between gap-3 text-xs text-amber-800">
-              <div className="flex items-start gap-2">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                <p>Draft restored. Continue editing, or discard if you want to start fresh.</p>
+            <div className="p-4 bg-amber-50/80 backdrop-blur-sm border border-amber-200/80 rounded-2xl flex items-start justify-between gap-4 text-sm font-semibold text-amber-800 shadow-sm animate-in slide-in-from-top-2">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 bg-amber-100 rounded-lg text-amber-600 shrink-0"><AlertTriangle size={18} strokeWidth={2.5} /></div>
+                <p className="mt-1 leading-relaxed">Draft restored. Continue editing, or discard if you want to start fresh.</p>
               </div>
               <button
                 type="button"
@@ -795,266 +795,278 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
                   setShowDraftRestoredBanner(false);
                   resetForm(defaultStudentId);
                 }}
-                className="font-semibold underline underline-offset-2 hover:text-amber-900"
+                className="font-extrabold underline underline-offset-4 hover:text-amber-900 whitespace-nowrap mt-1"
               >
                 Discard draft
               </button>
             </div>
           ) : null}
 
-          <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-3 text-xs text-blue-700">
-            <ShieldAlert size={16} className="shrink-0 mt-0.5" />
-            <p>Include specific details and evidence so the support team can act quickly.</p>
+          <div className="p-4 bg-blue-50/80 backdrop-blur-sm border border-blue-200/80 rounded-2xl flex items-start gap-3 text-sm font-semibold text-blue-800 shadow-sm">
+            <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600 shrink-0"><ShieldAlert size={18} strokeWidth={2.5} /></div>
+            <p className="mt-1 leading-relaxed">Include specific details and evidence so the support team can act quickly.</p>
           </div>
 
           {submitError ? (
             <div
               role="alert"
               aria-live="assertive"
-              className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-3 text-sm text-rose-700"
+              className="p-4 bg-rose-50/80 backdrop-blur-sm border border-rose-200/80 rounded-2xl flex items-start gap-3 text-sm font-semibold text-rose-800 shadow-sm animate-in slide-in-from-top-2"
             >
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <p>{submitError}</p>
+              <div className="p-1.5 bg-rose-100 rounded-lg text-rose-600 shrink-0"><AlertCircle size={18} strokeWidth={2.5} /></div>
+              <p className="mt-1 leading-relaxed">{submitError}</p>
             </div>
           ) : null}
 
-          <div>
-            <label
-              htmlFor="referral-student-search"
-              className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide"
-            >
-              Student <span className="text-rose-500">*</span>
-            </label>
-            <div ref={studentComboboxRef} className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                id="referral-student-search"
-                ref={studentInputRef}
-                type="text"
-                role="combobox"
-                aria-autocomplete="list"
-                aria-controls={STUDENT_LISTBOX_ID}
-                aria-expanded={isStudentMenuOpen}
-                aria-activedescendant={isStudentMenuOpen ? activeStudentOptionId : undefined}
-                aria-invalid={Boolean(errors.studentId)}
-                placeholder="Search by student name or ID..."
-                value={studentQuery}
-                onFocus={() => setIsStudentMenuOpen(true)}
-                onBlur={(event) => {
-                  const nextFocused = event.relatedTarget as Node | null;
-                  if (nextFocused && studentComboboxRef.current?.contains(nextFocused)) return;
-                  setIsStudentMenuOpen(false);
-                }}
-                onChange={(event) => handleStudentQueryChange(event.target.value)}
-                onKeyDown={handleStudentInputKeyDown}
-                className={`w-full pl-9 pr-3 py-3 border rounded-xl text-sm focus:ring-2 outline-none transition-all ${
-                  errors.studentId
-                    ? 'bg-rose-50 border-rose-300 focus:ring-rose-200 text-rose-900'
-                    : 'bg-slate-50 border-slate-200 focus:ring-indigo-500 focus:bg-white'
-                }`}
-                data-autofocus="true"
-              />
-              {isStudentMenuOpen ? (
-                <ul
-                  id={STUDENT_LISTBOX_ID}
-                  ref={studentListboxRef}
-                  role="listbox"
-                  className="absolute z-30 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+          <div className="bg-white/60 backdrop-blur-sm p-6 rounded-3xl border border-slate-200/60 shadow-sm space-y-6">
+            <div>
+              <label
+                htmlFor="referral-student-search"
+                className="block text-[10px] font-extrabold text-slate-500 uppercase mb-2 tracking-widest pl-1"
+              >
+                Student <span className="text-rose-500">*</span>
+              </label>
+              <div ref={studentComboboxRef} className="relative">
+                <Search size={16} strokeWidth={2.5} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="referral-student-search"
+                  ref={studentInputRef}
+                  type="text"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-controls={STUDENT_LISTBOX_ID}
+                  aria-expanded={isStudentMenuOpen}
+                  aria-activedescendant={isStudentMenuOpen ? activeStudentOptionId : undefined}
+                  aria-invalid={Boolean(errors.studentId)}
+                  placeholder="Search by student name or ID..."
+                  value={studentQuery}
+                  onFocus={() => setIsStudentMenuOpen(true)}
+                  onBlur={(event) => {
+                    const nextFocused = event.relatedTarget as Node | null;
+                    if (nextFocused && studentComboboxRef.current?.contains(nextFocused)) return;
+                    setIsStudentMenuOpen(false);
+                  }}
+                  onChange={(event) => handleStudentQueryChange(event.target.value)}
+                  onKeyDown={handleStudentInputKeyDown}
+                  className={`w-full pl-11 pr-4 py-3.5 border rounded-xl text-sm font-semibold outline-none transition-all shadow-sm ${
+                    errors.studentId
+                      ? 'bg-rose-50/80 border-rose-300 focus:ring-4 focus:ring-rose-500/20 text-rose-900'
+                      : 'bg-slate-50/80 border-slate-200/80 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white'
+                  }`}
+                  data-autofocus="true"
+                />
+                {isStudentMenuOpen ? (
+                  <ul
+                    id={STUDENT_LISTBOX_ID}
+                    ref={studentListboxRef}
+                    role="listbox"
+                    className="absolute z-30 mt-2 max-h-60 w-full overflow-auto rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-xl p-1.5 shadow-xl custom-scrollbar"
+                  >
+                    {areStudentsLoading && students.length === 0 ? (
+                      <li className="px-4 py-3 text-sm font-semibold text-slate-500">Loading students...</li>
+                    ) : studentRosterUnavailable ? (
+                      <li className="px-4 py-3 text-sm font-semibold text-rose-700">
+                        <p>Student roster is unavailable right now.</p>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={handleRetryStudentLoad}
+                          className="mt-2 font-extrabold text-indigo-700 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Retry loading roster
+                        </button>
+                      </li>
+                    ) : filteredStudents.length === 0 ? (
+                      <li className="px-4 py-3 text-sm font-semibold text-slate-500 italic">No students found.</li>
+                    ) : (
+                      filteredStudents.map((student, index) => (
+                        <li
+                          key={student.id}
+                          id={`${STUDENT_LISTBOX_ID}-${student.id}`}
+                          role="option"
+                          aria-selected={index === highlightedStudentIndex}
+                          tabIndex={-1}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            selectStudent(student.id);
+                          }}
+                          onMouseEnter={() => setHighlightedStudentIndex(index)}
+                          className={`cursor-pointer rounded-xl px-4 py-3 transition-colors ${
+                            index === highlightedStudentIndex ? 'bg-indigo-50/80 text-indigo-900 shadow-sm border border-indigo-100/50' : 'border border-transparent hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[15px] font-extrabold tracking-tight">{student.name}</p>
+                            <span className="rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-500 shadow-sm">
+                              {student.source}
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-1">
+                            ID {student.id} • Grade {student.grade} • {student.tier}
+                          </p>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                ) : null}
+              </div>
+              {errors.studentId ? <p className="text-xs text-rose-600 mt-2 font-bold pl-1">{errors.studentId}</p> : null}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+              <div>
+                <label htmlFor="referral-category" className="block text-[10px] font-extrabold text-slate-500 uppercase mb-2 tracking-widest pl-1">
+                  Category
+                </label>
+                <select
+                  id="referral-category"
+                  value={formData.type}
+                  onChange={(event) => {
+                    setFormData((previous) => ({ ...previous, type: event.target.value as ReferralCategory }));
+                    setSubmitError(null);
+                  }}
+                  className="w-full p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white outline-none transition-all appearance-none cursor-pointer shadow-sm text-slate-800"
                 >
-                  {areStudentsLoading && students.length === 0 ? (
-                    <li className="px-3 py-2 text-xs text-slate-500">Loading students...</li>
-                  ) : studentRosterUnavailable ? (
-                    <li className="px-3 py-2 text-xs text-rose-700">
-                      <p>Student roster is unavailable right now.</p>
+                  <option value="Behavior">Behavioral Issue</option>
+                  <option value="Academic">Academic Concern</option>
+                  <option value="Attendance">Attendance</option>
+                  <option value="Social-Emotional">Social/Emotional</option>
+                  <option value="Health">Health/Medical</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="referral-urgency" className="block text-[10px] font-extrabold text-slate-500 uppercase mb-2 tracking-widest pl-1">
+                  Urgency
+                </label>
+                <select
+                  id="referral-urgency"
+                  value={formData.urgency}
+                  onChange={(event) => {
+                    setFormData((previous) => ({ ...previous, urgency: event.target.value as ReferralUrgency }));
+                    setSubmitError(null);
+                  }}
+                  className="w-full p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white outline-none transition-all appearance-none cursor-pointer shadow-sm text-slate-800"
+                >
+                  <option value="Low">Low (Monitor)</option>
+                  <option value="Medium">Medium (Review)</option>
+                  <option value="High">High (Urgent)</option>
+                  <option value="Critical">Critical (Immediate)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="referral-notes" className="block text-[10px] font-extrabold text-slate-500 uppercase mb-2 tracking-widest pl-1">
+                Description & Notes <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                id="referral-notes"
+                rows={4}
+                placeholder="Describe the incident, prior interventions, and current concern..."
+                value={formData.notes}
+                onChange={(event) => {
+                  setFormData((previous) => ({ ...previous, notes: event.target.value }));
+                  setSubmitError(null);
+                  if (errors.notes) setErrors((previous) => ({ ...previous, notes: '' }));
+                }}
+                aria-invalid={Boolean(errors.notes)}
+                className={`w-full p-4 border rounded-xl text-sm font-medium focus:ring-4 outline-none resize-none transition-all shadow-inner custom-scrollbar leading-relaxed ${
+                  errors.notes
+                    ? 'bg-rose-50/80 border-rose-300 focus:ring-rose-500/20 text-rose-900 placeholder:text-rose-300'
+                    : 'bg-slate-50/80 border-slate-200/80 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white text-slate-800 placeholder:text-slate-400'
+                }`}
+              />
+              {errors.notes ? <p className="text-xs text-rose-600 mt-2 font-bold pl-1">{errors.notes}</p> : null}
+            </div>
+
+            <div className="pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 pl-1">
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Supporting Documentation</label>
+                <div className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-100/80 px-2.5 py-1 rounded-md border border-slate-200/50">
+                  {evidenceIsRequired ? (
+                    <span className="text-rose-600">{evidenceReason ?? 'Required for this referral.'}</span>
+                  ) : (
+                    <span className="text-slate-400">Optional for this referral.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pl-1">
+                <p className="text-[11px] font-bold text-slate-400">Accepted: PDF, DOC/DOCX, TXT, JPG, PNG, GIF (max {MAX_FILE_SIZE_MB} MB each)</p>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 flex items-center gap-1.5 bg-indigo-50/80 px-3 py-1.5 rounded-lg border border-indigo-100/50 shadow-sm transition-colors active:scale-95"
+                >
+                  <Upload size={14} strokeWidth={2.5} /> Upload File
+                </button>
+              </div>
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                multiple
+                accept={ACCEPTED_ATTACHMENT_INPUT}
+                onChange={handleFileChange}
+              />
+
+              {files.length === 0 ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all hover:shadow-inner bg-white/50 backdrop-blur-sm ${
+                    errors.files ? 'border-rose-300 hover:bg-rose-50/50' : 'border-slate-200/80 hover:bg-slate-50/80 hover:border-indigo-300'
+                  }`}
+                >
+                  <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-slate-200">
+                    <FileText size={20} strokeWidth={2.5} />
+                  </div>
+                  <p className="text-sm font-extrabold text-slate-600">Click to attach logs, work samples, or images.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {files.map((file, index) => (
+                    <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between p-3 bg-white/80 backdrop-blur-sm border border-slate-200/80 rounded-xl shadow-sm group hover:border-slate-300 transition-colors">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                          <FileText size={18} strokeWidth={2.5} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold text-slate-800 truncate tracking-tight">{file.name}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={handleRetryStudentLoad}
-                        className="mt-1 font-semibold text-indigo-700 hover:text-indigo-800"
+                        onClick={() => removeFile(index)}
+                        className="p-2 text-slate-300 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Remove ${file.name}`}
                       >
-                        Retry loading roster
+                        <Trash2 size={16} strokeWidth={2.5} />
                       </button>
-                    </li>
-                  ) : filteredStudents.length === 0 ? (
-                    <li className="px-3 py-2 text-xs text-slate-500">No students found.</li>
-                  ) : (
-                    filteredStudents.map((student, index) => (
-                      <li
-                        key={student.id}
-                        id={`${STUDENT_LISTBOX_ID}-${student.id}`}
-                        role="option"
-                        aria-selected={index === highlightedStudentIndex}
-                        tabIndex={-1}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          selectStudent(student.id);
-                        }}
-                        onMouseEnter={() => setHighlightedStudentIndex(index)}
-                        className={`cursor-pointer rounded-md px-3 py-2 ${
-                          index === highlightedStudentIndex ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold">{student.name}</p>
-                          <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            {student.source}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500">ID {student.id} | Grade {student.grade} | {student.tier}</p>
-                      </li>
-                    ))
-                  )}
-                </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {draftAttachmentMetadata.length > 0 && files.length === 0 ? (
+                <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 backdrop-blur-sm p-4 text-sm text-amber-800 shadow-sm">
+                  <p className="font-extrabold mb-1 tracking-tight">Draft restored with previous attachments metadata. Reattach files before submitting.</p>
+                  <p className="text-amber-700/80 font-medium truncate">
+                    {draftAttachmentMetadata.map((attachment) => attachment.name).join(', ')}
+                  </p>
+                </div>
+              ) : null}
+              {errors.files ? <p className="text-xs text-rose-600 mt-2 font-bold pl-1">{errors.files}</p> : null}
+              {attachmentMessages.length > 0 ? (
+                <div className="mt-3 space-y-1" aria-live="polite">
+                  {attachmentMessages.map((message, index) => (
+                    <p key={`${message}-${index}`} className="text-[11px] font-bold text-amber-700 uppercase tracking-widest pl-1">
+                      {message}
+                    </p>
+                  ))}
+                </div>
               ) : null}
             </div>
-            {errors.studentId ? <p className="text-xs text-rose-500 mt-1 font-medium">{errors.studentId}</p> : null}
-          </div>
-
-          <div className="grid grid-cols-2 gap-5">
-            <div>
-              <label htmlFor="referral-category" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">
-                Category
-              </label>
-              <select
-                id="referral-category"
-                value={formData.type}
-                onChange={(event) => {
-                  setFormData((previous) => ({ ...previous, type: event.target.value as ReferralCategory }));
-                  setSubmitError(null);
-                }}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
-              >
-                <option value="Behavior">Behavioral Issue</option>
-                <option value="Academic">Academic Concern</option>
-                <option value="Attendance">Attendance</option>
-                <option value="Social-Emotional">Social/Emotional</option>
-                <option value="Health">Health/Medical</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="referral-urgency" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">
-                Urgency
-              </label>
-              <select
-                id="referral-urgency"
-                value={formData.urgency}
-                onChange={(event) => {
-                  setFormData((previous) => ({ ...previous, urgency: event.target.value as ReferralUrgency }));
-                  setSubmitError(null);
-                }}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
-              >
-                <option value="Low">Low (Monitor)</option>
-                <option value="Medium">Medium (Review)</option>
-                <option value="High">High (Urgent)</option>
-                <option value="Critical">Critical (Immediate)</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="referral-notes" className="block text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">
-              Description & Notes <span className="text-rose-500">*</span>
-            </label>
-            <textarea
-              id="referral-notes"
-              rows={4}
-              placeholder="Describe the incident, prior interventions, and current concern..."
-              value={formData.notes}
-              onChange={(event) => {
-                setFormData((previous) => ({ ...previous, notes: event.target.value }));
-                setSubmitError(null);
-                if (errors.notes) setErrors((previous) => ({ ...previous, notes: '' }));
-              }}
-              aria-invalid={Boolean(errors.notes)}
-              className={`w-full p-3 border rounded-xl text-sm focus:ring-2 outline-none resize-none transition-all ${
-                errors.notes
-                  ? 'bg-rose-50 border-rose-300 focus:ring-rose-200 placeholder:text-rose-300'
-                  : 'bg-slate-50 border-slate-200 focus:ring-indigo-500 focus:bg-white'
-              }`}
-            />
-            {errors.notes ? <p className="text-xs text-rose-500 mt-1 font-medium">{errors.notes}</p> : null}
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Supporting Documentation</label>
-              <div className="text-[11px] font-semibold">
-                {evidenceIsRequired ? (
-                  <span className="text-rose-600">{evidenceReason ?? 'Required for this referral.'}</span>
-                ) : (
-                  <span className="text-slate-400">Optional for this referral.</span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs text-slate-500">Accepted: PDF, DOC/DOCX, TXT, JPG, PNG, GIF (max {MAX_FILE_SIZE_MB} MB each)</p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-              >
-                <Upload size={12} /> Upload File
-              </button>
-            </div>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              multiple
-              accept={ACCEPTED_ATTACHMENT_INPUT}
-              onChange={handleFileChange}
-            />
-
-            {files.length === 0 ? (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
-                  errors.files ? 'border-rose-300 bg-rose-50' : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <p className="text-xs text-slate-400">Click to attach logs, work samples, or images.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {files.map((file, index) => (
-                  <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-100 rounded-lg">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText size={16} className="text-slate-400 shrink-0" />
-                      <span className="text-xs text-slate-700 truncate">{file.name}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      className="p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50"
-                      aria-label={`Remove ${file.name}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {draftAttachmentMetadata.length > 0 && files.length === 0 ? (
-              <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50 p-2 text-xs text-amber-800">
-                <p className="font-medium">Draft restored with previous attachments metadata. Reattach files before submitting.</p>
-                <p className="mt-1 text-amber-700 truncate">
-                  {draftAttachmentMetadata.map((attachment) => attachment.name).join(', ')}
-                </p>
-              </div>
-            ) : null}
-            {errors.files ? <p className="text-xs text-rose-500 mt-1 font-medium">{errors.files}</p> : null}
-            {attachmentMessages.length > 0 ? (
-              <div className="mt-2 space-y-1" aria-live="polite">
-                {attachmentMessages.map((message, index) => (
-                  <p key={`${message}-${index}`} className="text-xs text-amber-700">
-                    {message}
-                  </p>
-                ))}
-              </div>
-            ) : null}
           </div>
         </form>
       )}

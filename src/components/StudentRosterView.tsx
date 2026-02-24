@@ -1339,17 +1339,21 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       </DraggableModal>
 
       {!embedded ? (
-        <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="flex items-start gap-3">
-            <SidebarToggleButton onClick={onMenuClick} className="app-icon-button mt-1 -ml-1 lg:hidden" ariaLabel="Open workspace menu" />
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden mb-6 z-10">
+          <div className="absolute -right-8 -top-8 w-40 h-40 bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-center gap-4 relative z-10">
+            <SidebarToggleButton onClick={onMenuClick} className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl" ariaLabel="Open workspace menu" />
+            <div className="p-3 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600 hidden sm:block">
+              <Users size={24} strokeWidth={2.5} />
+            </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Student Roster</h2>
-              <p className="text-sm text-slate-500">{hierarchyContextLabel}</p>
+              <h2 className="text-2xl font-extrabold text-slate-800 md:text-3xl tracking-tight">Student Roster</h2>
+              <p className="text-sm font-medium text-slate-500 mt-1">{hierarchyContextLabel}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => onNavigate?.("import")} className="gap-2"><Upload size={16} /> Import</Button>
-            <Button variant="primary" onClick={() => openReferral()} className="gap-2"><ShieldAlert size={16} /> Create referral</Button>
+          <div className="flex flex-wrap items-center gap-3 relative z-10">
+            <Button variant="secondary" onClick={() => onNavigate?.("import")} className="gap-2 rounded-xl shadow-sm hover:shadow transition-all"><Upload size={16} strokeWidth={2.5} /> Import</Button>
+            <Button variant="primary" onClick={() => openReferral()} className="gap-2 rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"><ShieldAlert size={16} strokeWidth={2.5} /> Create referral</Button>
           </div>
         </header>
       ) : null}
@@ -1378,30 +1382,42 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
         <>
 
       {!embedded && !isAttendanceMode && !isBulkMode ? (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Total students</p><p className="text-2xl font-bold text-slate-900">{classStats.total}</p></div>
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Tier 2-3</p><p className="text-2xl font-bold text-rose-600">{classStats.atRisk}</p></div>
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Avg attendance</p><p className="text-2xl font-bold text-emerald-600">{classStats.avgAttendance}%</p></div>
-          <div className="app-card rounded-xl p-3"><p className="text-xs text-slate-500">Avg GPA</p><p className="text-2xl font-bold text-blue-600">{classStats.avgGpa}</p></div>
+        <section className="grid grid-cols-2 gap-4 md:grid-cols-4 mb-6">
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md hover:border-slate-300 transition-all group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Total students</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-slate-800">{classStats.total}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md hover:border-rose-200/50 transition-all group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Tier 2-3</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-rose-600">{classStats.atRisk}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md hover:border-emerald-200/50 transition-all group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Avg attendance</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-emerald-600">{classStats.avgAttendance}%</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md hover:border-blue-200/50 transition-all group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Avg GPA</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-blue-600">{classStats.avgGpa}</p>
+          </div>
         </section>
       ) : null}
 
-      <section className="app-card rounded-xl p-3 md:p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 items-center gap-2">
-            {isBulkMode ? <Button variant="secondary" size="sm" onClick={toggleSelectAll}><Check size={14} /></Button> : null}
+      <section className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-6 shadow-sm mb-6">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-1 items-center gap-3">
+            {isBulkMode ? <Button variant="secondary" size="sm" onClick={toggleSelectAll} className="rounded-xl shadow-sm hover:shadow transition-all hover:bg-slate-50 border-slate-200/80"><Check size={16} strokeWidth={2.5} /></Button> : null}
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name, ID, or teacher" className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm" />
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name, ID, or teacher" className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 py-3 pl-11 pr-4 text-sm font-semibold focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all" />
             </div>
-            <Button variant={showFilters ? "primary" : "secondary"} size="sm" onClick={() => setShowFilters((v) => !v)} className="gap-1">
-              <Filter size={14} /> Filters <ChevronDown size={14} className={showFilters ? "rotate-180" : ""} />
+            <Button variant={showFilters ? "primary" : "secondary"} size="sm" onClick={() => setShowFilters((v) => !v)} className={`gap-2 rounded-xl shadow-sm transition-all text-sm font-bold px-4 py-3 ${showFilters ? "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md" : "border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"}`}>
+              <Filter size={16} strokeWidth={2.5} /> Filters <ChevronDown size={14} className={`transition-transform duration-200 ${showFilters ? "rotate-180" : ""}`} />
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {viewMode === "grid" ? (
-              <>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} className="rounded-md border border-slate-200 px-2 py-2 text-sm">
+              <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/50 shadow-inner">
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)} className="rounded-lg border-transparent bg-transparent px-3 py-1.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer">
                   <option value="name">Name</option>
                   <option value="tier">Tier</option>
                   <option value="attendance">Attendance</option>
@@ -1409,36 +1425,48 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                   <option value="alerts">Alerts</option>
                   <option value="reading">Reading</option>
                 </select>
-                <Button variant="secondary" size="sm" onClick={() => setSortDesc((v) => !v)}>{sortDesc ? <ArrowDown size={14} /> : <ArrowUp size={14} />}</Button>
-              </>
+                <button type="button" aria-label={`Sort direction: ${sortDesc ? 'Descending' : 'Ascending'}`} onClick={() => setSortDesc((v) => !v)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
+                  {sortDesc ? <ArrowDown size={16} strokeWidth={2.5} /> : <ArrowUp size={16} strokeWidth={2.5} />}
+                </button>
+              </div>
             ) : null}
-            <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-              <Button variant="ghost" size="icon-sm" onClick={() => setViewMode("grid")} className={viewMode === "grid" ? "bg-white" : ""}><LayoutGrid size={15} /></Button>
-              <Button variant="ghost" size="icon-sm" onClick={() => setViewMode("list")} className={viewMode === "list" ? "bg-white" : ""}><ListIcon size={15} /></Button>
+            <div className="flex rounded-xl border border-slate-200/50 bg-slate-100/80 p-1.5 shadow-inner">
+              <button type="button" onClick={() => setViewMode("grid")} className={`p-2 rounded-lg transition-all ${viewMode === "grid" ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50" : "text-slate-500 hover:text-slate-800"}`} aria-label="Grid view">
+                <LayoutGrid size={16} strokeWidth={2.5} />
+              </button>
+              <button type="button" onClick={() => setViewMode("list")} className={`p-2 rounded-lg transition-all ${viewMode === "list" ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50" : "text-slate-500 hover:text-slate-800"}`} aria-label="List view">
+                <ListIcon size={16} strokeWidth={2.5} />
+              </button>
             </div>
-            <Button variant={isBulkMode ? "primary" : "secondary"} size="sm" onClick={toggleBulkMode}>{isBulkMode ? "Done" : "Select"}</Button>
+            <Button variant={isBulkMode ? "primary" : "secondary"} size="sm" onClick={toggleBulkMode} className={`rounded-xl shadow-sm transition-all px-4 py-2.5 font-bold ${isBulkMode ? "hover:shadow-md hover:-translate-y-0.5" : "border-slate-200/80 bg-white hover:bg-slate-50"}`}>
+              {isBulkMode ? "Done" : "Select"}
+            </Button>
             {canTakeAttendance ? (
-              <Button variant={isAttendanceMode ? "primary" : "secondary"} size="sm" onClick={toggleAttendanceMode}>
+              <Button variant={isAttendanceMode ? "primary" : "secondary"} size="sm" onClick={toggleAttendanceMode} className={`rounded-xl shadow-sm transition-all px-4 py-2.5 font-bold ${isAttendanceMode ? "hover:shadow-md hover:-translate-y-0.5" : "border-slate-200/80 bg-white hover:bg-slate-50"}`}>
                 Take attendance
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" onClick={() => void runExport()} loading={isExporting} className="gap-1"><Download size={14} /> Export</Button>
-            {isMasterScope ? <Button variant="secondary" size="sm" onClick={() => setIsAddStudentOpen(true)} className="gap-1"><UserPlus size={14} /> Add student</Button> : null}
+            <Button variant="secondary" size="sm" onClick={() => void runExport()} loading={isExporting} className="gap-2 rounded-xl border-slate-200/80 bg-white shadow-sm hover:bg-slate-50 transition-all px-4 py-2.5 font-bold">
+              <Download size={16} strokeWidth={2.5} /> Export
+            </Button>
+            {isMasterScope ? <Button variant="secondary" size="sm" onClick={() => setIsAddStudentOpen(true)} className="gap-2 rounded-xl border-slate-200/80 bg-white shadow-sm hover:bg-slate-50 transition-all px-4 py-2.5 font-bold">
+              <UserPlus size={16} strokeWidth={2.5} /> Add student
+            </Button> : null}
           </div>
         </div>
 
         {showFilters ? (
-          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 md:grid-cols-4">
-            <label className="text-xs font-semibold text-slate-500">Tier
-              <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value as "All" | Tier)} className="mt-1 w-full rounded-md border border-slate-200 px-2 py-2 text-sm">
+          <div className="mt-5 grid grid-cols-1 gap-5 border-t border-slate-100/80 pt-5 md:grid-cols-4 animate-in slide-in-from-top-2">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Tier
+              <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value as "All" | Tier)} className="mt-2 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-3 text-sm font-semibold focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all cursor-pointer appearance-none">
                 <option value="All">All tiers</option>
                 <option value={Tier.TIER_1}>{Tier.TIER_1}</option>
                 <option value={Tier.TIER_2}>{Tier.TIER_2}</option>
                 <option value={Tier.TIER_3}>{Tier.TIER_3}</option>
               </select>
             </label>
-            <label className="text-xs font-semibold text-slate-500">Status
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "All" | StudentLifecycleStatus)} className="mt-1 w-full rounded-md border border-slate-200 px-2 py-2 text-sm">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Status
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "All" | StudentLifecycleStatus)} className="mt-2 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-3 text-sm font-semibold focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all cursor-pointer appearance-none">
                 <option value="All">All status</option>
                 <option value="active">Active</option>
                 <option value="monitoring">Monitoring</option>
@@ -1446,23 +1474,23 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                 <option value="unknown">Needs review</option>
               </select>
             </label>
-            <label className="text-xs font-semibold text-slate-500">Teacher
-              <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} className="mt-1 w-full rounded-md border border-slate-200 px-2 py-2 text-sm">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Teacher
+              <select value={teacherFilter} onChange={(e) => setTeacherFilter(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-4 py-3 text-sm font-semibold focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all cursor-pointer appearance-none">
                 <option value="All">All teachers</option>
                 {teacherOptions.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}
               </select>
             </label>
-            <div className="flex items-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setShowFilters(false)}>Apply</Button>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>Reset</Button>
+            <div className="flex items-end gap-3 pb-1">
+              <Button variant="secondary" size="sm" onClick={() => setShowFilters(false)} className="rounded-xl border-slate-200/80 bg-white shadow-sm hover:bg-slate-50 px-5 py-2.5 font-bold flex-1">Apply</Button>
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="rounded-xl px-5 py-2.5 font-bold hover:bg-slate-100 flex-1">Reset</Button>
             </div>
           </div>
         ) : null}
 
         {hasActiveFilters ? (
-          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-600">
-            <span>{filteredStudents.length} students</span>
-            <Button variant="ghost" size="sm" onClick={clearFilters}>Clear all</Button>
+          <div className="mt-5 flex items-center justify-between border-t border-slate-100/80 pt-4 text-xs font-semibold text-slate-500">
+            <span>Showing {filteredStudents.length} students</span>
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="rounded-lg hover:bg-slate-100 px-3 py-1.5 font-bold text-rose-600 hover:text-rose-700">Clear all filters</Button>
           </div>
         ) : null}
       </section>
@@ -1519,7 +1547,7 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       ) : null}
 
       {!studentsApi.studentsQuery.isLoading && filteredStudents.length > 0 && viewMode === "grid" ? (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filteredStudents.map((student) => {
             const selected = selectedIds.has(student.id);
             const attendanceStatus = attendanceMap[student.id] ?? "Present";
@@ -1545,14 +1573,15 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
             return (
               <article
                 key={student.id}
-                className={`app-card rounded-xl p-4 ${selected ? "ring-2 ring-brand-500" : ""} ${isCardInteractive ? "student-card-clickable" : ""}`}
+                className={`rounded-2xl border bg-white/90 p-5 backdrop-blur-sm transition-all duration-300 shadow-sm hover:shadow-lg relative overflow-hidden group ${selected ? "border-indigo-500 ring-2 ring-indigo-500/20 shadow-md" : "border-slate-200/60 hover:border-indigo-300/80 hover:-translate-y-1"} ${isCardInteractive ? "cursor-pointer" : ""}`}
                 role={isCardInteractive ? "button" : undefined}
                 tabIndex={isCardInteractive ? 0 : undefined}
                 onClick={isCardInteractive ? handleCardActivate : undefined}
                 onKeyDown={isCardInteractive ? (event) => activateWithKeyboard(event, handleCardActivate) : undefined}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
+                <div className={`absolute top-0 left-0 w-full h-1.5 transition-colors ${tierTone === 'risk' ? 'bg-rose-500' : tierTone === 'warn' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                <div className="flex items-start justify-between gap-3 relative z-10 pt-1">
+                  <div className="flex items-center gap-4">
                     {isBulkMode ? (
                       <button
                         type="button"
@@ -1560,71 +1589,67 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                           event.stopPropagation();
                           selectStudent(student.id);
                         }}
-                        className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${selected ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white text-slate-400"}`}
+                        className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl border-2 transition-all ${selected ? "border-indigo-600 bg-indigo-600 text-white shadow-sm" : "border-slate-200 bg-slate-50 text-slate-400 hover:border-indigo-300"}`}
                         aria-label={`Select ${student.name}`}
                       >
-                        <Check size={16} />
+                        <Check size={20} strokeWidth={3} />
                       </button>
                     ) : (
-                      <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${student.avatarSeed}&backgroundColor=e0e7ff`} alt={student.name} className="h-10 w-10 rounded-full border border-slate-200" />
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 border-2 border-white shadow-md overflow-hidden ring-1 ring-slate-200/50 group-hover:ring-indigo-200 transition-all duration-300">
+                         <img src={`https://api.dicebear.com/7.x/lorelei/svg?seed=${student.avatarSeed}&backgroundColor=e0e7ff`} alt={student.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      </div>
                     )}
                     <div>
-                      <p className="font-semibold text-slate-800">{student.name}</p>
-                      <p className="text-xs text-slate-500">{student.id}</p>
-                      {viewType === "master" ? <p className="text-xs text-slate-500">{student.teacherName}</p> : null}
+                      <p className="text-lg font-extrabold tracking-tight text-slate-800 group-hover:text-indigo-700 transition-colors">{student.name}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{student.id}</p>
+                      {viewType === "master" ? <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{student.teacherName}</p> : null}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex flex-col items-end gap-2">
                     {student.alerts > 0 ? (
-                      <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">
-                        <AlertCircle size={12} className="mr-1 inline" />
+                      <span className="rounded-lg border border-rose-200/80 bg-rose-50 px-2 py-1 text-[10px] font-extrabold uppercase tracking-widest text-rose-700 shadow-sm animate-pulse">
+                        <AlertCircle size={12} strokeWidth={2.5} className="mr-1 inline" />
                         {student.alerts}
                       </span>
                     ) : null}
-                    {canOpenDetails ? (
-                      <span className="student-open-cue">
-                        View details
-                        <ChevronRight size={14} />
-                      </span>
-                    ) : null}
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wide">
-                  <span className={`signal-pill ${signalToneClass(tierTone)}`}>{student.tier}</span>
-                  <span className="signal-pill signal-neutral">{statusLabel(student.status)}</span>
-                  {isAttendanceMode ? <span className="signal-pill signal-neutral">{attendanceStatus}</span> : null}
+                <div className="mt-5 flex flex-wrap gap-2 text-[10px] font-extrabold uppercase tracking-widest relative z-10">
+                  <span className={`px-2.5 py-1 rounded-md border shadow-sm ${signalToneClass(tierTone)}`}>{student.tier}</span>
+                  <span className="px-2.5 py-1 rounded-md border border-slate-200/80 bg-slate-50 text-slate-600 shadow-sm">{statusLabel(student.status)}</span>
+                  {isAttendanceMode ? <span className="px-2.5 py-1 rounded-md border border-slate-200/80 bg-slate-50 text-slate-600 shadow-sm">{attendanceStatus}</span> : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                  <div className={`signal-tile ${signalToneClass(gpaTone)}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">GPA</p>
-                    <p className="mt-1 text-base font-semibold leading-tight">{student.gpa}</p>
-                    <p className="text-[11px] opacity-90">{riskToneLabel(gpaTone)}</p>
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 relative z-10">
+                  <div className={`p-3 rounded-xl border shadow-sm transition-colors ${signalToneClass(gpaTone)}`}>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest opacity-70">GPA</p>
+                    <p className="mt-1 text-xl font-extrabold tracking-tight">{student.gpa}</p>
+                    <p className="text-[10px] font-bold mt-0.5 opacity-90">{riskToneLabel(gpaTone)}</p>
                   </div>
-                  <div className={`signal-tile ${signalToneClass(attendanceTone)}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Attendance</p>
-                    <p className="mt-1 text-base font-semibold leading-tight">{student.attendance}%</p>
-                    <p className="text-[11px] opacity-90">{riskToneLabel(attendanceTone)}</p>
+                  <div className={`p-3 rounded-xl border shadow-sm transition-colors ${signalToneClass(attendanceTone)}`}>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest opacity-70">Attend</p>
+                    <p className="mt-1 text-xl font-extrabold tracking-tight">{student.attendance}%</p>
+                    <p className="text-[10px] font-bold mt-0.5 opacity-90">{riskToneLabel(attendanceTone)}</p>
                   </div>
-                  <div className={`signal-tile ${signalToneClass(readingTone)}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Reading</p>
-                    <p className="mt-1 text-base font-semibold leading-tight">{student.readingLevel}</p>
-                    <p className="text-[11px] opacity-90">{readingRisk.label}</p>
+                  <div className={`p-3 rounded-xl border shadow-sm transition-colors ${signalToneClass(readingTone)}`}>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest opacity-70">Read</p>
+                    <p className="mt-1 text-xl font-extrabold tracking-tight">{student.readingLevel}</p>
+                    <p className="text-[10px] font-bold mt-0.5 opacity-90 truncate" title={readingRisk.label}>{readingRisk.label}</p>
                   </div>
                 </div>
 
-                <div className="mt-4 border-t border-slate-100 pt-3">
+                <div className="mt-5 border-t border-slate-100/80 pt-4 relative z-10">
                   {isAttendanceMode ? (
                     <div className="grid grid-cols-3 gap-2">
-                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Present"); }}>Present</Button>
-                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Late"); }}>Late</Button>
-                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Absent"); }}>Absent</Button>
+                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Present"); }} className="rounded-xl shadow-sm font-bold">Present</Button>
+                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Late"); }} className="rounded-xl shadow-sm font-bold">Late</Button>
+                      <Button size="sm" variant="secondary" onClick={(event) => { event.stopPropagation(); markAttendance(student.id, "Absent"); }} className="rounded-xl shadow-sm font-bold">Absent</Button>
                     </div>
                   ) : (
-                    <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
-                      {isMasterScope ? <Button size="sm" variant="secondary" onClick={() => startEditStudent(student)} className="flex-1 gap-1"><Pencil size={12} /> Edit</Button> : null}
-                      <Button size="sm" variant="secondary" onClick={() => openReferral(student.id)} className="flex-1 gap-1"><ShieldAlert size={12} /> Create referral</Button>
+                    <div className="flex gap-3" onClick={(event) => event.stopPropagation()}>
+                      {isMasterScope ? <Button size="sm" variant="secondary" onClick={() => startEditStudent(student)} className="flex-1 gap-1.5 rounded-xl shadow-sm hover:shadow transition-all"><Pencil size={14} strokeWidth={2.5} /> Edit</Button> : null}
+                      <Button size="sm" variant="secondary" onClick={() => openReferral(student.id)} className="flex-1 gap-1.5 rounded-xl shadow-sm hover:shadow transition-all text-rose-700 hover:text-rose-800 hover:border-rose-200"><ShieldAlert size={14} strokeWidth={2.5} /> Referral</Button>
                     </div>
                   )}
                 </div>
@@ -1635,23 +1660,23 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
       ) : null}
 
       {!studentsApi.studentsQuery.isLoading && filteredStudents.length > 0 && viewMode === "list" ? (
-        <section className="app-card overflow-hidden rounded-xl">
-          <div className="overflow-x-auto">
+        <section className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md shadow-sm overflow-hidden mb-6">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="min-w-[840px] w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-slate-50/80 text-[11px] font-extrabold uppercase tracking-widest text-slate-500 border-b border-slate-200/60">
                 <tr>
-                  {isBulkMode ? <th className="px-3 py-3">Sel</th> : null}
-                  <th className="px-4 py-3"><button type="button" onClick={() => setSortBy("name")} className="flex items-center gap-1">Student {sortIcon("name")}</button></th>
-                  <th className="px-3 py-3">Teacher</th>
-                  <th className="px-3 py-3"><button type="button" onClick={() => setSortBy("tier")} className="flex items-center gap-1">Tier {sortIcon("tier")}</button></th>
-                  <th className="px-3 py-3 text-center"><button type="button" onClick={() => setSortBy("gpa")} className="mx-auto flex items-center gap-1">GPA {sortIcon("gpa")}</button></th>
-                  <th className="px-3 py-3"><button type="button" onClick={() => setSortBy("attendance")} className="flex items-center gap-1">Attendance {sortIcon("attendance")}</button></th>
-                  <th className="px-3 py-3 text-center"><button type="button" onClick={() => setSortBy("reading")} className="mx-auto flex items-center gap-1">Reading {sortIcon("reading")}</button></th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3 text-right">Actions</th>
+                  {isBulkMode ? <th className="px-5 py-4 w-12">Sel</th> : null}
+                  <th className="px-5 py-4"><button type="button" onClick={() => setSortBy("name")} className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors">Student {sortIcon("name")}</button></th>
+                  <th className="px-5 py-4">Teacher</th>
+                  <th className="px-5 py-4"><button type="button" onClick={() => setSortBy("tier")} className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors">Tier {sortIcon("tier")}</button></th>
+                  <th className="px-5 py-4 text-center"><button type="button" onClick={() => setSortBy("gpa")} className="mx-auto flex items-center gap-1.5 hover:text-indigo-600 transition-colors">GPA {sortIcon("gpa")}</button></th>
+                  <th className="px-5 py-4"><button type="button" onClick={() => setSortBy("attendance")} className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors">Attendance {sortIcon("attendance")}</button></th>
+                  <th className="px-5 py-4 text-center"><button type="button" onClick={() => setSortBy("reading")} className="mx-auto flex items-center gap-1.5 hover:text-indigo-600 transition-colors">Reading {sortIcon("reading")}</button></th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/80">
                 {filteredStudents.map((student) => {
                   const selected = selectedIds.has(student.id);
                   const tierTone = getTierTone(student.tier);
@@ -1676,55 +1701,55 @@ export const StudentRosterView: React.FC<StudentRosterViewProps> = ({
                   return (
                     <tr
                       key={student.id}
-                      className={`${selected ? "bg-brand-50/50" : ""} ${isRowInteractive ? "student-row-clickable" : ""}`}
+                      className={`${selected ? "bg-indigo-50/50" : "hover:bg-slate-50/50"} transition-colors ${isRowInteractive ? "cursor-pointer group" : ""}`}
                       role={isRowInteractive ? "button" : undefined}
                       tabIndex={isRowInteractive ? 0 : undefined}
                       onClick={isRowInteractive ? handleRowActivate : undefined}
                       onKeyDown={isRowInteractive ? (event) => activateWithKeyboard(event, handleRowActivate) : undefined}
                     >
                       {isBulkMode ? (
-                        <td className="px-3 py-3">
+                        <td className="px-5 py-4">
                           <input
                             type="checkbox"
                             checked={selected}
                             onClick={(event) => event.stopPropagation()}
                             onChange={() => selectStudent(student.id)}
                             aria-label={`Select ${student.name}`}
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
                           />
                         </td>
                       ) : null}
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-800">{student.name}</p>
-                        <p className="text-xs text-slate-500">{student.id}</p>
+                      <td className="px-5 py-4">
+                        <p className="font-extrabold text-slate-800 tracking-tight group-hover:text-indigo-700 transition-colors">{student.name}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{student.id}</p>
                         {canOpenDetails ? (
-                          <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700">
+                          <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-widest text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
                             View details
-                            <ChevronRight size={12} />
+                            <ChevronRight size={14} strokeWidth={2.5} />
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-3 py-3 text-slate-600">{student.teacherName}</td>
-                      <td className="px-3 py-3"><span className={`signal-pill ${signalToneClass(tierTone)}`}>{student.tier}</span></td>
-                      <td className="px-3 py-3 text-center"><span className={`signal-inline ${signalToneClass(gpaTone)}`}>{student.gpa}</span></td>
-                      <td className="px-3 py-3"><span className={`signal-inline ${signalToneClass(attendanceTone)}`}>{student.attendance}%</span></td>
-                      <td className="px-3 py-3 text-center">
-                        <span className={`signal-inline ${signalToneClass(readingTone)}`} title={readingRisk.label}>
+                      <td className="px-5 py-4 text-slate-600 font-semibold">{student.teacherName}</td>
+                      <td className="px-5 py-4"><span className={`px-2.5 py-1 rounded-md border shadow-sm text-[10px] font-extrabold uppercase tracking-widest ${signalToneClass(tierTone)}`}>{student.tier}</span></td>
+                      <td className="px-5 py-4 text-center"><span className={`px-2.5 py-1 rounded-md border shadow-sm text-xs font-extrabold ${signalToneClass(gpaTone)}`}>{student.gpa}</span></td>
+                      <td className="px-5 py-4"><span className={`px-2.5 py-1 rounded-md border shadow-sm text-xs font-extrabold ${signalToneClass(attendanceTone)}`}>{student.attendance}%</span></td>
+                      <td className="px-5 py-4 text-center">
+                        <span className={`px-2.5 py-1 rounded-md border shadow-sm text-xs font-extrabold ${signalToneClass(readingTone)}`} title={readingRisk.label}>
                           {student.readingLevel}
                         </span>
                       </td>
-                      <td className="px-3 py-3"><span className="signal-pill signal-neutral">{statusLabel(student.status)}</span></td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-5 py-4"><span className="px-2.5 py-1 rounded-md border border-slate-200/80 bg-slate-50 text-slate-600 shadow-sm text-[10px] font-extrabold uppercase tracking-widest">{statusLabel(student.status)}</span></td>
+                      <td className="px-5 py-4 text-right">
                         {isAttendanceMode ? (
-                          <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-                            <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Present")} aria-label={`Mark ${student.name} present`}><CheckCircle2 size={14} /></Button>
-                            <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Late")} aria-label={`Mark ${student.name} late`}><Clock size={14} /></Button>
-                            <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Absent")} aria-label={`Mark ${student.name} absent`}><XCircle size={14} /></Button>
+                          <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+                            <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Present")} aria-label={`Mark ${student.name} present`} className="rounded-lg shadow-sm font-bold"><CheckCircle2 size={16} strokeWidth={2.5} /></Button>
+                            <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Late")} aria-label={`Mark ${student.name} late`} className="rounded-lg shadow-sm font-bold"><Clock size={16} strokeWidth={2.5} /></Button>
+                            <Button size="icon-sm" variant="secondary" onClick={() => markAttendance(student.id, "Absent")} aria-label={`Mark ${student.name} absent`} className="rounded-lg shadow-sm font-bold"><XCircle size={16} strokeWidth={2.5} /></Button>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-                            {canOpenDetails ? <span className="student-open-cue hidden sm:inline-flex">View details <ChevronRight size={13} /></span> : null}
-                            {isMasterScope ? <Button size="icon-sm" variant="ghost" onClick={() => startEditStudent(student)}><Pencil size={14} /></Button> : null}
-                            <Button size="icon-sm" variant="ghost" onClick={() => openReferral(student.id)}><ShieldAlert size={14} /></Button>
+                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(event) => event.stopPropagation()}>
+                            {isMasterScope ? <Button size="icon-sm" variant="ghost" onClick={() => startEditStudent(student)} className="rounded-lg hover:bg-slate-100 transition-colors"><Pencil size={18} strokeWidth={2.5} /></Button> : null}
+                            <Button size="icon-sm" variant="ghost" onClick={() => openReferral(student.id)} className="rounded-lg hover:bg-rose-50 hover:text-rose-600 transition-colors text-slate-400"><ShieldAlert size={18} strokeWidth={2.5} /></Button>
                           </div>
                         )}
                       </td>

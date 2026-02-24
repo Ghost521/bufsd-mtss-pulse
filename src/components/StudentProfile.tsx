@@ -1030,39 +1030,39 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         }}
       />
 
-      <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-64 bg-gradient-to-l from-slate-50 to-transparent" />
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-96 bg-gradient-to-l from-indigo-50/50 to-transparent" />
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4 md:gap-6">
             <SidebarToggleButton
               onClick={onMenuClick}
-              className="lg:hidden -mr-2 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
+              className="lg:hidden -mr-2 rounded-xl p-2.5 text-slate-500 transition-colors hover:bg-slate-100"
               iconSize={20}
             />
             <button
               onClick={handleBackClick}
-              className="-ml-2 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="-ml-2 rounded-xl p-2.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
               aria-label="Back to previous page"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={20} strokeWidth={2.5} />
             </button>
 
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-6">
               <div className="group/avatar relative">
-                <div className="relative h-16 w-16 overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-md ring-1 ring-slate-100 transition-all duration-300 group-hover/avatar:ring-indigo-200">
-                  <img src={resolvedAvatar} alt={currentStudent.name} className="h-full w-full object-cover" />
+                <div className="relative h-20 w-20 overflow-hidden rounded-[2rem] border-4 border-white bg-slate-100 shadow-md ring-1 ring-slate-200/50 transition-all duration-300 group-hover/avatar:ring-indigo-300 group-hover/avatar:shadow-lg">
+                  <img src={resolvedAvatar} alt={currentStudent.name} className="h-full w-full object-cover transition-transform duration-500 group-hover/avatar:scale-105" />
                 </div>
                 <button
                   type="button"
                   onClick={() => isEditing && avatarInputRef.current?.click()}
                   aria-label="Upload profile photo"
                   disabled={!isEditing}
-                  className="absolute inset-0 z-20 flex items-center justify-center rounded-full border-4 border-transparent bg-slate-900/40 opacity-0 transition-opacity group-hover/avatar:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
+                  className="absolute inset-0 z-20 flex items-center justify-center rounded-[2rem] border-4 border-transparent bg-slate-900/50 opacity-0 backdrop-blur-sm transition-opacity group-hover/avatar:opacity-100 disabled:cursor-not-allowed disabled:opacity-0"
                 >
-                  <Camera size={20} className="text-white" />
+                  <Camera size={24} className="text-white" />
                 </button>
                 <div
-                  className={`pointer-events-none absolute -bottom-1 -right-1 z-30 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm ${
+                  className={`pointer-events-none absolute -bottom-2 -right-2 z-30 flex h-8 w-8 items-center justify-center rounded-xl border-[3px] border-white text-[11px] font-extrabold text-white shadow-sm transition-transform group-hover/avatar:scale-110 ${
                     currentStudent.tier === 'Tier 1'
                       ? 'bg-emerald-500'
                       : currentStudent.tier === 'Tier 2'
@@ -1075,33 +1075,33 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               </div>
 
               <div>
-                <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900">
+                <h1 className="flex items-center gap-3 text-3xl font-extrabold tracking-tight text-slate-800">
                   {currentStudent.name}
                   {isEditing && draftStudent ? (
                     <select
                       value={draftStudent.tier}
                       onChange={(event) => setDraftStudent({ ...draftStudent, tier: event.target.value as Tier })}
-                      className="rounded border border-indigo-300 bg-white px-2 py-0.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="rounded-lg border border-indigo-300 bg-white px-3 py-1 text-sm font-extrabold outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-sm"
                     >
                       <option value="Tier 1">Tier 1</option>
                       <option value="Tier 2">Tier 2</option>
                       <option value="Tier 3">Tier 3</option>
                     </select>
                   ) : (
-                    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${getTierColor(currentStudent.tier)}`}>
+                    <span className={`rounded-lg border px-3 py-1 text-xs font-extrabold uppercase tracking-widest shadow-sm ${getTierColor(currentStudent.tier)}`}>
                       {currentStudent.tier}
                     </span>
                   )}
                 </h1>
-                <div className="mt-1.5 flex items-center gap-3 text-sm font-medium text-slate-500">
-                  <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                <div className="mt-2.5 flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-500">
+                  <span className="rounded-lg border border-slate-200/80 bg-slate-100/80 px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-600 shadow-sm">
                     ID: {currentStudent.id}
                   </span>
                   <span className="text-slate-300">&middot;</span>
-                  <span>{currentStudent.grade}</span>
+                  <span className="text-[13px] font-bold uppercase tracking-widest">{currentStudent.grade}</span>
                   <span className="text-slate-300">&middot;</span>
-                  <span className="flex items-center gap-1.5 text-emerald-600">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                  <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100/50 shadow-sm text-[11px] font-extrabold uppercase tracking-widest">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500 shadow-sm" />
                     Enrolled
                   </span>
                 </div>
@@ -1114,40 +1114,40 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               <>
                 <button
                   onClick={handleSaveEdit}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5"
                 >
-                  <Save size={16} />
+                  <Save size={16} strokeWidth={2.5} />
                   Save Changes
                 </button>
                 <button
                   onClick={handleCancelEdit}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 shadow-sm hover:shadow"
                 >
-                  <X size={16} />
+                  <X size={16} strokeWidth={2.5} />
                   Cancel
                 </button>
               </>
             ) : (
               <button
                 onClick={handleStartEdit}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:shadow"
               >
-                <FileText size={16} />
+                <FileText size={16} strokeWidth={2.5} />
                 Edit Profile
               </button>
             )}
             <button
               onClick={onMessageClick}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/80 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:shadow"
             >
-              <Mail size={16} />
+              <Mail size={16} strokeWidth={2.5} />
               Message Parents
             </button>
             <button
               onClick={() => setIsReferralModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition-colors hover:bg-rose-100"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200/80 bg-rose-50/80 px-5 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:bg-rose-100 hover:border-rose-300"
             >
-              <ShieldAlert size={16} />
+              <ShieldAlert size={16} strokeWidth={2.5} />
               New Referral
             </button>
           </div>
@@ -1155,86 +1155,86 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       </div>
 
       {showSummary && (
-        <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 p-1 shadow-md">
-          <div className="relative overflow-hidden rounded-[10px] bg-white/95 p-5 backdrop-blur-sm md:p-6">
-            <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-5">
-              <Sparkles size={120} />
+        <div className="rounded-3xl bg-gradient-to-r from-indigo-500/20 to-violet-500/20 p-1.5 shadow-sm backdrop-blur-md transition-all">
+          <div className="relative overflow-hidden rounded-2xl bg-white/95 p-6 backdrop-blur-md md:p-8 shadow-inner">
+            <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-[0.03]">
+              <Sparkles size={160} />
             </div>
-            <div className="relative z-10 space-y-4">
-              <div className="flex items-start justify-between gap-3">
+            <div className="relative z-10 space-y-5">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="flex items-center gap-2 text-lg font-bold text-indigo-900">
-                    <span className="rounded-lg bg-indigo-100 p-1.5">
-                      <BrainCircuit size={18} className="text-indigo-600" />
+                  <h2 className="flex items-center gap-2.5 text-xl font-extrabold text-indigo-900 tracking-tight">
+                    <span className="rounded-xl bg-indigo-100/80 p-2 shadow-sm border border-indigo-200/50">
+                      <BrainCircuit size={20} className="text-indigo-600" strokeWidth={2.5} />
                     </span>
                     {currentStudent.name}&apos;s AI Profile Summary
                   </h2>
-                  <p className="mt-1 text-xs font-medium text-slate-500">
+                  <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-400">
                     Last updated: {toLocalTimestamp(summaryUpdatedAt)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsSummaryExpanded((current) => !current)}
-                    className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 md:hidden"
+                    className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 md:hidden shadow-sm"
                   >
                     {isSummaryExpanded ? 'Hide' : 'Show'}
                   </button>
                   <button
                     onClick={() => setShowSummary(false)}
-                    className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                    className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
                     aria-label="Dismiss AI summary"
                   >
-                    <X size={16} />
+                    <X size={18} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
 
               <div className={`${isSummaryExpanded ? 'block' : 'hidden'} md:block`}>
                 {summaryError ? (
-                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                    <div className="flex items-center gap-2 font-semibold">
-                      <AlertTriangle size={16} />
+                  <div className="rounded-xl border border-rose-200/80 bg-rose-50/80 p-4 text-sm font-semibold text-rose-800 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={18} className="text-rose-600" />
                       {summaryError}
                     </div>
                     <button
                       onClick={retrySummary}
-                      className="mt-2 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                      className="mt-3 rounded-lg border border-rose-300/80 bg-white px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 shadow-sm transition-all"
                     >
                       Retry Summary
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-emerald-700">Key Strengths</p>
-                        <ul className="space-y-1 text-sm text-emerald-900">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/80 p-5 shadow-sm hover:shadow-md transition-shadow hover:border-emerald-300/50">
+                        <p className="mb-3 text-[11px] font-extrabold uppercase tracking-widest text-emerald-800 flex items-center gap-1.5"><CheckCircle2 size={14} className="text-emerald-600" /> Key Strengths</p>
+                        <ul className="space-y-2 text-sm font-medium text-emerald-900 leading-relaxed">
                           {summarySections.strengths.map((item, index) => (
-                            <li key={`strength-${index}`} className="flex gap-2">
-                              <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+                            <li key={`strength-${index}`} className="flex gap-2.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2 shrink-0" />
                               <span>{item}</span>
                             </li>
                           ))}
                         </ul>
                       </div>
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-700">Risk Signals</p>
-                        <ul className="space-y-1 text-sm text-amber-900">
+                      <div className="rounded-2xl border border-amber-200/60 bg-amber-50/80 p-5 shadow-sm hover:shadow-md transition-shadow hover:border-amber-300/50">
+                        <p className="mb-3 text-[11px] font-extrabold uppercase tracking-widest text-amber-800 flex items-center gap-1.5"><AlertTriangle size={14} className="text-amber-600" /> Risk Signals</p>
+                        <ul className="space-y-2 text-sm font-medium text-amber-900 leading-relaxed">
                           {summarySections.risks.map((item, index) => (
-                            <li key={`risk-${index}`} className="flex gap-2">
-                              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                            <li key={`risk-${index}`} className="flex gap-2.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 shrink-0" />
                               <span>{item}</span>
                             </li>
                           ))}
                         </ul>
                       </div>
-                      <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">Recommended Actions</p>
-                        <ul className="space-y-1 text-sm text-indigo-900">
+                      <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/80 p-5 shadow-sm hover:shadow-md transition-shadow hover:border-indigo-300/50">
+                        <p className="mb-3 text-[11px] font-extrabold uppercase tracking-widest text-indigo-800 flex items-center gap-1.5"><BrainCircuit size={14} className="text-indigo-600" /> Recommended Actions</p>
+                        <ul className="space-y-2 text-sm font-medium text-indigo-900 leading-relaxed">
                           {summarySections.actions.map((item, index) => (
-                            <li key={`action-${index}`} className="flex gap-2">
-                              <BrainCircuit size={14} className="mt-0.5 shrink-0 text-indigo-600" />
+                            <li key={`action-${index}`} className="flex gap-2.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
                               <span>{item}</span>
                             </li>
                           ))}
@@ -1243,17 +1243,18 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                     </div>
 
                     {isLoadingSummary && !cleanedSummary ? (
-                      <div className="mt-4 max-w-3xl animate-pulse space-y-2">
-                        <div className="h-4 w-3/4 rounded bg-indigo-50" />
-                        <div className="h-4 w-full rounded bg-indigo-50" />
-                        <div className="h-4 w-5/6 rounded bg-indigo-50" />
+                      <div className="mt-5 max-w-3xl animate-pulse space-y-3">
+                        <div className="h-5 w-3/4 rounded-lg bg-indigo-100/50" />
+                        <div className="h-5 w-full rounded-lg bg-indigo-100/50" />
+                        <div className="h-5 w-5/6 rounded-lg bg-indigo-100/50" />
                       </div>
                     ) : cleanedSummary ? (
-                      <details className="mt-4 rounded-lg border border-slate-200 bg-white">
-                        <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">
+                      <details className="mt-6 rounded-2xl border border-slate-200/60 bg-white/50 backdrop-blur-sm shadow-sm group">
+                        <summary className="cursor-pointer px-5 py-4 text-sm font-extrabold text-slate-700 tracking-tight flex items-center justify-between">
                           Full Narrative Summary
+                          <span className="text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100 text-[10px] uppercase tracking-widest group-open:hidden">Read More</span>
                         </summary>
-                        <div className="border-t border-slate-100 px-3 py-3">
+                        <div className="border-t border-slate-200/60 px-5 py-5 text-sm font-medium leading-relaxed">
                           <RichTextRenderer content={cleanedSummary} variant="dark" isTyping={isLoadingSummary} />
                         </div>
                       </details>
@@ -1269,14 +1270,14 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
       {!showSummary && (
         <button
           onClick={() => setShowSummary(true)}
-          className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+          className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 backdrop-blur-sm px-4 py-2.5 text-sm font-bold text-indigo-700 hover:bg-indigo-100 shadow-sm transition-all"
         >
-          Show AI Summary
+          <Sparkles size={16} className="inline mr-2" /> Show AI Summary
         </button>
       )}
 
-      <div className="border-b border-slate-200">
-        <div role="tablist" aria-label="Student profile sections" className="flex gap-2 overflow-x-auto pb-1">
+      <div className="border-b border-slate-200/60">
+        <div role="tablist" aria-label="Student profile sections" className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide px-2">
           {profileTabs.map((tab) => {
             const selected = activeTab === tab.id;
             return (
@@ -1289,12 +1290,12 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                 aria-controls={`student-profile-panel-${tab.id}`}
                 onClick={() => handleTabChange(tab.id)}
                 onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
-                className={`relative whitespace-nowrap rounded-t-lg px-3 pb-3 pt-2 text-sm font-bold transition-colors ${
-                  selected ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
+                className={`relative whitespace-nowrap rounded-t-xl px-4 pb-4 pt-3 text-sm font-extrabold transition-all ${
+                  selected ? 'text-indigo-700 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                 }`}
               >
                 {tab.label}
-                {selected && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full bg-indigo-600" />}
+                {selected && <span className="absolute bottom-0 left-0 right-0 h-1 rounded-t-full bg-indigo-600 shadow-[0_-2px_8px_rgba(79,70,229,0.5)]" />}
               </button>
             );
           })}
@@ -1308,34 +1309,34 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         aria-labelledby="student-profile-tab-overview"
         className="space-y-6"
       >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="rounded-md bg-indigo-50 p-1.5 text-indigo-600">
-                <Clock size={16} />
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-all group md:flex-row md:items-center md:justify-between hover:border-indigo-200/50">
+            <div className="flex items-center gap-3 text-slate-500">
+              <span className="rounded-xl bg-indigo-50/80 p-2.5 text-indigo-600 shadow-sm border border-indigo-100/50 group-hover:scale-110 transition-transform">
+                <Clock size={20} strokeWidth={2.5} />
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider">Attendance</span>
+              <span className="text-xs font-extrabold uppercase tracking-widest">Attendance</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-bold ${currentStudent.attendance < 90 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              <span className={`text-3xl font-extrabold tracking-tight ${currentStudent.attendance < 90 ? 'text-rose-600' : 'text-emerald-600'}`}>
                 {currentStudent.attendance}%
               </span>
-              <span className="text-xs font-medium uppercase text-slate-400">YTD</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">YTD</span>
             </div>
           </div>
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="rounded-md bg-blue-50 p-1.5 text-blue-600">
-                <BookOpen size={16} />
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-all group md:flex-row md:items-center md:justify-between hover:border-blue-200/50">
+            <div className="flex items-center gap-3 text-slate-500">
+              <span className="rounded-xl bg-blue-50/80 p-2.5 text-blue-600 shadow-sm border border-blue-100/50 group-hover:scale-110 transition-transform">
+                <BookOpen size={20} strokeWidth={2.5} />
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider">Reading Level</span>
+              <span className="text-xs font-extrabold uppercase tracking-widest">Reading Level</span>
             </div>
             <div className="flex items-baseline gap-2">
               {isEditing && draftStudent ? (
                 <select
                   value={draftStudent.readingLevel}
                   onChange={(event) => setDraftStudent({ ...draftStudent, readingLevel: event.target.value })}
-                  className="cursor-pointer border-b-2 border-indigo-200 bg-transparent text-xl font-bold text-slate-800 outline-none focus:border-indigo-500"
+                  className="cursor-pointer border-b-2 border-indigo-300 bg-white/50 px-2 py-1 rounded-t-md text-2xl font-extrabold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
                 >
                   {READING_LEVELS.map((level) => (
                     <option key={level} value={level}>
@@ -1344,57 +1345,60 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                   ))}
                 </select>
               ) : (
-                <span className="text-2xl font-bold text-slate-800">{currentStudent.readingLevel}</span>
+                <span className="text-3xl font-extrabold tracking-tight text-slate-800">{currentStudent.readingLevel}</span>
               )}
-              <span className="text-xs font-medium uppercase text-slate-400">F&P</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">F&P</span>
             </div>
           </div>
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="rounded-md bg-violet-50 p-1.5 text-violet-600">
-                <Activity size={16} />
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-all group md:flex-row md:items-center md:justify-between hover:border-violet-200/50">
+            <div className="flex items-center gap-3 text-slate-500">
+              <span className="rounded-xl bg-violet-50/80 p-2.5 text-violet-600 shadow-sm border border-violet-100/50 group-hover:scale-110 transition-transform">
+                <Activity size={20} strokeWidth={2.5} />
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider">GPA</span>
+              <span className="text-xs font-extrabold uppercase tracking-widest">GPA</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-800">{currentStudent.gpa}</span>
-              <span className="text-xs font-medium uppercase text-slate-400">Scale 4.0</span>
+              <span className="text-3xl font-extrabold tracking-tight text-slate-800">{currentStudent.gpa}</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Scale 4.0</span>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <ClipboardList className="text-indigo-600" size={20} />
-            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">Student Snapshot</h3>
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm relative overflow-hidden">
+          <div className="absolute -left-12 -top-12 w-48 h-48 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="mb-6 flex items-center gap-3 relative z-10">
+            <div className="p-2.5 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50">
+              <ClipboardList className="text-indigo-600" size={24} strokeWidth={2.5} />
+            </div>
+            <h3 className="text-lg font-extrabold uppercase tracking-widest text-slate-800">Student Snapshot</h3>
           </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-              <h4 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase text-slate-700">
-                <FileBadge size={14} />
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 relative z-10">
+            <div className="rounded-2xl border border-slate-200/60 bg-white/90 p-6 shadow-sm hover:shadow-md transition-shadow group">
+              <h4 className="mb-4 flex items-center gap-2.5 text-xs font-extrabold uppercase tracking-widest text-slate-700">
+                <FileBadge size={16} className="text-slate-400 group-hover:text-indigo-500 transition-colors" strokeWidth={2.5} />
                 Support Profile
               </h4>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm font-medium">
                   <span className="text-slate-500">Plan Type</span>
-                  <span className={`font-bold ${currentStudent.support.planType !== 'None' ? 'text-indigo-600' : 'text-slate-700'}`}>
+                  <span className={`px-2.5 py-1 rounded-lg border font-extrabold shadow-sm ${currentStudent.support.planType !== 'None' ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80' : 'bg-slate-50 text-slate-600 border-slate-200/80'}`}>
                     {currentStudent.support.planType}
                   </span>
                 </div>
                 {currentStudent.support.primaryDisability && (
-                  <div className="text-sm">
-                    <span className="mb-1 block text-slate-500">Primary Disability</span>
-                    <span className="block font-medium leading-snug text-slate-800">{currentStudent.support.primaryDisability}</span>
+                  <div className="text-sm bg-slate-50/80 p-3 rounded-xl border border-slate-100/80">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-widest text-slate-400">Primary Disability</span>
+                    <span className="block font-bold leading-snug text-slate-800">{currentStudent.support.primaryDisability}</span>
                   </div>
                 )}
                 {currentStudent.support.accommodations.length > 0 && (
                   <div>
-                    <span className="mb-1 block text-xs text-slate-500">Accommodations</span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <span className="mb-2 block text-[11px] font-bold uppercase tracking-widest text-slate-400">Accommodations</span>
+                    <div className="flex flex-wrap gap-2">
                       {currentStudent.support.accommodations.map((accommodation, index) => (
                         <span
                           key={`${accommodation}-${index}`}
-                          className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600"
+                          className="rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 shadow-sm"
                         >
                           {accommodation}
                         </span>
@@ -1404,53 +1408,55 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                 )}
               </div>
             </div>
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-              <h4 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase text-slate-700">
-                <Stethoscope size={14} />
+            <div className="rounded-2xl border border-slate-200/60 bg-white/90 p-6 shadow-sm hover:shadow-md transition-shadow group">
+              <h4 className="mb-4 flex items-center gap-2.5 text-xs font-extrabold uppercase tracking-widest text-slate-700">
+                <Stethoscope size={16} className="text-slate-400 group-hover:text-indigo-500 transition-colors" strokeWidth={2.5} />
                 Health and Safety
               </h4>
-              <div className="space-y-3">
+              <div className="space-y-5">
                 <div>
-                  <span className="mb-1 block text-xs text-slate-500">Allergies / Medications</span>
+                  <span className="mb-2 block text-[11px] font-bold uppercase tracking-widest text-slate-400">Allergies / Medications</span>
                   {currentStudent.medical.allergies.length === 0 && currentStudent.medical.medications.length === 0 ? (
-                    <span className="text-sm italic text-slate-400">None reported</span>
+                    <span className="text-sm italic font-medium text-slate-400 bg-slate-50/80 p-3 rounded-xl border border-slate-100/80 block w-full">None reported</span>
                   ) : (
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {currentStudent.medical.allergies.map((allergy) => (
                         <span
                           key={allergy}
-                          className="inline-flex items-center gap-1 rounded border border-rose-200 bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200/80 bg-rose-50 px-2.5 py-1.5 text-xs font-extrabold text-rose-700 shadow-sm"
                         >
-                          <ShieldAlert size={10} />
+                          <ShieldAlert size={12} strokeWidth={2.5} />
                           {allergy}
                         </span>
                       ))}
                       {currentStudent.medical.medications.map((medication) => (
                         <span
                           key={medication}
-                          className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50 px-2.5 py-1.5 text-xs font-extrabold text-amber-700 shadow-sm"
                         >
-                          <Pill size={10} />
+                          <Pill size={12} strokeWidth={2.5} />
                           {medication}
                         </span>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-4 pt-1">
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="flex items-center gap-3 text-sm font-bold text-slate-600 bg-slate-50/80 p-3 rounded-xl border border-slate-100/80">
                     <Eye
-                      size={14}
+                      size={18}
                       className={currentStudent.medical.visionScreening.status === 'Corrected' ? 'text-indigo-500' : 'text-slate-400'}
+                      strokeWidth={2.5}
                     />
-                    <span>Vis: {currentStudent.medical.visionScreening.status}</span>
+                    <span className="tracking-tight">Vis: {currentStudent.medical.visionScreening.status}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <div className="flex items-center gap-3 text-sm font-bold text-slate-600 bg-slate-50/80 p-3 rounded-xl border border-slate-100/80">
                     <Ear
-                      size={14}
+                      size={18}
                       className={currentStudent.medical.hearingScreening.status !== 'Pass' ? 'text-rose-500' : 'text-slate-400'}
+                      strokeWidth={2.5}
                     />
-                    <span>Hear: {currentStudent.medical.hearingScreening.status}</span>
+                    <span className="tracking-tight">Hear: {currentStudent.medical.hearingScreening.status}</span>
                   </div>
                 </div>
               </div>
@@ -1467,45 +1473,45 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         aria-labelledby="student-profile-tab-reading"
         className="space-y-6"
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Current F&amp;P</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{normalizeFpLevel(currentStudent.readingLevel) ?? currentStudent.readingLevel}</p>
-            <p className="mt-1 text-xs text-slate-500">{currentReadingSummary?.stage ?? 'Not mapped to stage yet'}</p>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Current F&amp;P</p>
+            <p className="mt-2 text-4xl font-extrabold tracking-tight text-slate-800">{normalizeFpLevel(currentStudent.readingLevel) ?? currentStudent.readingLevel}</p>
+            <p className="mt-1.5 text-xs font-semibold text-slate-500">{currentReadingSummary?.stage ?? 'Not mapped to stage yet'}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Lexile Range</p>
-            <p className="mt-1 text-xl font-bold text-indigo-700">{currentReadingSummary?.lexileLabel ?? 'No mapping'}</p>
-            <p className="mt-1 text-xs text-slate-500">ATOS {currentReadingSummary?.atosLabel ?? 'N/A'}</p>
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Lexile Range</p>
+            <p className="mt-2 text-2xl font-extrabold tracking-tight text-indigo-700">{currentReadingSummary?.lexileLabel ?? 'No mapping'}</p>
+            <p className="mt-1.5 text-xs font-semibold text-slate-500">ATOS {currentReadingSummary?.atosLabel ?? 'N/A'}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Grade Target Band</p>
-            <p className="mt-1 text-xl font-bold text-emerald-700">
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Grade Target Band</p>
+            <p className="mt-2 text-2xl font-extrabold tracking-tight text-emerald-700">
               {gradeTargetBand ? `${gradeTargetBand.min} - ${gradeTargetBand.max}` : 'No grade target'}
             </p>
-            <p className="mt-1 text-xs text-slate-500">{gradeTargetRange ? `Indexed ${gradeTargetRange.minIndex} - ${gradeTargetRange.maxIndex}` : 'Target unavailable for this grade'}</p>
+            <p className="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">{gradeTargetRange ? `Indexed ${gradeTargetRange.minIndex} - ${gradeTargetRange.maxIndex}` : 'Target unavailable for this grade'}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Growth Since First Assessment</p>
-            <p className={`mt-1 text-xl font-bold ${readingGrowthDelta === null ? 'text-slate-800' : readingGrowthDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-              {readingGrowthDelta === null ? 'Need 2+ assessments' : `${readingGrowthDelta >= 0 ? '+' : ''}${readingGrowthDelta} levels`}
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Growth Since First</p>
+            <p className={`mt-2 text-2xl font-extrabold tracking-tight ${readingGrowthDelta === null ? 'text-slate-800' : readingGrowthDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {readingGrowthDelta === null ? 'Need 2+' : `${readingGrowthDelta >= 0 ? '+' : ''}${readingGrowthDelta} levels`}
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               {latestReadingChartPoint ? `Latest: ${latestReadingChartPoint.fAndPLevel} on ${latestReadingChartPoint.dateLabel}` : 'No charted assessments yet'}
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm relative overflow-hidden">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 relative z-10">
             <div>
-              <h3 className="font-bold text-slate-800">Reading Trajectory vs Lexile Conversion Chart</h3>
-              <p className="text-sm text-slate-500">Tracks every saved assessment against all F&amp;P levels and reading stages from the 2017 Lexile conversion guide.</p>
+              <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">Reading Trajectory vs Lexile Conversion Chart</h3>
+              <p className="text-sm font-medium text-slate-500 mt-0.5">Tracks every saved assessment against all F&amp;P levels and reading stages from the 2017 Lexile conversion guide.</p>
             </div>
             <button
               type="button"
               onClick={handleStartReadingAssessmentCreate}
-              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm transition-all"
             >
               Add Assessment
             </button>
@@ -1669,13 +1675,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-bold text-slate-800">Assessment Timeline</h3>
-            <p className="mt-1 text-sm text-slate-500">Newest first. Edit or remove entries as needed.</p>
-            <div className="mt-4 space-y-2">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm relative overflow-hidden">
+            <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">Assessment Timeline</h3>
+            <p className="mt-1 text-sm font-medium text-slate-500">Newest first. Edit or remove entries as needed.</p>
+            <div className="mt-6 space-y-3 relative z-10">
               {sortedReadingAssessments.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                <div className="rounded-2xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 p-6 text-center text-sm font-medium text-slate-500">
                   No assessments recorded yet.
                 </div>
               ) : (
@@ -1684,29 +1690,29 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                   const summary = getLexileSummaryForFpLevel(normalizedLevel);
                   const stage = getStageForFpLevel(normalizedLevel) ?? 'Transitional';
                   return (
-                    <article key={assessment.id} className="rounded-lg border border-slate-200 p-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
+                    <article key={assessment.id} className="rounded-2xl border border-slate-200/60 bg-white/90 p-4 shadow-sm hover:shadow-md hover:border-indigo-200/50 transition-all">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {formatIsoDateLabel(assessment.date)} - Level {normalizedLevel}
+                          <p className="text-sm font-extrabold text-slate-800 tracking-tight">
+                            {formatIsoDateLabel(assessment.date)} <span className="mx-1 opacity-30">•</span> Level {normalizedLevel}
                           </p>
-                          <p className="text-xs text-slate-500">
-                            {stage} | Lexile {summary?.lexileLabel ?? 'N/A'} | ATOS {summary?.atosLabel ?? 'N/A'}
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-1">
+                            {stage} <span className="mx-1 opacity-30">•</span> Lexile {summary?.lexileLabel ?? 'N/A'} <span className="mx-1 opacity-30">•</span> ATOS {summary?.atosLabel ?? 'N/A'}
                           </p>
-                          {assessment.notes ? <p className="mt-1 text-sm text-slate-600">{assessment.notes}</p> : null}
+                          {assessment.notes ? <p className="mt-2 text-sm font-medium text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100/80">{assessment.notes}</p> : null}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleStartReadingAssessmentEdit(assessment)}
-                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                            className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-all"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteReadingAssessment(assessment.id)}
-                            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                            className="rounded-lg border border-rose-200/80 bg-rose-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-rose-700 hover:bg-rose-100 hover:text-rose-800 shadow-sm transition-all"
                           >
                             Remove
                           </button>
@@ -1719,26 +1725,26 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-bold text-slate-800">Lexile / F&amp;P Reference</h3>
-            <p className="mt-1 text-sm text-slate-500">Full level and stage mapping from the chart source used by this graph.</p>
-            <div className="mt-4 max-h-[420px] overflow-auto rounded-lg border border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200 text-xs">
-                <thead className="sticky top-0 bg-slate-50">
+          <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+            <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">Lexile / F&amp;P Reference</h3>
+            <p className="mt-1 text-sm font-medium text-slate-500">Full level and stage mapping from the chart source used by this graph.</p>
+            <div className="mt-6 max-h-[420px] overflow-auto rounded-2xl border border-slate-200/60 shadow-sm bg-white">
+              <table className="min-w-full divide-y divide-slate-100/80 text-sm">
+                <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">F&amp;P</th>
-                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">Stage</th>
-                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">Lexile</th>
-                    <th className="px-3 py-2 text-left font-bold uppercase tracking-wide text-slate-500">ATOS</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-slate-500">F&amp;P</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Stage</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Lexile</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-widest text-slate-500">ATOS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
+                <tbody className="divide-y divide-slate-100/80 bg-white">
                   {LEXILE_LEVEL_SUMMARIES.map((summary) => (
-                    <tr key={`reference-${summary.fpLevel}`}>
-                      <td className="px-3 py-2 font-semibold text-slate-800">{summary.fpLevel}</td>
-                      <td className="px-3 py-2 text-slate-600">{summary.stage}</td>
-                      <td className="px-3 py-2 text-slate-600">{summary.lexileLabel}</td>
-                      <td className="px-3 py-2 text-slate-600">{summary.atosLabel}</td>
+                    <tr key={`reference-${summary.fpLevel}`} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3 font-extrabold text-slate-800">{summary.fpLevel}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">{summary.stage}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">{summary.lexileLabel}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-600">{summary.atosLabel}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1756,37 +1762,37 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         aria-labelledby="student-profile-tab-interventions"
         className="space-y-6"
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Active Plans</p>
-            <p className="mt-2 text-3xl font-bold text-indigo-700">{activeInterventions.length}</p>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group hover:border-indigo-200/50">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Active Plans</p>
+            <p className="mt-2 text-4xl font-extrabold tracking-tight text-indigo-700">{activeInterventions.length}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Completed Plans</p>
-            <p className="mt-2 text-3xl font-bold text-emerald-700">{completedInterventions.length}</p>
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group hover:border-emerald-200/50">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Completed Plans</p>
+            <p className="mt-2 text-4xl font-extrabold tracking-tight text-emerald-700">{completedInterventions.length}</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Average Progress</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">{averageInterventionProgress}%</p>
+          <div className="rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-5 shadow-sm hover:shadow-md transition-shadow group hover:border-slate-300/60">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Average Progress</p>
+            <p className="mt-2 text-4xl font-extrabold tracking-tight text-slate-800">{averageInterventionProgress}%</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="font-bold text-slate-800">Intervention Plans</h3>
-              <p className="text-sm text-slate-500">Track baseline-to-goal progression and plan status.</p>
+              <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Intervention Plans</h3>
+              <p className="text-sm font-medium text-slate-500 mt-1">Track baseline-to-goal progression and plan status.</p>
             </div>
             <button
               onClick={() => setIsReferralModalOpen(true)}
-              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shadow-sm transition-all"
             >
               Create Intervention
             </button>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {interventions.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+              <div className="rounded-2xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 p-8 text-center text-sm font-medium text-slate-500">
                 No interventions are attached to this profile yet.
               </div>
             ) : (
@@ -1798,40 +1804,40 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                 return (
                   <article
                     key={intervention.id}
-                    className={`rounded-lg border p-4 transition-colors ${
-                      isSelected ? 'border-indigo-300 bg-indigo-50/30' : 'border-slate-200 bg-white'
+                    className={`rounded-2xl border p-5 transition-all duration-300 shadow-sm ${
+                      isSelected ? 'border-indigo-300/80 bg-indigo-50/30 shadow-md' : 'border-slate-200/60 bg-white hover:border-slate-300/80 hover:shadow-md'
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => handleSelectIntervention(intervention.id)}
-                      className="w-full text-left"
+                      className="w-full text-left outline-none"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <h4 className="font-semibold text-slate-900">{editableIntervention.name}</h4>
-                          <p className="text-xs text-slate-500">Started {editableIntervention.date}</p>
+                          <h4 className="text-lg font-extrabold tracking-tight text-slate-900 group-hover:text-indigo-700 transition-colors">{editableIntervention.name}</h4>
+                          <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Started {editableIntervention.date}</p>
                         </div>
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-bold ${
+                          className={`rounded-md border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest shadow-sm ${
                             editableIntervention.status.toLowerCase() === 'active'
-                              ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
-                              : 'border-slate-200 bg-slate-100 text-slate-600'
+                              ? 'border-emerald-200/80 bg-emerald-50 text-emerald-700'
+                              : 'border-slate-200/80 bg-slate-50 text-slate-600'
                           }`}
                         >
                           {editableIntervention.status}
                         </span>
                       </div>
-                      <div className="mt-3">
-                        <div className="mb-1 flex justify-between text-xs text-slate-500">
+                      <div className="mt-4">
+                        <div className="mb-2 flex justify-between text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                           <span>
-                            Baseline {editableIntervention.baselineScore} - Goal {editableIntervention.goalScore}
+                            Baseline {editableIntervention.baselineScore} <span className="opacity-30 mx-1">•</span> Goal {editableIntervention.goalScore}
                           </span>
-                          <span className="font-bold text-indigo-700">{editableIntervention.progress}%</span>
+                          <span className="text-indigo-700">{editableIntervention.progress}%</span>
                         </div>
-                        <div className="h-2 rounded-full bg-slate-100">
+                        <div className="h-2.5 rounded-full bg-slate-100/80 shadow-inner border border-slate-200/50 overflow-hidden">
                           <div
-                            className="h-2 rounded-full bg-indigo-500 transition-all"
+                            className="h-full rounded-full bg-indigo-500 transition-all duration-500"
                             style={{ width: `${Math.max(0, Math.min(100, editableIntervention.progress))}%` }}
                           />
                         </div>
@@ -1839,22 +1845,22 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                     </button>
 
                     {isSelected && (
-                      <div className="mt-4 space-y-4 border-t border-indigo-100 pt-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Intervention details</p>
+                      <div className="mt-6 space-y-6 border-t border-indigo-100/50 pt-6">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Intervention details</p>
                           {isInterventionEditing && interventionDraft?.id === intervention.id ? (
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={handleSaveInterventionEdit}
-                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                                className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm transition-all"
                               >
                                 Save Plan
                               </button>
                               <button
                                 type="button"
                                 onClick={handleCancelInterventionEdit}
-                                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                className="rounded-lg border border-slate-200/80 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
                               >
                                 Cancel
                               </button>
@@ -1863,7 +1869,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                             <button
                               type="button"
                               onClick={handleStartInterventionEdit}
-                              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              className="rounded-lg border border-slate-200/80 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
                             >
                               Edit Plan
                             </button>
@@ -1871,30 +1877,30 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                         </div>
 
                         {isInterventionEditing && interventionDraft?.id === intervention.id ? (
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                              <label className="text-xs font-semibold text-slate-600">
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                              <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                                 Plan Name
                                 <input
                                   value={interventionDraft.name}
                                   onChange={(event) => handleInterventionFieldChange('name', event.target.value)}
-                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                  className="mt-2 w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                 />
                               </label>
-                              <label className="text-xs font-semibold text-slate-600">
+                              <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                                 Start Date
                                 <input
                                   value={interventionDraft.date}
                                   onChange={(event) => handleInterventionFieldChange('date', event.target.value)}
-                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                  className="mt-2 w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                 />
                               </label>
-                              <label className="text-xs font-semibold text-slate-600">
+                              <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                                 Status
                                 <select
                                   value={interventionDraft.status}
                                   onChange={(event) => handleInterventionFieldChange('status', event.target.value)}
-                                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                  className="mt-2 w-full rounded-xl border border-slate-200/80 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all cursor-pointer appearance-none"
                                 >
                                   <option value="Active">Active</option>
                                   <option value="Completed">Completed</option>
@@ -1902,7 +1908,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                                   <option value="Pending">Pending</option>
                                 </select>
                               </label>
-                              <label className="text-xs font-semibold text-slate-600">
+                              <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                                 Progress %
                                 <input
                                   type="number"
@@ -1910,63 +1916,63 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                                   max={100}
                                   value={interventionDraft.progress}
                                   onChange={(event) => handleInterventionFieldChange('progress', event.target.value)}
-                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                  className="mt-2 w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                 />
                               </label>
-                              <label className="text-xs font-semibold text-slate-600">
+                              <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                                 Baseline Score
                                 <input
                                   type="number"
                                   value={interventionDraft.baselineScore}
                                   onChange={(event) => handleInterventionFieldChange('baselineScore', event.target.value)}
-                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                  className="mt-2 w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                 />
                               </label>
-                              <label className="text-xs font-semibold text-slate-600">
+                              <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                                 Goal Score
                                 <input
                                   type="number"
                                   value={interventionDraft.goalScore}
                                   onChange={(event) => handleInterventionFieldChange('goalScore', event.target.value)}
-                                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                  className="mt-2 w-full rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                 />
                               </label>
                             </div>
 
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                              <div className="mb-3 flex items-center justify-between">
-                                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Progress Data Points</p>
+                            <div className="rounded-2xl border border-slate-200/60 bg-slate-50/50 p-5 shadow-sm">
+                              <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+                                <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500">Progress Data Points</p>
                                 <button
                                   type="button"
                                   onClick={handleAddInterventionDataPoint}
-                                  className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+                                  className="rounded-lg border border-indigo-200/80 bg-indigo-50/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm transition-all"
                                 >
                                   Add Data Point
                                 </button>
                               </div>
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 {interventionDraft.dataPoints.length === 0 ? (
-                                  <p className="text-xs text-slate-500">No data points yet.</p>
+                                  <p className="text-sm font-medium text-slate-500 italic">No data points yet.</p>
                                 ) : (
                                   interventionDraft.dataPoints.map((point, index) => (
-                                    <div key={`${point.date}-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_140px_auto]">
+                                    <div key={`${point.date}-${index}`} className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_140px_auto]">
                                       <input
                                         value={point.date}
                                         onChange={(event) => handleInterventionDataPointChange(index, 'date', event.target.value)}
-                                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                        className="rounded-xl border border-slate-200/80 px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                         aria-label={`Data point ${index + 1} date`}
                                       />
                                       <input
                                         type="number"
                                         value={point.score}
                                         onChange={(event) => handleInterventionDataPointChange(index, 'score', event.target.value)}
-                                        className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                        className="rounded-xl border border-slate-200/80 px-4 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20 shadow-sm transition-all"
                                         aria-label={`Data point ${index + 1} score`}
                                       />
                                       <button
                                         type="button"
                                         onClick={() => handleRemoveInterventionDataPoint(index)}
-                                        className="rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                        className="rounded-xl border border-rose-200/80 bg-rose-50 px-4 py-2.5 text-xs font-bold text-rose-700 hover:bg-rose-100 shadow-sm transition-all"
                                       >
                                         Remove
                                       </button>
@@ -1977,33 +1983,35 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                             </div>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-3">
-                            <div className="rounded-lg border border-slate-200 bg-white p-3">
-                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Baseline</p>
-                              <p className="mt-1 text-lg font-bold text-slate-900">{editableIntervention.baselineScore}</p>
+                          <div className="grid grid-cols-1 gap-4 text-sm text-slate-700 md:grid-cols-3">
+                            <div className="rounded-xl border border-slate-200/60 bg-white/90 p-4 shadow-sm">
+                              <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Baseline</p>
+                              <p className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">{editableIntervention.baselineScore}</p>
                             </div>
-                            <div className="rounded-lg border border-slate-200 bg-white p-3">
-                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Goal</p>
-                              <p className="mt-1 text-lg font-bold text-slate-900">{editableIntervention.goalScore}</p>
+                            <div className="rounded-xl border border-slate-200/60 bg-white/90 p-4 shadow-sm">
+                              <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Goal</p>
+                              <p className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">{editableIntervention.goalScore}</p>
                             </div>
-                            <div className="rounded-lg border border-slate-200 bg-white p-3">
-                              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Data Points</p>
-                              <p className="mt-1 text-lg font-bold text-slate-900">{editableIntervention.dataPoints.length}</p>
+                            <div className="rounded-xl border border-slate-200/60 bg-white/90 p-4 shadow-sm">
+                              <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Data Points</p>
+                              <p className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">{editableIntervention.dataPoints.length}</p>
                             </div>
                           </div>
                         )}
 
                         {canViewStudentNotes ? (
-                          <StudentNotesPanel
-                            notes={editableIntervention.notes ?? []}
-                            canEdit={canViewStudentNotes}
-                            currentUserName={staffDisplayName}
-                            currentUserId={currentUserId}
-                            onChange={(nextNotes) => handleInterventionNotesChange(intervention.id, nextNotes)}
-                            emptyState="No intervention notes yet. Add progress checks, meeting outcomes, and follow-up actions."
-                          />
+                          <div className="pt-4">
+                            <StudentNotesPanel
+                              notes={editableIntervention.notes ?? []}
+                              canEdit={canViewStudentNotes}
+                              currentUserName={staffDisplayName}
+                              currentUserId={currentUserId}
+                              onChange={(nextNotes) => handleInterventionNotesChange(intervention.id, nextNotes)}
+                              emptyState="No intervention notes yet. Add progress checks, meeting outcomes, and follow-up actions."
+                            />
+                          </div>
                         ) : (
-                          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-500">
+                          <div className="rounded-xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 p-6 text-center text-sm font-medium text-slate-500">
                             Notes are visible to teacher and support staff roles.
                           </div>
                         )}
@@ -2025,19 +2033,19 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         aria-labelledby="student-profile-tab-academics"
         className="space-y-6"
       >
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="font-bold text-slate-800">Academic Progression</h3>
-              <p className="text-sm text-slate-500">Math and Reading are charted separately. Select a point to filter notes by month.</p>
+              <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Academic Progression</h3>
+              <p className="text-sm font-medium text-slate-500 mt-1">Math and Reading are charted separately. Select a point to filter notes by month.</p>
             </div>
-            <div className="flex rounded-lg bg-slate-100 p-1">
+            <div className="flex rounded-xl bg-slate-100/80 p-1.5 shadow-inner border border-slate-200/50">
               {ACADEMIC_FILTERS.map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setAcademicFilter(filter)}
-                  className={`rounded-md px-3 py-1 text-xs font-bold transition-all ${
-                    academicFilter === filter ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${
+                    academicFilter === filter ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                   }`}
                 >
                   {filter}
@@ -2045,22 +2053,22 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
               ))}
             </div>
           </div>
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 ${showMathSeries ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-              <span className={`inline-block h-2 w-2 rounded-full ${showMathSeries ? 'bg-blue-500' : 'bg-slate-300'}`} />
+          <div className="mb-5 flex flex-wrap items-center gap-3 text-[11px] font-extrabold uppercase tracking-widest">
+            <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 shadow-sm transition-colors ${showMathSeries ? 'border-blue-200/80 bg-blue-50/80 text-blue-700' : 'border-slate-200/60 bg-slate-50/50 text-slate-400'}`}>
+              <span className={`inline-block h-2 w-2 rounded-full shadow-sm ${showMathSeries ? 'bg-blue-500' : 'bg-slate-300'}`} />
               Math
             </span>
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 ${showReadingSeries ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-              <span className={`inline-block h-2 w-2 rounded-full ${showReadingSeries ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+            <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 shadow-sm transition-colors ${showReadingSeries ? 'border-emerald-200/80 bg-emerald-50/80 text-emerald-700' : 'border-slate-200/60 bg-slate-50/50 text-slate-400'}`}>
+              <span className={`inline-block h-2 w-2 rounded-full shadow-sm ${showReadingSeries ? 'bg-emerald-500' : 'bg-slate-300'}`} />
               Reading
             </span>
           </div>
 
-          <div ref={chartContainerRef} className="min-h-[260px] w-full min-w-0">
+          <div ref={chartContainerRef} className="min-h-[280px] w-full min-w-0">
             {chartWidth > 0 ? (
               <LineChart
                 width={chartWidth}
-                height={260}
+                height={280}
                 data={academicChartData}
                 onClick={(event) => {
                   if (event?.activeLabel) {
@@ -2070,22 +2078,22 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                 style={{ cursor: 'pointer' }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} width={34} />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }} dy={10} />
+                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} width={34} tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }} />
                 <Tooltip
-                  cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                  cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
                   content={({ active, payload, label }) => {
                     if (!active || !payload || payload.length === 0) return null;
                     const point = payload[0]?.payload as AcademicChartPoint | undefined;
                     if (!point) return null;
                     return (
-                      <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg">
-                        <p className="font-bold text-slate-700">{String(label ?? point.label)}</p>
+                      <div className="rounded-xl border border-slate-200/80 bg-white/95 backdrop-blur-sm p-4 text-xs shadow-xl">
+                        <p className="font-extrabold text-slate-800 mb-2">{String(label ?? point.label)}</p>
                         {showMathSeries ? (
-                          <p className="mt-1 font-semibold text-blue-700">Math: {point.mathScore}%</p>
+                          <p className="font-bold text-blue-700">Math: {point.mathScore}%</p>
                         ) : null}
                         {showReadingSeries ? (
-                          <p className="font-semibold text-emerald-700">Reading: {point.readingScore}%</p>
+                          <p className="mt-1 font-bold text-emerald-700">Reading: {point.readingScore}%</p>
                         ) : null}
                       </div>
                     );
@@ -2095,10 +2103,10 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                   <Line
                     type="monotone"
                     dataKey="mathScore"
-                    stroke="#2563eb"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: '#2563eb' }}
-                    activeDot={{ r: 6 }}
+                    stroke="#3b82f6"
+                    strokeWidth={4}
+                    dot={{ r: 5, fill: '#3b82f6', stroke: '#ffffff', strokeWidth: 2 }}
+                    activeDot={{ r: 7, stroke: '#ffffff', strokeWidth: 2, shadow: '0 0 10px rgba(59,130,246,0.5)' }}
                     name="Math"
                   />
                 ) : null}
@@ -2106,56 +2114,56 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
                   <Line
                     type="monotone"
                     dataKey="readingScore"
-                    stroke="#059669"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: '#059669' }}
-                    activeDot={{ r: 6 }}
+                    stroke="#10b981"
+                    strokeWidth={4}
+                    dot={{ r: 5, fill: '#10b981', stroke: '#ffffff', strokeWidth: 2 }}
+                    activeDot={{ r: 7, stroke: '#ffffff', strokeWidth: 2, shadow: '0 0 10px rgba(16,185,129,0.5)' }}
                     name="Reading"
                   />
                 ) : null}
               </LineChart>
             ) : (
-              <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">
+              <div className="flex h-[280px] items-center justify-center rounded-2xl border-2 border-dashed border-slate-200/80 bg-slate-50/50 text-sm font-semibold text-slate-500">
                 Chart is loading...
               </div>
             )}
           </div>
 
-          <div className="mt-3 text-xs text-slate-500">
-            {selectedMonth ? `Filtering notes for ${selectedMonth}.` : 'Showing notes across all months.'}
+          <div className="mt-4 text-[11px] font-bold uppercase tracking-widest text-slate-400 text-center">
+            {selectedMonth ? `Filtering notes for ${selectedMonth}. Click background to reset.` : 'Showing notes across all months.'}
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="font-bold text-slate-800">Academic Notes</h3>
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Academic Notes</h3>
             <button
               onClick={() => {
                 setAcademicFilter('All');
                 setSelectedMonth(null);
               }}
-              className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-all"
             >
               Reset Filters
             </button>
           </div>
           {academicNotes.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            <div className="rounded-2xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 p-6 text-center text-sm font-medium text-slate-500">
               No academic notes match the current filters.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {academicNotes.map((note, index) => (
-                <article key={`${note.date}-${index}`} className="rounded-lg border border-slate-200 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-900">{note.type} Update</p>
-                    <p className="text-xs font-medium text-slate-500">{note.date}</p>
+                <article key={`${note.date}-${index}`} className="rounded-2xl border border-slate-200/60 bg-white/90 p-5 shadow-sm hover:shadow-md hover:border-indigo-200/50 transition-all">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-base font-extrabold text-slate-800 tracking-tight">{note.type} Update</p>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{note.date}</p>
                   </div>
-                  <p className="mt-1 text-sm text-slate-600">{note.note}</p>
+                  <p className="mt-2 text-sm font-medium text-slate-600 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-100/80">{note.note}</p>
                   {note.tags && note.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       {note.tags.map((tag) => (
-                        <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">
+                        <span key={tag} className="rounded-md border border-slate-200/80 bg-white px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 shadow-sm">
                           {tag}
                         </span>
                       ))}
@@ -2174,6 +2182,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         id="student-profile-panel-notes"
         role="tabpanel"
         aria-labelledby="student-profile-tab-notes"
+        className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-2 shadow-sm"
       >
         <StudentNotesPanel
           notes={currentStudent.notes ?? []}
@@ -2193,46 +2202,49 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({
         aria-labelledby="student-profile-tab-documents"
         className="space-y-6"
       >
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="font-bold text-slate-800">Documents</h3>
-              <p className="text-sm text-slate-500">Keep support and history records in one place.</p>
+              <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Documents</h3>
+              <p className="text-sm font-medium text-slate-500 mt-1">Keep support and history records in one place.</p>
             </div>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
-              <UploadCloud size={14} />
+            <button className="inline-flex items-center gap-2 rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-4 py-2.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm transition-all hover:-translate-y-0.5">
+              <UploadCloud size={16} strokeWidth={2.5} />
               Upload Document
             </button>
           </div>
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-            Drop files here or use Upload Document. Accepted formats: PDF, PNG, JPG.
+          <div className="rounded-2xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 p-8 text-center text-sm font-medium text-slate-500 hover:bg-slate-50 hover:border-indigo-300/50 transition-all cursor-pointer">
+            <UploadCloud size={32} className="mx-auto mb-3 text-slate-400" strokeWidth={1.5} />
+            Drop files here or use Upload Document.<br />Accepted formats: PDF, PNG, JPG.
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-3 font-bold text-slate-800">Recent Files</h3>
+        <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-md p-8 shadow-sm">
+          <h3 className="mb-5 text-xl font-extrabold text-slate-800 tracking-tight">Recent Files</h3>
           {profileDocuments.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+            <div className="rounded-2xl border-2 border-dashed border-slate-200/60 bg-slate-50/50 p-6 text-center text-sm font-medium text-slate-500">
               No documents available yet. Upload the first document to start the record.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {profileDocuments.map((document) => (
-                <article key={document.id} className="rounded-lg border border-slate-200 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <FileText size={16} className="text-slate-500" />
+                <article key={document.id} className="rounded-2xl border border-slate-200/60 bg-white/90 p-4 shadow-sm hover:shadow-md hover:border-indigo-200/50 transition-all cursor-pointer group">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5">
+                      <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-100/80 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600 transition-colors">
+                        <FileText size={20} strokeWidth={2} className="text-slate-500 group-hover:text-indigo-600" />
+                      </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{document.title}</p>
-                        <p className="text-xs text-slate-500">{document.category}</p>
+                        <p className="text-base font-extrabold text-slate-800 tracking-tight group-hover:text-indigo-700 transition-colors">{document.title}</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">{document.category}</p>
                       </div>
                     </div>
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${getDocumentStatusColor(document.status)}`}>
+                    <span className={`rounded-md border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-widest shadow-sm ${getDocumentStatusColor(document.status)}`}>
                       {document.status}
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                    <CalendarDays size={12} />
+                  <div className="mt-4 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-slate-400 border-t border-slate-100/80 pt-3">
+                    <CalendarDays size={14} />
                     Updated {document.updated}
                   </div>
                 </article>
