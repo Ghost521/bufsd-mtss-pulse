@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowRight, Loader2, MessageSquare, ShieldCheck, Users } from "lucide-react";
+import { Activity, ArrowRight, Loader2, MessageSquare, Users } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import { DEFAULT_DISTRICT_BRANDING, parseDistrictBrandingSnapshot } from "../lib/branding";
 import { applyTenantBrandingTheme } from "../lib/branding-theme";
 import { LANDING_COPY } from "../lib/landing-copy";
-import { DEFAULT_DISTRICT_BRANDING, districtBrandingEditableSchema } from "../lib/schemas/branding";
 import {
   LANDING_COPY_EXPERIMENT_ID,
   getVariantFromSearch,
@@ -11,11 +11,6 @@ import {
   type LandingCopyVariant,
 } from "../lib/landing-experiment";
 import type { LandingExperimentEventName, LandingExperimentSection } from "../lib/schemas/landing-experiments";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 type HealthResponse = {
   ok?: boolean;
@@ -41,38 +36,7 @@ export function LandingPage() {
   const [variant, setVariant] = useState<LandingCopyVariant>("control");
   const [experimentId, setExperimentId] = useState<string>(LANDING_COPY_EXPERIMENT_ID);
   const [experimentReady, setExperimentReady] = useState(false);
-  const [mascotName, setMascotName] = useState(DEFAULT_DISTRICT_BRANDING.mascotName);
   const impressionTrackedRef = useRef(false);
-  const containerRef = useRef<HTMLElement>(null);
-
-  useGSAP(() => {
-    // High-end Hero Entry Sequence
-    const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-    
-    tl.fromTo(".hero-eyebrow", { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 1.2, delay: 0.2 })
-      .fromTo(".hero-title", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 1.5 }, "-=0.8")
-      .fromTo(".hero-desc", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 1.2 }, "-=1.0")
-      .fromTo(".hero-actions", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 1.2 }, "-=1.0")
-      .fromTo(".hero-image", { opacity: 0, scale: 0.95, filter: "blur(4px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 2, ease: "power2.out" }, "-=1.2");
-
-    // Scroll triggered exhibition reveals
-    gsap.utils.toArray('.gsap-reveal').forEach((elem: any) => {
-      gsap.fromTo(elem, 
-        { autoAlpha: 0, y: 40 }, 
-        { 
-          autoAlpha: 1, 
-          y: 0, 
-          duration: 1.2, 
-          ease: "expo.out",
-          scrollTrigger: {
-            trigger: elem,
-            start: "top 85%",
-            toggleActions: "play none none reverse"
-          }
-        }
-      );
-    });
-  }, { scope: containerRef });
 
   const loadHealth = useCallback(async () => {
     setViewState("loading");
@@ -137,21 +101,8 @@ export function LandingPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    let next = DEFAULT_DISTRICT_BRANDING;
-    try {
-      const raw = window.localStorage.getItem("mtss_branding_snapshot");
-      if (raw) {
-        const parsed = districtBrandingEditableSchema.safeParse(JSON.parse(raw) as unknown);
-        if (parsed.success) {
-          next = parsed.data;
-        }
-      }
-    } catch {
-      // Ignore malformed snapshot payloads.
-    }
-
-    const applied = applyTenantBrandingTheme(next);
-    setMascotName(applied.mascotName);
+    const next = parseDistrictBrandingSnapshot(window.localStorage.getItem("mtss_branding_snapshot")) ?? DEFAULT_DISTRICT_BRANDING;
+    applyTenantBrandingTheme(next);
   }, []);
 
   const primaryHref = useMemo(
@@ -199,305 +150,374 @@ export function LandingPage() {
   }, [experimentReady, trackLandingEvent]);
 
   return (
-    <main ref={containerRef} className="luxury-main overflow-x-hidden">
-      {/* Avant-Garde Navigation */}
-      <header className="fixed top-0 left-0 w-full z-[101] mix-blend-difference py-8">
-        <div className="luxury-container flex items-center justify-between">
-          <div className="flex items-center gap-12">
-            <div className="flex items-center gap-3">
-              <span className="h-[1px] w-8 bg-white" />
-              <p className="luxury-eyebrow !text-white !text-[9px] !tracking-[0.5em]">{copy.brandName}</p>
-            </div>
-            <nav className="hidden lg:flex items-center gap-12">
-              <a href="/" className="luxury-nav-link !text-white !text-[10px] opacity-60 hover:opacity-100 transition-opacity">{copy.nav.home}</a>
-              <a href="#features" className="luxury-nav-link !text-white !text-[10px] opacity-60 hover:opacity-100 transition-opacity">{copy.nav.features}</a>
-              <a href="#how-it-works" className="luxury-nav-link !text-white !text-[10px] opacity-60 hover:opacity-100 transition-opacity">{copy.nav.howItWorks}</a>
-            </nav>
+    <main className="min-h-screen text-[#3f332d]" style={{ backgroundColor: "var(--tenant-color-surface)" }}>
+      <header
+        className="border-b bg-[#faf7f0]"
+        style={{
+          borderColor: "color-mix(in srgb, var(--tenant-color-secondary) 22%, #ffffff 78%)",
+          backgroundColor: "color-mix(in srgb, var(--tenant-color-surface) 85%, #ffffff 15%)",
+        }}
+      >
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-5 py-4 md:px-8">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "var(--tenant-color-accent)" }} />
+            <p className="block py-3 px-2 text-xs font-semibold uppercase tracking-[0.11em] text-[#6f6358]">{copy.brandName}</p>
           </div>
-          <a
-            href={buttonDisabled ? undefined : primaryHref}
-            className="group flex items-center gap-4 text-white !text-[10px] font-bold uppercase tracking-[0.3em]"
-          >
-            <span className="opacity-60 group-hover:opacity-100 transition-opacity">{copy.header.loginCta}</span>
-            <div className="h-10 w-10 flex items-center justify-center border border-white/20 rounded-full group-hover:bg-white group-hover:text-black transition-all">
-               {buttonDisabled ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-            </div>
+          <nav className="hidden items-center gap-8 text-xs font-semibold text-[#988b7e] md:flex">
+            <a href="/" className="transition-colors hover:text-[#6b5b4e] min-h-[44px] min-w-[44px]">{copy.nav.home}</a>
+            <a href="#features" className="transition-colors hover:text-[#6b5b4e] min-h-[44px] min-w-[44px]">{copy.nav.features}</a>
+            <a href="#support" className="transition-colors hover:text-[#6b5b4e] min-h-[44px] min-w-[44px]">{copy.nav.support}</a>
+            <a href="#how-it-works" className="transition-colors hover:text-[#6b5b4e] min-h-[44px] min-w-[44px]">{copy.nav.howItWorks}</a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <a
+              href={copy.header.demoHref}
+              onClick={() => trackLandingEvent("cta_header_demo_click", "header", copy.header.demoHref)}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-3 text-xs font-bold text-[#fffaf3] transition-opacity hover:opacity-90 min-h-[44px]"
+              style={{ backgroundColor: "var(--tenant-color-primary)" }}
+            >
+              {copy.header.demoCta}
+            </a>
+            <a
+              href={buttonDisabled ? undefined : primaryHref}
+              aria-disabled={buttonDisabled}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-3 text-xs font-bold ${
+                buttonDisabled
+                  ? "cursor-not-allowed border-[#d9cdbd] bg-[#f2e7d8] text-[#aa9886]"
+                  : "border-[#cabaa7] bg-[#fffaf2] text-[#725744] transition-colors hover:bg-[#f2e7d9]"
+              }`}
+              onClick={() => {
+                if (!buttonDisabled) trackLandingEvent("cta_primary_click", "header", primaryHref);
+              }}
+            >
+              {buttonDisabled ? <Loader2 size={14} className="animate-spin" /> : null}
+              {copy.header.loginCta}
+            </a>
+          </div>
+        </div>
+        <div className="mx-auto flex w-full max-w-6xl gap-2 overflow-x-auto px-5 pb-4 md:hidden">
+          <a href="#features" className="inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-[#e5d8c8] bg-[#fffaf3] px-4 text-xs font-semibold text-[#735744]">
+            {copy.nav.features}
+          </a>
+          <a href="#support" className="inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-[#e5d8c8] bg-[#fffaf3] px-4 text-xs font-semibold text-[#735744]">
+            {copy.nav.support}
+          </a>
+          <a href="#how-it-works" className="inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-[#e5d8c8] bg-[#fffaf3] px-4 text-xs font-semibold text-[#735744]">
+            {copy.nav.howItWorks}
           </a>
         </div>
       </header>
 
-      {/* The Cover Spread */}
-      <section className="relative min-h-screen flex flex-col justify-center pt-32 pb-20">
-        <div className="luxury-container grid lg:grid-cols-[1.5fr_1fr] gap-20 items-end relative z-10">
+      <section className="mx-auto w-full max-w-6xl px-5 pb-12 pt-10 md:px-8 md:pt-14">
+        <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.35fr]">
           <div>
-            <div className="hero-eyebrow">
-              <p className="luxury-eyebrow mb-12 flex items-center gap-4">
-                 <span className="opacity-30">SECTION 01</span>
-                 <span className="h-px w-12 bg-[var(--luxury-accent)]" />
-                 {copy.hero.eyebrow}
-              </p>
-            </div>
-            <h1 className="luxury-h1 text-[#121212] uppercase hero-title">
+            <p className="inline-flex rounded-full bg-[#f5e8c6] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#5a4720]">
+              {copy.hero.eyebrow}
+            </p>
+            <h1 className="mt-3 text-4xl font-bold leading-[1.03] text-[#58473b] md:text-6xl">
               {copy.hero.titleLine1}
-              <span className="block italic text-[var(--luxury-accent)] mt-4 font-light">{copy.hero.titleLine2}</span>
+              <span className="mt-1 block text-[#db6c4d]">{copy.hero.titleLine2}</span>
             </h1>
-            
-            <div className="mt-16 hero-desc">
-              <p className="luxury-body-large max-w-xl text-[#444]">
-                {copy.hero.description}
-              </p>
-            </div>
-            <div className="mt-16 flex items-center gap-10 hero-actions">
+            <p className="mt-5 max-w-md text-sm leading-relaxed text-[#8a7c70]">
+              {copy.hero.description}
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
               <a
                 href={buttonDisabled ? undefined : primaryHref}
-                className="luxury-btn luxury-btn-ink"
-                onClick={() => !buttonDisabled && trackLandingEvent("cta_primary_click", "hero", primaryHref)}
+                aria-disabled={buttonDisabled}
+                className={`inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-sm font-bold ${
+                  buttonDisabled
+                    ? "cursor-not-allowed bg-[#e6d7c3] text-[#8c7a68]"
+                    : "text-[#fffaf3] transition hover:opacity-90"
+                }`}
+                style={buttonDisabled ? undefined : { backgroundColor: "var(--tenant-color-accent)" }}
+                onClick={() => {
+                  if (!buttonDisabled) trackLandingEvent("cta_primary_click", "hero", primaryHref);
+                }}
               >
+                {buttonDisabled ? <Loader2 size={15} className="animate-spin" /> : null}
                 {copy.hero.primaryCta}
+                {buttonDisabled ? null : <ArrowRight size={15} />}
               </a>
               <a
                 href="#support"
-                className="group flex items-center gap-3 luxury-nav-link !text-[11px] !text-black"
+                className="rounded-full border border-[#d9c9b5] bg-[#f7ede0] px-5 py-3.5 text-sm font-semibold text-[#735744] transition hover:bg-[#f1e4d2] min-h-[44px] min-w-[44px]"
                 onClick={() => trackLandingEvent("cta_secondary_click", "hero", "#support")}
               >
                 {copy.hero.secondaryCta}
-                <div className="h-px w-6 bg-black group-hover:w-12 transition-all" />
               </a>
             </div>
-          </div>
-
-          <div className="hidden lg:block relative hero-image">
-             <div className="aspect-[3/4] bg-[var(--luxury-ivy)] overflow-hidden relative group">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center grayscale opacity-40 mix-blend-luminosity group-hover:scale-105 transition-transform duration-[2s]" />
-                <div className="absolute inset-0 p-12 flex flex-col justify-between">
-                   <div className="flex justify-between items-start">
-                      <div className="luxury-h3 text-white leading-none">IVY<br/>PRISM</div>
-                      <div className="luxury-sidenote !text-white/40 !mt-0">EST. 2026</div>
-                   </div>
-                   <div className="text-[120px] font-black text-white/5 leading-none select-none">PULSE</div>
-                </div>
-             </div>
-             {/* Float Markings */}
-             <div className="absolute -left-12 bottom-12 luxury-sidenote text-[9px] !tracking-[0.8em]">MTSS OPERATIONS</div>
-          </div>
-        </div>
-        
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-12 left-[5vw] flex items-center gap-4 gsap-reveal">
-           <div className="h-12 w-px bg-[var(--luxury-border-strong)]" />
-           <p className="luxury-sidenote !writing-mode-horizontal-tb !tracking-widest !text-[8px]">SCROLL TO EXPLORE</p>
-        </div>
-      </section>
-
-      {/* The Manifesto Spread */}
-      <section className="bg-[var(--luxury-ink)] py-40 overflow-hidden relative">
-        <div className="luxury-container relative z-10">
-          <div className="grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-8 lg:col-start-3 text-center gsap-reveal">
-               <div className="h-px w-24 bg-[var(--luxury-accent)] mx-auto mb-16 opacity-50" />
-               <p className="luxury-quote !text-white !text-4xl lg:!text-6xl !not-italic !font-extralight !leading-[1.1] !tracking-tight">
-                  {copy.socialProof.quote}
-               </p>
-               <p className="luxury-eyebrow !text-white/40 mt-16 max-w-xl mx-auto !leading-loose">
-                  {copy.socialProof.context}
-               </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-[#78695d]">
+              <span className="rounded-full border border-[#e6d8c7] bg-[#fffaf3] px-3 py-1.5">Attendance + academics</span>
+              <span className="rounded-full border border-[#e6d8c7] bg-[#fffaf3] px-3 py-1.5">Intervention ownership</span>
+              <span className="rounded-full border border-[#e6d8c7] bg-[#fffaf3] px-3 py-1.5">Family communication</span>
             </div>
+            {viewState === "error" ? (
+              <button
+                type="button"
+                onClick={() => void loadHealth()}
+                className="mt-4 rounded-full border border-[#d8cab7] px-4 py-3 text-xs font-semibold text-[#7f6f62] transition-colors hover:bg-[#efe4d3] min-h-[44px] flex items-center"
+              >
+                Retry connection
+              </button>
+            ) : null}
           </div>
-        </div>
-        {/* Large Decorative Text */}
-        <div className="absolute top-1/2 left-0 -translate-y-1/2 text-[30vw] font-black text-white/[0.02] pointer-events-none select-none leading-none">
-           EXCELLENCE
-        </div>
-      </section>
 
-      {/* Feature Exhibition */}
-      <section id="features" className="py-40 space-y-64">
-        {/* Spread 01 */}
-        <div className="luxury-container">
-          <div className="grid lg:grid-cols-2 gap-32 items-center">
-            <div className="relative gsap-reveal">
-               <div className="aspect-[4/5] bg-neutral-100 border border-[var(--luxury-border)] p-16 flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(184,142,79,0.05),transparent_70%)]" />
-                  <div className="relative text-center">
-                     <Users size={80} strokeWidth={0.5} className="mx-auto mb-12 text-[var(--luxury-accent)]" />
-                     <p className="luxury-h3 mb-6 uppercase tracking-[0.2em]">{copy.visibility.cardTitle}</p>
-                     <p className="luxury-body max-w-xs mx-auto opacity-60">{copy.visibility.cardBody}</p>
+          <div className="relative">
+            <div className="mx-auto w-full max-w-[780px] rounded-[28px] border border-[#e0d6c9] bg-[linear-gradient(180deg,#fffaf4_0%,#f5eee3_100%)] p-4 shadow-[0_30px_70px_-34px_rgba(90,70,50,0.5)]">
+              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-[22px] border border-[#eadfce] bg-[#fffdf8] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8d7d70]">Student workflow</p>
+                      <h2 className="mt-2 text-2xl font-bold text-[#52433a] md:text-[1.75rem]">Jordan Alvarez</h2>
+                      <p className="mt-1 text-sm text-[#8a7b6f]">Grade 4 • Tier 2 reading support</p>
+                    </div>
+                    <span className="rounded-full bg-[#e8f2ea] px-3 py-1 text-xs font-semibold text-[#36624c]">On track</span>
                   </div>
-               </div>
-               <div className="absolute -right-8 top-1/2 -translate-y-1/2 luxury-sidenote">PLATE NO. 01</div>
-            </div>
-            <div className="gsap-reveal">
-              <p className="luxury-eyebrow mb-8 flex items-center gap-4">
-                 <span className="opacity-30">01</span>
-                 {copy.visibility.label}
-              </p>
-              <h2 className="luxury-h2 mb-12">{copy.visibility.title}</h2>
-              <p className="luxury-body-large mb-12 !text-[#666]">
-                {copy.visibility.body}
-              </p>
-              <ul className="space-y-8">
-                {copy.visibility.bullets.map((bullet, idx) => (
-                  <li key={bullet} className="flex items-center gap-6 group">
-                    <span className="text-[10px] font-bold opacity-20 group-hover:opacity-100 transition-opacity">0{idx + 1}</span>
-                    <span className="h-[1px] w-8 bg-[var(--luxury-border-strong)]" />
-                    <span className="luxury-nav-link !text-black !tracking-widest">{bullet}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
 
-        {/* Spread 02 - Asymmetrical Shift */}
-        <div className="luxury-container">
-          <div className="grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-5 lg:col-start-2 order-2 lg:order-1 gsap-reveal">
-              <p className="luxury-eyebrow mb-8 flex items-center gap-4">
-                 <span className="opacity-30">02</span>
-                 {copy.collaboration.label}
-              </p>
-              <h2 className="luxury-h2 mb-12">{copy.collaboration.title}</h2>
-              <p className="luxury-body-large mb-16 !text-[#666]">
-                {copy.collaboration.body}
-              </p>
-              <div className="p-10 border border-[var(--luxury-border-strong)] relative">
-                <div className="absolute -top-3 -left-3 h-6 w-6 border-t border-l border-[var(--luxury-accent)]" />
-                <p className="luxury-subheading text-[9px] mb-4 opacity-40 uppercase tracking-[0.3em]">{copy.collaboration.noteLabel}</p>
-                <p className="luxury-quote !text-2xl !leading-tight !not-italic !font-light">{copy.collaboration.noteText}</p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-[#f7efe4] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9a8a7d]">Attendance</p>
+                      <p className="mt-2 text-xl font-bold text-[#514138]">94%</p>
+                      <p className="mt-1 text-xs text-[#88786b]">Last 20 days</p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f7efe4] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9a8a7d]">Owner</p>
+                      <p className="mt-2 text-xl font-bold text-[#514138]">Ms. Lewis</p>
+                      <p className="mt-1 text-xs text-[#88786b]">Reading interventionist</p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f7efe4] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9a8a7d]">Next review</p>
+                      <p className="mt-2 text-xl font-bold text-[#514138]">Mar 18</p>
+                      <p className="mt-1 text-xs text-[#88786b]">Team check-in scheduled</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-[#e9dece] bg-[#fffaf2] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#9a8a7d]">Next team action</p>
+                    <p className="mt-2 text-sm leading-relaxed text-[#6f6055]">Review weekly fluency check, confirm the intervention plan, and send the family update before Friday.</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="rounded-[22px] bg-[#245c58] p-5 text-[#eef7f4] shadow-[0_20px_40px_-24px_rgba(28,69,66,0.6)]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#b8d8d1]">Workflow status</p>
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div className="flex items-center justify-between rounded-2xl bg-white/10 px-3 py-2">
+                        <span>Referral reviewed</span>
+                        <span className="text-xs font-semibold text-[#d9ece6]">Done</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-2xl bg-white/10 px-3 py-2">
+                        <span>Intervention assigned</span>
+                        <span className="text-xs font-semibold text-[#d9ece6]">In progress</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-2xl bg-white/10 px-3 py-2">
+                        <span>Family follow-up</span>
+                        <span className="text-xs font-semibold text-[#d9ece6]">Draft ready</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-[#eadfce] bg-[#fffdf8] p-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8d7d70]">Recent update</p>
+                    <p className="mt-3 text-sm leading-relaxed text-[#706156]">Family conference summary drafted and saved to the student timeline so the next meeting starts with current context.</p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="lg:col-span-5 lg:col-start-8 order-1 lg:order-2 gsap-reveal">
-               <div className="aspect-square bg-[var(--luxury-ivy)] flex items-center justify-center relative p-20">
-                  <div className="h-full w-full border border-white/10 flex items-center justify-center">
-                     <div className="text-center text-white/90">
-                        <p className="luxury-h3 mb-4">{copy.collaboration.cardTitle}</p>
-                        <div className="h-px w-12 bg-[var(--luxury-accent)] mx-auto mb-6" />
-                        <p className="luxury-body !text-white/40 !text-[11px] max-w-[200px] uppercase tracking-widest">{copy.collaboration.cardBody}</p>
-                     </div>
-                  </div>
-                  <div className="absolute -left-8 bottom-0 luxury-sidenote !text-[8px]">ARCHITECTURE OF COLLABORATION</div>
-               </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-[#ebe1d2] bg-[#f0e9dc] px-6 py-14 text-center">
+        <p className="mx-auto max-w-3xl text-xl font-semibold italic text-[#8b7c70] md:text-2xl">
+          {copy.socialProof.quote}
+        </p>
+        <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-[#9f9183]">
+          {copy.socialProof.context}
+        </p>
+        <div className="mx-auto mt-5 h-0.5 w-12 bg-[#f29b84]" />
+      </section>
+
+      <section id="features" className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8">
+        <div className="grid items-center gap-8 lg:grid-cols-[1fr_1fr]">
+          <div>
+            <p className="block py-3 px-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#d19d8f]">{copy.visibility.label}</p>
+            <h2 className="mt-3 text-3xl font-bold text-[#5b4a3d]">{copy.visibility.title}</h2>
+            <p className="mt-4 max-w-lg text-sm leading-relaxed text-[#8f7f72]">
+              {copy.visibility.body}
+            </p>
+            <ul className="mt-5 space-y-2.5 text-sm text-[#7f7064]">
+              {copy.visibility.bullets.map((bullet) => (
+                <li key={bullet} className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#f0937c]" /> {bullet}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex justify-center">
+            <div className="relative h-[280px] w-[230px] rotate-[4deg] rounded-xl bg-[#3f6659] p-5 shadow-[0_20px_35px_-18px_rgba(36,51,45,0.65)]">
+              <div className="absolute left-5 top-5 h-6 w-6 rounded-full border border-[#89aea1]" />
+              <p className="mt-12 text-xs uppercase tracking-[0.14em] text-[#95b2a7]">{copy.visibility.cardLabel}</p>
+              <p className="mt-2 text-3xl font-bold text-[#dcebe5]">{copy.visibility.cardTitle}</p>
+              <p className="mt-8 text-xs leading-relaxed text-[#bdd1c9]">{copy.visibility.cardBody}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-14 grid items-center gap-8 lg:grid-cols-[1fr_1fr]">
+          <div className="order-2 flex justify-center lg:order-1">
+            <div className="relative h-[280px] w-[230px] -rotate-[5deg] rounded-xl bg-[#1f6d6a] p-5 shadow-[0_20px_35px_-18px_rgba(19,58,56,0.65)]">
+              <div className="absolute right-5 top-5 h-6 w-6 rounded-full border border-[#88c0be]" />
+              <p className="mt-12 text-xs uppercase tracking-[0.14em] text-[#9ed2cf]">{copy.collaboration.cardLabel}</p>
+              <p className="mt-2 text-3xl font-bold text-[#d7f0ef]">{copy.collaboration.cardTitle}</p>
+              <p className="mt-8 text-xs leading-relaxed text-[#bae2e0]">{copy.collaboration.cardBody}</p>
+            </div>
+          </div>
+          <div className="order-1 lg:order-2">
+            <p className="block py-3 px-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#d19d8f]">{copy.collaboration.label}</p>
+            <h3 className="mt-3 text-3xl font-bold text-[#5b4a3d]">{copy.collaboration.title}</h3>
+            <p className="mt-4 max-w-lg text-sm leading-relaxed text-[#8f7f72]">
+              {copy.collaboration.body}
+            </p>
+            <div className="mt-5 rounded-xl border border-[#eadfce] bg-[#f9f4ea] p-4">
+              <p className="text-xs text-[#968679]">{copy.collaboration.noteLabel}</p>
+              <p className="mt-1 text-sm text-[#6d5f53]">{copy.collaboration.noteText}</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Grid of Precision */}
-      <div className="luxury-section-divider" />
-      <section id="support" className="py-40">
-        <div className="luxury-container">
-          <div className="flex flex-col lg:flex-row justify-between items-end mb-32 gap-10 gsap-reveal">
-            <div className="max-w-2xl">
-              <p className="luxury-eyebrow mb-8">{copy.capabilities.label}</p>
-              <h2 className="luxury-h2">{copy.capabilities.title}</h2>
-            </div>
-            <p className="luxury-body max-w-xs opacity-50 uppercase tracking-[0.2em] !text-[10px] !leading-loose">
-               {copy.capabilities.body}
-            </p>
+      <section id="support" className="border-y border-[#ece2d4] bg-[#faf7f0] px-5 py-16 md:px-8">
+        <div className="mx-auto w-full max-w-6xl">
+          <p className="text-center text-xs font-semibold uppercase tracking-[0.11em] text-[#c4b2a5]">{copy.capabilities.label}</p>
+          <h2 className="mt-2 text-center text-3xl font-bold text-[#56463a]">{copy.capabilities.title}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm leading-relaxed text-[#8f7f72]">
+            {copy.capabilities.body}
+          </p>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <article className="rounded-2xl border border-[#efdccc] bg-[#fff8ee] p-5">
+              <Activity className="text-[#f08b6f]" size={18} />
+              <h3 className="mt-3 text-lg font-bold text-[#5a4a3f]">{copy.capabilities.cards[0].title}</h3>
+              <p className="mt-2 text-sm text-[#8e7d6f]">{copy.capabilities.cards[0].body}</p>
+            </article>
+            <article className="rounded-2xl border border-[#efe1cd] bg-[#fff9ef] p-5">
+              <MessageSquare className="text-[#d8a24f]" size={18} />
+              <h3 className="mt-3 text-lg font-bold text-[#5a4a3f]">{copy.capabilities.cards[1].title}</h3>
+              <p className="mt-2 text-sm text-[#8e7d6f]">{copy.capabilities.cards[1].body}</p>
+            </article>
+            <article className="rounded-2xl border border-[#e8e8d4] bg-[#fcfbf1] p-5">
+              <Users className="text-[#8fad61]" size={18} />
+              <h3 className="mt-3 text-lg font-bold text-[#5a4a3f]">{copy.capabilities.cards[2].title}</h3>
+              <p className="mt-2 text-sm text-[#8e7d6f]">{copy.capabilities.cards[2].body}</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="border-y border-[#ebe1d2] bg-[#fffaf4] px-5 py-16 md:px-8">
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-[#c78d7a]">{copy.finalCta.label}</p>
+            <h2 className="mt-2 text-3xl font-bold leading-tight text-[#56463a] md:text-4xl">{copy.finalCta.title}</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#8f7f72]">{copy.finalCta.body}</p>
           </div>
 
-          <div className="grid md:grid-cols-3 border-t border-[var(--luxury-border-strong)]">
-            {copy.capabilities.cards.map((card, idx) => (
-              <article key={card.title} className={`p-16 border-b border-[var(--luxury-border-strong)] ${idx < 2 ? 'md:border-r' : ''} group hover:bg-[var(--luxury-ink)] transition-colors duration-700 gsap-reveal`}>
-                <p className="text-[10px] font-bold opacity-20 group-hover:opacity-100 transition-opacity mb-20 text-[var(--luxury-accent)]">0{idx + 1}</p>
-                <h3 className="luxury-h3 mb-8 group-hover:text-white transition-colors">{card.title}</h3>
-                <p className="luxury-body !text-[11px] uppercase tracking-widest !leading-loose group-hover:text-white/50 transition-colors">{card.body}</p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {copy.finalCta.steps.map((step, index) => (
+              <article key={step.title} className="rounded-2xl border border-[#eadfce] bg-[#fffaf2] p-5 shadow-[0_18px_35px_-26px_rgba(89,66,45,0.5)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5e3d8] text-sm font-bold text-[#7a5442]">
+                  {index + 1}
+                </div>
+                <h3 className="mt-4 text-lg font-bold text-[#57473b]">{step.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#857668]">{step.body}</p>
               </article>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* Final Call to Excellence */}
-      <section id="how-it-works" className="py-64 relative bg-[#0a0a0a]">
-        <div className="luxury-container relative z-10 text-center gsap-reveal">
-          <p className="luxury-eyebrow !text-[var(--luxury-accent)] mb-12">{copy.finalCta.label}</p>
-          <h2 className="luxury-h1 !text-white mb-20 uppercase">
-             {copy.finalCta.title.split(' ').map((word, i) => (
-                <span key={i} className={i % 2 === 1 ? 'italic font-light' : ''}>{word} </span>
-             ))}
-          </h2>
-          <div className="flex flex-wrap justify-center gap-12 items-center">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <a
               href={buttonDisabled ? undefined : primaryHref}
-              className="luxury-btn luxury-btn-ink !bg-[var(--luxury-accent)] !border-[var(--luxury-accent)]"
-              onClick={() => !buttonDisabled && trackLandingEvent("cta_primary_click", "final", primaryHref)}
+              aria-disabled={buttonDisabled}
+              className={`inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-sm font-bold ${
+                buttonDisabled
+                  ? "cursor-not-allowed bg-[#d8c7b4] text-[#8d7a68]"
+                  : "text-[#fffaf3] transition hover:opacity-90"
+              }`}
+              style={buttonDisabled ? undefined : { backgroundColor: "var(--tenant-color-primary)" }}
+              onClick={() => {
+                if (!buttonDisabled) trackLandingEvent("cta_primary_click", "final", primaryHref);
+              }}
             >
+              {buttonDisabled ? <Loader2 size={15} className="animate-spin" /> : null}
               {copy.finalCta.primaryCta}
+              {buttonDisabled ? null : <ArrowRight size={15} />}
             </a>
             <a
               href="#support"
-              className="luxury-nav-link !text-white/60 hover:!text-white !tracking-[0.4em]"
+              className="rounded-full border border-[#e3d4c2] bg-[#fff4e8] px-5 py-3.5 text-sm font-semibold text-[#6a4835] transition hover:bg-[#f7eadc] min-h-[44px] min-w-[44px]"
               onClick={() => trackLandingEvent("cta_secondary_click", "final", "#support")}
             >
               {copy.finalCta.secondaryCta}
             </a>
           </div>
         </div>
-        {/* Abstract Background Visual */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-           <div className="h-full w-full bg-[radial-gradient(circle_at_50%_50%,#B88E4F_0%,transparent_70%)]" />
-        </div>
       </section>
 
-      {/* Editorial Footer */}
-      <footer className="py-32 bg-[var(--luxury-ivory)] border-t border-[var(--luxury-border-strong)] relative overflow-hidden">
-        <div className="luxury-container gsap-reveal">
-          <div className="grid lg:grid-cols-4 gap-20">
-            <div>
-               <div className="flex items-center gap-4 mb-12">
-                  <div className="h-2 w-2 bg-[var(--luxury-accent)] rounded-full" />
-                  <p className="luxury-eyebrow !text-black !text-[10px] !tracking-[0.6em]">{copy.brandName}</p>
-               </div>
-               <p className="luxury-body !text-[10px] uppercase tracking-[0.25em] !leading-loose opacity-60">
-                  {copy.footer.body}
-               </p>
+      <footer className="border-t border-[#ebe1d2] bg-[#faf7f0] px-5 py-10 text-[#7f7063] md:px-8">
+        <div className="mx-auto grid w-full max-w-6xl gap-8 md:grid-cols-[1.5fr_1fr_1fr_1.2fr]">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "var(--tenant-color-accent)" }} />
+              <p className="block py-3 px-2 text-xs font-semibold uppercase tracking-[0.11em]">{copy.brandName}</p>
             </div>
-            
-            <div className="lg:pl-20">
-               <p className="luxury-sidenote !writing-mode-horizontal-tb mb-10">COLLECTIONS</p>
-               <ul className="space-y-6">
-                 {copy.footer.productLinks.map((link, idx) => (
-                   <li key={link}><a href={`#${link.toLowerCase()}`} className="luxury-nav-link !text-[9px] hover:!text-[var(--luxury-accent)]">{link}</a></li>
-                 ))}
-               </ul>
-            </div>
-
-            <div>
-               <p className="luxury-sidenote !writing-mode-horizontal-tb mb-10">ARCHIVE</p>
-               <ul className="space-y-6">
-                 {copy.footer.resourcesLinks.map((link) => (
-                   <li key={link}><a href="#" className="luxury-nav-link !text-[9px] hover:!text-[var(--luxury-accent)]">{link}</a></li>
-                 ))}
-               </ul>
-            </div>
-
-            <div className="relative">
-               <div className="absolute -top-10 -right-10 text-[120px] font-black text-black/[0.03] select-none">PULSE</div>
-               <p className="luxury-sidenote !writing-mode-horizontal-tb mb-8">CORRESPONDENCE</p>
-               <div className="flex items-center gap-4 border-b border-[var(--luxury-border-strong)] py-4">
-                  <input
-                    type="email"
-                    readOnly
-                    placeholder={copy.footer.emailPlaceholder}
-                    className="bg-transparent text-[10px] uppercase tracking-widest outline-none w-full luxury-body !text-black placeholder:opacity-30"
-                  />
-                  <button 
-                    className="luxury-nav-link !text-[10px] !text-[var(--luxury-accent)]"
-                    onClick={() => trackLandingEvent("cta_footer_submit_click", "footer", primaryHref)}
-                  >
-                    SUBMIT
-                  </button>
-               </div>
-            </div>
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-[#9a8b7f]">{copy.footer.body}</p>
           </div>
-          
-          <div className="mt-32 pt-12 border-t border-[var(--luxury-border-strong)] flex justify-between items-center luxury-sidenote !writing-mode-horizontal-tb !text-[7px]">
-             <p>© 2026 BUFSD MTSS PULSE. OPERATIONAL EXCELLENCE.</p>
-             <p>A DIGITAL PUBLICATION OF MTSS OPERATIONS.</p>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a19285]">{copy.footer.productTitle}</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li><a href="#features" className="hover:text-[#66574b] min-h-[44px] min-w-[44px]">{copy.footer.productLinks[0]}</a></li>
+              <li><a href="#support" className="hover:text-[#66574b] min-h-[44px] min-w-[44px]">{copy.footer.productLinks[1]}</a></li>
+              <li><a href="/app" className="hover:text-[#66574b] min-h-[44px] min-w-[44px]">{copy.footer.productLinks[2]}</a></li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a19285]">{copy.footer.resourcesTitle}</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li><a href="/query-health" className="hover:text-[#66574b] min-h-[44px] min-w-[44px]">{copy.footer.resourcesLinks[0]}</a></li>
+              <li><a href="/roster-table" className="hover:text-[#66574b] min-h-[44px] min-w-[44px]">{copy.footer.resourcesLinks[1]}</a></li>
+              <li><a href="/app/reports" className="hover:text-[#66574b] min-h-[44px] min-w-[44px]">{copy.footer.resourcesLinks[2]}</a></li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#a19285]">{copy.footer.conversionTitle}</p>
+            <p className="mt-3 text-sm leading-relaxed text-[#988a7f]">{copy.footer.conversionBody}</p>
+            <div className="mt-4">
+              <a
+                href={buttonDisabled ? undefined : primaryHref}
+                aria-disabled={buttonDisabled}
+                className={`inline-flex items-center gap-1 rounded-full px-4 py-3 text-xs font-bold ${
+                  buttonDisabled
+                    ? "cursor-not-allowed bg-[#d4c3ae] text-[#8f7e6f]"
+                    : "text-[#fff9f3] hover:opacity-90"
+                }`}
+                style={buttonDisabled ? undefined : { backgroundColor: "var(--tenant-color-primary)" }}
+                onClick={() => {
+                  if (!buttonDisabled) trackLandingEvent("cta_footer_submit_click", "footer", primaryHref);
+                }}
+              >
+                {buttonDisabled ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
+                {copy.footer.submitCta}
+              </a>
+            </div>
           </div>
         </div>
       </footer>
     </main>
   );
 }
+
+
+

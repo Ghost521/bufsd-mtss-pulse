@@ -34,7 +34,7 @@ describe("auth idle timeout", () => {
   it("creates an http-only activity cookie", () => {
     const now = new Date("2026-02-18T12:30:00.000Z");
     const headers = createActivityCookieHeaders(now);
-    const value = headers.get("Set-Cookie");
+    const value = headers.find(([key]) => key.toLowerCase() === "set-cookie")?.[1];
 
     expect(value).toContain(`${LAST_ACTIVITY_COOKIE}=${now.getTime()}`);
     expect(value).toContain("HttpOnly");
@@ -50,10 +50,9 @@ describe("auth idle timeout", () => {
         schoolId: "school-ne",
       },
     });
-    const cookieHeaders: string[] = [];
-    headers.forEach((value, key) => {
-      if (key.toLowerCase() === "set-cookie") cookieHeaders.push(value);
-    });
+    const cookieHeaders = headers
+      .filter(([key]) => key.toLowerCase() === "set-cookie")
+      .map(([, value]) => value);
 
     expect(cookieHeaders.some((cookie) => cookie.startsWith(`${LAST_ACTIVITY_COOKIE}=`))).toBe(true);
   });
