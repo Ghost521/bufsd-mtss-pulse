@@ -17,7 +17,7 @@ import {
   Users,
   Link2,
 } from "lucide-react";
-import { read, utils } from "xlsx";
+import readXlsxFile from "read-excel-file";
 import type { ImportAnalysisResult } from "../services/geminiService";
 import { analyzeImportedBatch, extractDataFromDocument } from "../services/geminiService";
 import { systemSettingsSchema, type SystemSettings } from "../lib/schemas/settings";
@@ -160,6 +160,51 @@ const parseDelimitedRows = (raw: string): ImportRow[] => {
     });
     return row;
   });
+};
+
+const toSpreadsheetCellString = (value: unknown): string => {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  return "";
+};
+
+const parseXlsxRows = async (file: File): Promise<ImportRow[]> => {
+  const matrix = await readXlsxFile(file);
+  if (matrix.length < 2) {
+    throw new Error("The spreadsheet must include headers and at least one data row.");
+  }
+
+  const headers = matrix[0].map((cell, index) => {
+    const header = toSpreadsheetCellString(cell);
+    return header.length > 0 ? header : `Column ${index + 1}`;
+  });
+  if (headers.length === 0) {
+    throw new Error("Could not detect column headers in this file.");
+  }
+
+  const usedHeaders = new Map<string, number>();
+  const uniqueHeaders = headers.map((header) => {
+    const nextCount = (usedHeaders.get(header) ?? 0) + 1;
+    usedHeaders.set(header, nextCount);
+    return nextCount === 1 ? header : `${header} (${nextCount})`;
+  });
+
+  const parsedRows = matrix.slice(1).map((row) => {
+    const mappedRow: ImportRow = {};
+    uniqueHeaders.forEach((header, index) => {
+      mappedRow[header] = toSpreadsheetCellString(row[index]);
+    });
+    return mappedRow;
+  });
+
+  const rows = parsedRows.filter((row) => Object.values(row).some((value) => toDisplayString(value).length > 0));
+  if (rows.length === 0) {
+    throw new Error("No rows were found in the spreadsheet.");
+  }
+
+  return rows;
 };
 
 const toPreviewRows = (rows: ImportRow[]): ImportRow[] => rows.slice(0, 5);
@@ -415,23 +460,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
       }
 
       if (isXlsx) {
-        const arrayBuffer = await uploadedFile.arrayBuffer();
-        const workbook = read(arrayBuffer, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        if (!firstSheetName) {
-          throw new Error("The spreadsheet does not contain any sheets.");
-        }
-
-        const firstSheet = workbook.Sheets[firstSheetName];
-        const parsedRows = utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
-          defval: "",
-          raw: false,
-        });
-        const rows = parsedRows.filter(isRecord);
-        if (rows.length === 0) {
-          throw new Error("No rows were found in the spreadsheet.");
-        }
-
+        const rows = await parseXlsxRows(uploadedFile);
         setLoadedRows(rows, fileName);
         return;
       }
