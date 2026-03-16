@@ -404,7 +404,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ items, onStude
                                 className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
                         ) : (
-                            <div className="w-full min-h-[300px] p-4 bg-slate-50 border border-slate-200 rounded-lg overflow-y-auto prose prose-sm max-w-none">
+                            <div className="app-prose w-full min-h-[300px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4">
                                 <RichTextRenderer content={planNotes} />
                             </div>
                         )}

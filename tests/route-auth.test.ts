@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildLoginRedirectHref,
+  clearRouteAuthStatusCache,
   getAvailableUserRoles,
   getRouteAuthStatus,
   mapSessionRoleToUserRole,
@@ -11,6 +12,11 @@ import { UserRole } from "../src/types";
 
 const asFetch = (impl: () => Promise<Response>): typeof fetch =>
   impl as unknown as typeof fetch;
+
+afterEach(() => {
+  clearRouteAuthStatusCache();
+  vi.unstubAllGlobals();
+});
 
 describe("route auth helpers", () => {
   it("returns signed-in auth status from health payload", async () => {
@@ -120,6 +126,38 @@ describe("route auth helpers", () => {
       primaryRole: null,
       effectiveRoles: [],
     });
+  });
+
+  it("dedupes repeated client-side auth checks for the same fetch implementation", async () => {
+    vi.stubGlobal("window", {} as Window & typeof globalThis);
+
+    const fetchSpy = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          auth: {
+            signedIn: true,
+            workosEnabled: true,
+          },
+          session: {
+            user: {
+              id: "u-principal-ne",
+              primaryRole: "principal",
+            },
+            effectiveRoles: ["principal"],
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    const fetchImpl = fetchSpy as unknown as typeof fetch;
+    const [first, second] = await Promise.all([
+      getRouteAuthStatus(fetchImpl),
+      getRouteAuthStatus(fetchImpl),
+    ]);
+
+    expect(first).toEqual(second);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("maps session roles to UserRole values", () => {

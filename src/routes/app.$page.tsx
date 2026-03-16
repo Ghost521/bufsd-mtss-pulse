@@ -1,16 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import App from "../components/App";
-import {
-  buildLoginRedirectHref,
-  getDevRoleOverrideFromStorage,
-  getRouteAuthStatus,
-  resolveRouteUserRole,
-  shouldBypassRouteAuth,
-} from "../lib/route-auth";
-import { buildWorkspacePath, normalizePageForRole, slugToPage } from "../lib/workspaceRoutes";
+import { loadWorkspaceRouteAuth, loadWorkspaceRoutes } from "../lib/route-module-loaders";
 
 export const Route = createFileRoute("/app/$page")({
   beforeLoad: async ({ location, params }) => {
+    const { slugToPage } = await loadWorkspaceRoutes();
     const page = slugToPage(params.page);
     if (!page) {
       throw redirect({
@@ -18,42 +11,14 @@ export const Route = createFileRoute("/app/$page")({
       });
     }
 
-    if (shouldBypassRouteAuth(location.href)) return;
-    if (typeof window === "undefined") return;
-
-    const auth = await getRouteAuthStatus();
-    if (!auth.signedIn) {
-      if (auth.workosEnabled) {
-        const forceReauth = auth.reason === "IDLE_TIMEOUT";
-        throw redirect({
-          href: buildLoginRedirectHref(location.href, forceReauth),
-        });
-      }
-
-      throw redirect({
-        to: "/",
-      });
-    }
-
-    const activeRole = resolveRouteUserRole(auth, {
-      devRoleOverride: getDevRoleOverrideFromStorage(),
-    });
-    if (!activeRole) {
-      throw redirect({
-        to: "/app",
-      });
-    }
-
-    const normalizedPage = normalizePageForRole(activeRole, page);
-    if (normalizedPage !== page) {
-      throw redirect({
-        to: buildWorkspacePath(normalizedPage),
-      });
+    const { enforceWorkspacePageAccess, requireWorkspaceRouteAuth } = await loadWorkspaceRouteAuth();
+    const routeAuth = await requireWorkspaceRouteAuth(location.href);
+    if (routeAuth) {
+      enforceWorkspacePageAccess(routeAuth.activeRole, page);
     }
   },
-  component: WorkspacePageRoute,
+  loader: async ({ location }) => {
+    const { requireWorkspaceRouteAuth } = await loadWorkspaceRouteAuth();
+    return requireWorkspaceRouteAuth(location.href);
+  },
 });
-
-function WorkspacePageRoute() {
-  return <App />;
-}

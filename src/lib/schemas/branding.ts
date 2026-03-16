@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  DEFAULT_DISTRICT_BRANDING,
+  type BrandingColorTokens,
+  type DistrictBrandingEditable,
+  type DistrictBrandingRecord,
+} from "../branding";
 
 const hexColorSchema = z
   .string()
@@ -28,17 +34,5 @@ export const districtBrandingRecordSchema = districtBrandingEditableSchema.exten
   updatedBy: z.string().min(1),
 });
 
-export type BrandingColorTokens = z.infer<typeof brandingColorTokensSchema>;
-export type DistrictBrandingEditable = z.infer<typeof districtBrandingEditableSchema>;
-export type DistrictBrandingRecord = z.infer<typeof districtBrandingRecordSchema>;
-
-export const DEFAULT_DISTRICT_BRANDING: DistrictBrandingEditable = {
-  mascotName: "Panthers",
-  logoUrl: null,
-  colors: {
-    primary: "#047857",
-    secondary: "#0f766e",
-    accent: "#ff8e73",
-    surface: "#f4f7f9",
-  },
-};
+export { DEFAULT_DISTRICT_BRANDING };
+export type { BrandingColorTokens, DistrictBrandingEditable, DistrictBrandingRecord };

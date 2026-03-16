@@ -1,44 +1,13 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import App from "../components/App";
-import {
-  buildLoginRedirectHref,
-  getDevRoleOverrideFromStorage,
-  getRouteAuthStatus,
-  resolveRouteUserRole,
-  shouldBypassRouteAuth,
-} from "../lib/route-auth";
+import { createFileRoute } from "@tanstack/react-router";
+import { loadWorkspaceRouteAuth } from "../lib/route-module-loaders";
 
 export const Route = createFileRoute("/app")({
   beforeLoad: async ({ location }) => {
-    if (shouldBypassRouteAuth(location.href)) return;
-    if (typeof window === "undefined") return;
-
-    const auth = await getRouteAuthStatus();
-    if (auth.signedIn) {
-      const activeRole = resolveRouteUserRole(auth, {
-        devRoleOverride: getDevRoleOverrideFromStorage(),
-      });
-      if (activeRole) return;
-
-      throw redirect({
-        to: "/",
-      });
-    }
-
-    if (auth.workosEnabled) {
-      const forceReauth = auth.reason === "IDLE_TIMEOUT";
-      throw redirect({
-        href: buildLoginRedirectHref(location.href, forceReauth),
-      });
-    }
-
-    throw redirect({
-      to: "/",
-    });
+    const { requireWorkspaceRouteAuth } = await loadWorkspaceRouteAuth();
+    await requireWorkspaceRouteAuth(location.href);
   },
-  component: WorkspaceRoute,
+  loader: async ({ location }) => {
+    const { requireWorkspaceRouteAuth } = await loadWorkspaceRouteAuth();
+    return requireWorkspaceRouteAuth(location.href);
+  },
 });
-
-function WorkspaceRoute() {
-  return <App />;
-}

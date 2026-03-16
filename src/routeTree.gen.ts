@@ -31,27 +31,27 @@ const RosterTableRoute = RosterTableRouteImport.update({
   id: '/roster-table',
   path: '/roster-table',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/roster-table.lazy').then((d) => d.Route))
 const QueryHealthRoute = QueryHealthRouteImport.update({
   id: '/query-health',
   path: '/query-health',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/query-health.lazy').then((d) => d.Route))
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/app.lazy').then((d) => d.Route))
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
 const AppPageRoute = AppPageRouteImport.update({
   id: '/$page',
   path: '/$page',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() => import('./routes/app.$page.lazy').then((d) => d.Route))
 const ApiStudentsHierarchyRoute = ApiStudentsHierarchyRouteImport.update({
   id: '/api/students-hierarchy',
   path: '/api/students-hierarchy',

@@ -1,4 +1,4 @@
-import { UserRole } from "../types";
+import { UserRole } from "./user-role";
 
 type HealthPayload = {
   auth?: {
@@ -37,11 +37,19 @@ const UNAUTHORIZED_STATUS: RouteAuthStatus = {
 
 const BYPASS_QUERY_KEY = "bypassAuth";
 const BYPASS_QUERY_VALUE = "1";
+const ROUTE_AUTH_CACHE_TTL_MS = 5000;
 
 const DEV_ROLE_SWITCHING_ENABLED =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
 
 export const DEV_ROLE_OVERRIDE_STORAGE_KEY = "mtss.dev.roleOverride";
+
+type RouteAuthCacheEntry = {
+  promise: Promise<RouteAuthStatus>;
+  expiresAt: number;
+};
+
+const routeAuthStatusCache = new WeakMap<typeof fetch, RouteAuthCacheEntry>();
 
 const isUserRole = (value: unknown): value is UserRole =>
   value === UserRole.PRINCIPAL ||
@@ -151,31 +159,59 @@ export const shouldBypassRouteAuth = (href: string): boolean => {
   }
 };
 
+export const clearRouteAuthStatusCache = (fetchImpl?: typeof fetch): void => {
+  if (typeof window === "undefined") return;
+  if (fetchImpl) {
+    routeAuthStatusCache.delete(fetchImpl);
+    return;
+  }
+  routeAuthStatusCache.delete(fetch);
+};
+
 export const getRouteAuthStatus = async (
   fetchImpl: typeof fetch = fetch
 ): Promise<RouteAuthStatus> => {
-  try {
-    const response = await fetchImpl("/api/health", {
-      credentials: "include",
-      cache: "no-store",
-    });
+  const canUseCache = typeof window !== "undefined";
+  const now = Date.now();
+  const cached = canUseCache ? routeAuthStatusCache.get(fetchImpl) : undefined;
 
-    if (!response.ok) return UNAUTHORIZED_STATUS;
-
-    const payload = (await response.json()) as HealthPayload;
-    return {
-      signedIn: Boolean(payload?.auth?.signedIn),
-      workosEnabled: Boolean(payload?.auth?.workosEnabled),
-      reason: typeof payload?.auth?.reason === "string" ? payload.auth.reason : null,
-      userId: typeof payload?.session?.user?.id === "string" ? payload.session.user.id : null,
-      primaryRole: typeof payload?.session?.user?.primaryRole === "string" ? payload.session.user.primaryRole : null,
-      effectiveRoles: Array.isArray(payload?.session?.effectiveRoles)
-        ? payload.session.effectiveRoles.filter((role): role is string => typeof role === "string")
-        : [],
-    };
-  } catch {
-    return UNAUTHORIZED_STATUS;
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
   }
+
+  const request = (async (): Promise<RouteAuthStatus> => {
+    try {
+      const response = await fetchImpl("/api/health", {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (!response.ok) return UNAUTHORIZED_STATUS;
+
+      const payload = (await response.json()) as HealthPayload;
+      return {
+        signedIn: Boolean(payload?.auth?.signedIn),
+        workosEnabled: Boolean(payload?.auth?.workosEnabled),
+        reason: typeof payload?.auth?.reason === "string" ? payload.auth.reason : null,
+        userId: typeof payload?.session?.user?.id === "string" ? payload.session.user.id : null,
+        primaryRole: typeof payload?.session?.user?.primaryRole === "string" ? payload.session.user.primaryRole : null,
+        effectiveRoles: Array.isArray(payload?.session?.effectiveRoles)
+          ? payload.session.effectiveRoles.filter((role): role is string => typeof role === "string")
+          : [],
+      };
+    } catch {
+      return UNAUTHORIZED_STATUS;
+    }
+  })();
+
+  if (canUseCache) {
+    routeAuthStatusCache.set(fetchImpl, {
+      promise: request,
+      expiresAt: now + ROUTE_AUTH_CACHE_TTL_MS,
+    });
+  }
+
+  return request;
 };
 
 export const buildLoginRedirectHref = (returnTo: string, forceReauth = false): string => {

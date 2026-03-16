@@ -22,6 +22,7 @@ type NotificationBellPopoverProps = {
   onNotificationMarkAllRead?: () => void;
   onNotificationArchiveRead?: () => void;
   onBeforeOpenSheet?: () => void;
+  defaultOpen?: boolean;
 };
 
 const MOBILE_BREAKPOINT_QUERY = "(max-width: 1023px)";
@@ -63,10 +64,11 @@ export const NotificationBellPopover: React.FC<NotificationBellPopoverProps> = (
   onNotificationMarkAllRead,
   onNotificationArchiveRead,
   onBeforeOpenSheet,
+  defaultOpen = false,
 }) => {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [activeFilter, setActiveFilter] = useState<"all" | "unread" | "critical">("all");
   const [position, setPosition] = useState({ top: 56, left: 16 });

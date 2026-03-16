@@ -1,42 +1,25 @@
 
-export enum Tier {
-  TIER_1 = 'Tier 1',
-  TIER_2 = 'Tier 2',
-  TIER_3 = 'Tier 3',
-}
+import {
+  ApprovalStatus,
+  AttendanceStatus,
+  DocumentScope,
+  EventType,
+  Tier,
+  Trend,
+} from "./lib/core-types";
+import { UserRole } from "./lib/user-role";
 
-export enum Trend {
-  UP = 'Trending Up',
-  STAGNANT = 'Stagnant',
-  MET = 'Goal Met',
-  DOWN = 'Trending Down',
-}
-
-export enum UserRole {
-  PRINCIPAL = 'Principal',
-  TEACHER = 'Teacher',
-  DISTRICT = 'District Admin',
-  PARENT = 'Parent',
-}
+export {
+  ApprovalStatus,
+  AttendanceStatus,
+  DocumentScope,
+  EventType,
+  Tier,
+  Trend,
+} from "./lib/core-types";
+export { UserRole } from "./lib/user-role";
 
 // --- Calendar Types ---
-
-export enum EventType {
-  MTSS = 'MTSS Meeting',
-  IEP = 'IEP Review',
-  STAFF = 'Staff Meeting',
-  PARENT = 'Parent Conference',
-  DISTRICT = 'District Training',
-  CLASS = 'Class Event',
-  DEADLINE = 'Deadline'
-}
-
-export enum AttendanceStatus {
-  ACCEPTED = 'Accepted',
-  DECLINED = 'Declined',
-  PENDING = 'Pending',
-  ORGANIZER = 'Organizer'
-}
 
 export interface CalendarAttendee {
   name: string;
@@ -66,21 +49,6 @@ export interface CalendarEvent {
 }
 
 // --- RAG & Document Types ---
-
-export enum DocumentScope {
-  DISTRICT = 'District',
-  SCHOOL = 'School',
-  CLASS = 'Class',
-  STUDENT = 'Student',
-  INTERNAL = 'Internal (Private)',
-}
-
-export enum ApprovalStatus {
-  APPROVED = 'Approved',
-  PENDING = 'Pending Approval',
-  REJECTED = 'Rejected',
-  NONE = 'No Approval Needed', // For downward sharing
-}
 
 export interface RAGDocument {
   id: string;

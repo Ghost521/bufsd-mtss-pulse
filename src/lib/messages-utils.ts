@@ -147,13 +147,13 @@ export const validateAttachment = (
   }
 
   if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-    return { ok: false, error: `\"${file.name}\" is larger than 10 MB.` };
+    return { ok: false, error: `"${file.name}" is larger than 10 MB.` };
   }
 
   const hasAllowedPrefix = ALLOWED_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
   const hasAllowedType = ALLOWED_MIME_TYPES.includes(file.type);
   if (!hasAllowedPrefix && !hasAllowedType) {
-    return { ok: false, error: `\"${file.name}\" is not a supported file type.` };
+    return { ok: false, error: `"${file.name}" is not a supported file type.` };
   }
 
   return { ok: true };

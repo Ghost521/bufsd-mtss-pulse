@@ -1,4 +1,4 @@
-import { UserRole } from "../types";
+import { UserRole } from "./user-role";
 
 export type WorkspacePageId =
   | "dashboard"

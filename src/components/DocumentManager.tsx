@@ -81,10 +81,7 @@ const PdfViewer = ({ base64Data }: { base64Data: string }) => {
       // Remove any whitespace that might have crept in
       const cleanData = base64Data.replace(/\s/g, '');
       const byteCharacters = atob(cleanData);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
+      const byteNumbers = Array.from(byteCharacters, (character) => character.charCodeAt(0));
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: 'application/pdf' });
       objectUrl = URL.createObjectURL(blob);

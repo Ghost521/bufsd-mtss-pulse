@@ -535,7 +535,7 @@ export class StudentAgent extends BaseAgent {
         ok: true,
         data: {
           missing_count: missing.length,
-          students_affected: [...new Set(missing.map((row) => row.studentName))].length,
+          students_affected: new Set(missing.map((row) => row.studentName)).size,
           items: missing.slice(0, 30),
         },
       };

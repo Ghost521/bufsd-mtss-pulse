@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  Bell,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -10,11 +11,15 @@ import {
 } from "lucide-react";
 import { UserRole, type NotificationListItem } from "../types";
 import { TenantContextSwitcher } from "./TenantContextSwitcher";
-import { NotificationBellPopover } from "./notifications/NotificationBellPopover";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { buildWorkspacePath } from "../lib/workspaceRoutes";
 import type { SidebarGroupState } from "../hooks/useSidebarState";
 import { getRouteIcon, iconSize } from "../lib/ui/icons";
+
+const loadNotificationBellPopover = () =>
+  import("./notifications/NotificationBellPopover").then((m) => ({ default: m.NotificationBellPopover }));
+
+const NotificationBellPopover = lazy(loadNotificationBellPopover);
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -222,6 +227,123 @@ type SidebarContentProps = {
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
 };
 
+type DeferredNotificationBellProps = {
+  activeNotifications: NotificationListItem[];
+  archivedNotifications: NotificationListItem[];
+  unseenCount: number;
+  loading: boolean;
+  errorMessage: string | null;
+  isCompact: boolean;
+  presentation: "popover" | "sheet";
+  onNotificationOpen: (id: string) => void;
+  onNotificationDismiss: (id: string) => void;
+  onNotificationArchive: (id: string) => void;
+  onNotificationDelete: (id: string) => void;
+  onNotificationRestore: (id: string) => void;
+  onNotificationMarkSeen: (ids: string[]) => void;
+  onNotificationMarkAllRead: () => void;
+  onNotificationArchiveRead: () => void;
+  onBeforeOpenSheet: () => void;
+};
+
+const NotificationBellTrigger: React.FC<{
+  unseenCount: number;
+  isCompact: boolean;
+  onActivate: () => void;
+}> = ({ unseenCount, isCompact, onActivate }) => (
+  <button
+    type="button"
+    onClick={onActivate}
+    onFocus={onActivate}
+    onMouseEnter={onActivate}
+    className={`relative inline-flex items-center justify-center border border-slate-700 bg-slate-800/80 text-slate-100 transition-colors hover:border-slate-500 hover:text-white ${
+      isCompact ? "h-8 w-8 rounded-md" : "h-9 w-9 rounded-lg"
+    }`}
+    aria-label={unseenCount > 0 ? `Notifications (${unseenCount} unread)` : "Notifications"}
+    title={unseenCount > 0 ? `${unseenCount} unread notifications` : "Notifications"}
+  >
+    <Bell size={16} />
+    {unseenCount > 0 ? (
+      <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+        {unseenCount > 99 ? "99+" : unseenCount}
+      </span>
+    ) : null}
+  </button>
+);
+
+const DeferredNotificationBell: React.FC<DeferredNotificationBellProps> = ({
+  activeNotifications,
+  archivedNotifications,
+  unseenCount,
+  loading,
+  errorMessage,
+  isCompact,
+  presentation,
+  onNotificationOpen,
+  onNotificationDismiss,
+  onNotificationArchive,
+  onNotificationDelete,
+  onNotificationRestore,
+  onNotificationMarkSeen,
+  onNotificationMarkAllRead,
+  onNotificationArchiveRead,
+  onBeforeOpenSheet,
+}) => {
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const [defaultOpen, setDefaultOpen] = useState(false);
+
+  useEffect(() => {
+    if (shouldLoad) return;
+    let cancelled = false;
+
+    void loadNotificationBellPopover().then(() => {
+      if (!cancelled) {
+        setShouldLoad(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldLoad]);
+
+  const handleActivate = () => {
+    if (!shouldLoad) {
+      void loadNotificationBellPopover();
+      setDefaultOpen(true);
+      setShouldLoad(true);
+    }
+  };
+
+  if (!shouldLoad) {
+    return <NotificationBellTrigger unseenCount={unseenCount} isCompact={isCompact} onActivate={handleActivate} />;
+  }
+
+  return (
+    <Suspense fallback={<NotificationBellTrigger unseenCount={unseenCount} isCompact={isCompact} onActivate={handleActivate} />}>
+      <NotificationBellPopover
+        activeNotifications={activeNotifications}
+        archivedNotifications={archivedNotifications}
+        unseenCount={unseenCount}
+        loading={loading}
+        errorMessage={errorMessage}
+        isCompact={isCompact}
+        presentation={presentation}
+        onNotificationOpen={onNotificationOpen}
+        onNotificationDismiss={onNotificationDismiss}
+        onNotificationArchive={onNotificationArchive}
+        onNotificationDelete={onNotificationDelete}
+        onNotificationRestore={onNotificationRestore}
+        onNotificationMarkSeen={onNotificationMarkSeen}
+        onNotificationMarkAllRead={onNotificationMarkAllRead}
+        onNotificationArchiveRead={onNotificationArchiveRead}
+        onBeforeOpenSheet={onBeforeOpenSheet}
+        defaultOpen={defaultOpen}
+      />
+    </Suspense>
+  );
+};
+
 const SidebarContent: React.FC<SidebarContentProps> = ({
   mode,
   currentRole,
@@ -380,7 +502,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         )}
 
         <div className={`mt-2 flex ${isDesktopCollapsed && !isMobile ? "justify-center" : "justify-start"}`}>
-          <NotificationBellPopover
+          <DeferredNotificationBell
             activeNotifications={activeNotifications}
             archivedNotifications={archivedNotifications}
             unseenCount={notificationUnseenCount}
@@ -504,8 +626,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               type="button"
               onClick={onDesktopCollapseToggle}
               className="mx-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 p-0 text-slate-100 transition-colors hover:border-slate-500 hover:text-white"
-              aria-label="Show account options"
-              title="Show account options"
+              aria-label="Show profile and settings"
+              title="Show profile and settings"
             >
               {showAvatarImage ? (
                 <img

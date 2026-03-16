@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
-@import "tw-animate-css";
 
 @theme {
   --font-sans: "Manrope", sans-serif;
@@ -307,6 +305,117 @@ h6,
   color: #334155;
 }
 
+.app-prose {
+  max-width: none;
+  color: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.app-prose > :first-child {
+  margin-top: 0;
+}
+
+.app-prose > :last-child {
+  margin-bottom: 0;
+}
+
+.app-prose p,
+.app-prose ul,
+.app-prose ol,
+.app-prose blockquote,
+.app-prose pre,
+.app-prose table {
+  margin: 0.5rem 0;
+}
+
+.app-prose li {
+  margin: 0.125rem 0;
+}
+
+.app-prose ul,
+.app-prose ol {
+  padding-left: 1.25rem;
+}
+
+.app-prose ul {
+  list-style: disc;
+}
+
+.app-prose ol {
+  list-style: decimal;
+}
+
+.app-prose a {
+  color: var(--tenant-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.app-prose strong {
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.app-prose em {
+  font-style: italic;
+}
+
+.app-prose h1,
+.app-prose h2,
+.app-prose h3,
+.app-prose h4 {
+  margin: 0.85rem 0 0.45rem;
+  color: var(--color-text-primary);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.app-prose h1 {
+  font-size: 1.5rem;
+}
+
+.app-prose h2 {
+  font-size: 1.25rem;
+}
+
+.app-prose h3 {
+  font-size: 1.1rem;
+}
+
+.app-prose h4 {
+  font-size: 1rem;
+}
+
+.app-prose code {
+  border-radius: 0.375rem;
+  background: #e2e8f0;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.app-prose pre {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.75rem 0.875rem;
+}
+
+.app-prose pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.app-prose blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.875rem;
+  color: #475569;
+  font-style: italic;
+}
+
 .student-open-cue {
   display: inline-flex;
   align-items: center;
@@ -502,6 +611,107 @@ h6,
 @keyframes btn-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes app-enter {
+  from {
+    opacity: var(--app-enter-opacity, 1);
+    transform: translate3d(var(--app-enter-translate-x, 0), var(--app-enter-translate-y, 0), 0)
+      scale3d(var(--app-enter-scale, 1), var(--app-enter-scale, 1), 1);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation-name: app-enter;
+    animation-duration: var(--app-enter-duration, var(--tw-duration, 200ms));
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: both;
+    will-change: transform, opacity;
+  }
+
+  .fade-in {
+    --app-enter-opacity: 0;
+  }
+
+  .zoom-in {
+    --app-enter-scale: 0.975;
+  }
+
+  .zoom-in-95 {
+    --app-enter-scale: 0.95;
+  }
+
+  .slide-in-from-bottom-0 {
+    --app-enter-translate-y: 0;
+  }
+
+  .slide-in-from-bottom-1 {
+    --app-enter-translate-y: 0.25rem;
+  }
+
+  .slide-in-from-bottom-2 {
+    --app-enter-translate-y: 0.5rem;
+  }
+
+  .slide-in-from-bottom-4 {
+    --app-enter-translate-y: 1rem;
+  }
+
+  .slide-in-from-top-2 {
+    --app-enter-translate-y: -0.5rem;
+  }
+
+  .slide-in-from-right {
+    --app-enter-translate-x: 100%;
+  }
+
+  .duration-100 {
+    --app-enter-duration: 100ms;
+  }
+
+  .duration-150 {
+    --app-enter-duration: 150ms;
+  }
+
+  .duration-200 {
+    --app-enter-duration: 200ms;
+  }
+
+  .duration-300 {
+    --app-enter-duration: 300ms;
+  }
+
+  .duration-500 {
+    --app-enter-duration: 500ms;
+  }
+
+  .duration-1000 {
+    --app-enter-duration: 1000ms;
+  }
+
+  .delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .delay-150 {
+    animation-delay: 150ms;
+  }
+
+  .delay-200 {
+    animation-delay: 200ms;
+  }
+
+  @media (min-width: 40rem) {
+    .sm\:slide-in-from-bottom-0 {
+      --app-enter-translate-y: 0;
+    }
   }
 }
 

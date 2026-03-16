@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Search, MapPin, Users, TrendingUp, AlertCircle, School, List, Map as MapIcon, MessageSquare, CalendarDays, FileText } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import type { StudentRosterItem } from "../types";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
 import { SidebarToggleButton } from "./SidebarToggleButton";
@@ -8,6 +7,7 @@ import { useStudents } from "../hooks/useStudents";
 import { useTenantCollection } from "../hooks/useTenantCollection";
 import { useSchools } from "../hooks/useSchools";
 import { Button } from "./ui/Button";
+import { SimpleDonutChart } from "./SimpleCharts";
 
 interface SchoolsMapViewProps {
   onMenuClick: () => void;
@@ -132,7 +132,10 @@ export const SchoolsMapView: React.FC<SchoolsMapViewProps> = ({ onMenuClick, onN
     () => referralsCollection.query.data?.rows ?? [],
     [referralsCollection.query.data?.rows]
   );
-  const schoolDirectory = schoolsQuery.data?.rows ?? [];
+  const schoolDirectory = useMemo(
+    () => schoolsQuery.data?.rows ?? [],
+    [schoolsQuery.data?.rows]
+  );
 
   const schools = useMemo<SchoolViewModel[]>(() => {
     const bySchool = new Map<string, StudentRow[]>();
@@ -471,24 +474,16 @@ export const SchoolsMapView: React.FC<SchoolsMapViewProps> = ({ onMenuClick, onN
                 </div>
 
                 <div className="grid flex-1 gap-3 p-4 sm:grid-cols-[1fr_auto]">
-                  <div className="h-40">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={selectedSchool.tierDistribution}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={30}
-                          outerRadius={56}
-                          stroke="#ffffff"
-                          strokeWidth={2}
-                        >
-                          {selectedSchool.tierDistribution.map((tier) => (
-                            <Cell key={tier.name} fill={tier.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                  <div className="flex h-40 items-center justify-center">
+                    <SimpleDonutChart
+                      data={selectedSchool.tierDistribution.map((tier) => ({
+                        name: tier.name,
+                        value: tier.value,
+                        color: tier.color,
+                      }))}
+                      size={144}
+                      strokeWidth={22}
+                    />
                   </div>
                   <div className="space-y-2 text-xs text-slate-700">
                     {selectedSchool.tierDistribution.map((tier) => (

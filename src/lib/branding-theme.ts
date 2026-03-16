@@ -1,4 +1,4 @@
-import { DEFAULT_DISTRICT_BRANDING, type DistrictBrandingEditable } from "./schemas/branding";
+import { DEFAULT_DISTRICT_BRANDING, type DistrictBrandingEditable } from "./branding";
 
 const FALLBACK_BRANDING = DEFAULT_DISTRICT_BRANDING;
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;

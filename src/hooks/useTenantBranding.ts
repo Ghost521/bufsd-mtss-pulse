@@ -1,13 +1,14 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { applyTenantBrandingTheme, resolveBrandingTheme } from "../lib/branding-theme";
-import { queryKeys } from "../lib/query-keys";
 import {
   DEFAULT_DISTRICT_BRANDING,
-  districtBrandingEditableSchema,
-  districtBrandingRecordSchema,
+  parseDistrictBrandingEditable,
+  parseDistrictBrandingRecord,
+  parseDistrictBrandingSnapshot,
   type DistrictBrandingEditable,
-} from "../lib/schemas/branding";
+} from "../lib/branding";
+import { applyTenantBrandingTheme, resolveBrandingTheme } from "../lib/branding-theme";
+import { queryKeys } from "../lib/query-keys";
 
 const BRANDING_SNAPSHOT_KEY = "mtss_branding_snapshot";
 
@@ -19,30 +20,22 @@ type BrandingApiPayload = {
 };
 
 const parseBrandingFromPayload = (payload: BrandingApiPayload): DistrictBrandingEditable | null => {
-  const fromRows = districtBrandingRecordSchema.safeParse(payload.rows?.[0]);
-  if (fromRows.success) return resolveBrandingTheme(fromRows.data);
+  const fromRows = parseDistrictBrandingRecord(payload.rows?.[0]);
+  if (fromRows) return resolveBrandingTheme(fromRows);
 
-  const fromRow = districtBrandingRecordSchema.safeParse(payload.row);
-  if (fromRow.success) return resolveBrandingTheme(fromRow.data);
+  const fromRow = parseDistrictBrandingRecord(payload.row);
+  if (fromRow) return resolveBrandingTheme(fromRow);
 
-  const editable = districtBrandingEditableSchema.safeParse(payload.row);
-  if (editable.success) return resolveBrandingTheme(editable.data);
+  const editable = parseDistrictBrandingEditable(payload.row);
+  if (editable) return resolveBrandingTheme(editable);
 
   return null;
 };
 
 const readBrandingSnapshot = (): DistrictBrandingEditable => {
   if (typeof window === "undefined") return DEFAULT_DISTRICT_BRANDING;
-  try {
-    const raw = window.localStorage.getItem(BRANDING_SNAPSHOT_KEY);
-    if (!raw) return DEFAULT_DISTRICT_BRANDING;
-    const parsed = JSON.parse(raw) as unknown;
-    const validated = districtBrandingEditableSchema.safeParse(parsed);
-    if (!validated.success) return DEFAULT_DISTRICT_BRANDING;
-    return resolveBrandingTheme(validated.data);
-  } catch {
-    return DEFAULT_DISTRICT_BRANDING;
-  }
+  const snapshot = parseDistrictBrandingSnapshot(window.localStorage.getItem(BRANDING_SNAPSHOT_KEY));
+  return snapshot ? resolveBrandingTheme(snapshot) : DEFAULT_DISTRICT_BRANDING;
 };
 
 const writeBrandingSnapshot = (branding: DistrictBrandingEditable): void => {

@@ -88,7 +88,12 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         />
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); !disabled && setIsOpen(!isOpen); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!disabled) {
+              setIsOpen(!isOpen);
+            }
+          }}
           disabled={disabled}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -119,7 +124,12 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                 return (
                 <button
                     key={idx}
-                    onClick={(e) => { e.preventDefault(); day && handleDayClick(day); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (day) {
+                        handleDayClick(day);
+                      }
+                    }}
                     disabled={!day}
                     className={`h-8 w-8 flex items-center justify-center rounded-lg text-xs font-medium transition-all ${
                     !day ? 'invisible' :

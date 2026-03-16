@@ -57,7 +57,7 @@ const normalizeAiErrorMessage = (rawMessage: string): string => {
     lower.includes("resource_exhausted") ||
     lower.includes("rate limit")
   ) {
-    const retryMatch = message.match(/retry in\s+([\d.]+)s/i) ?? message.match(/\"retryDelay\"\s*:\s*\"([\d.]+)s\"/i);
+    const retryMatch = message.match(/retry in\s+([\d.]+)s/i) ?? message.match(/"retryDelay"\s*:\s*"([\d.]+)s"/i);
     if (retryMatch) {
       const retrySeconds = Math.max(1, Math.ceil(Number.parseFloat(retryMatch[1])));
       return `Gemini rate limit reached. Please retry in about ${retrySeconds} seconds.`;

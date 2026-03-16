@@ -17,7 +17,6 @@ import {
   Users,
   Link2,
 } from "lucide-react";
-import readXlsxFile from "read-excel-file";
 import type { ImportAnalysisResult } from "../services/geminiService";
 import { analyzeImportedBatch, extractDataFromDocument } from "../services/geminiService";
 import { systemSettingsSchema, type SystemSettings } from "../lib/schemas/settings";
@@ -37,6 +36,8 @@ type ImportRow = Record<string, unknown>;
 
 type ConnectorSource = Extract<SourceType, "IREADY" | "BRANCHING_MINDS" | "POWERSCHOOL" | "ESCHOOLDATA">;
 type ConnectorStatus = "not_connected" | "connecting" | "connected";
+
+let spreadsheetParserPromise: Promise<typeof import("read-excel-file").default> | null = null;
 
 interface MappedColumn {
   sourceHeader: string;
@@ -170,7 +171,16 @@ const toSpreadsheetCellString = (value: unknown): string => {
   return "";
 };
 
+const loadSpreadsheetParser = async (): Promise<typeof import("read-excel-file").default> => {
+  if (!spreadsheetParserPromise) {
+    spreadsheetParserPromise = import("read-excel-file").then((module) => module.default);
+  }
+
+  return spreadsheetParserPromise;
+};
+
 const parseXlsxRows = async (file: File): Promise<ImportRow[]> => {
+  const readXlsxFile = await loadSpreadsheetParser();
   const matrix = await readXlsxFile(file);
   if (matrix.length < 2) {
     throw new Error("The spreadsheet must include headers and at least one data row.");
@@ -727,26 +737,22 @@ export const DataImporter: React.FC<DataImporterProps> = ({
   const connectorSource = isConnectorSource(sourceType) ? sourceType : null;
 
   return (
-    <div className="app-responsive-pane flex h-[calc(100vh-100px)] min-w-0 flex-col bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-3xl shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500 mb-6 overflow-hidden">
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/60 p-6 sm:p-8 bg-white/50">
-        <div className="absolute -left-12 -top-12 w-48 h-48 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex min-w-0 items-center gap-4 relative z-10">
+    <div className="app-responsive-pane flex h-full min-w-0 flex-col bg-white animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 p-4 sm:p-6">
+        <div className="flex min-w-0 items-center gap-3">
           <SidebarToggleButton
             onClick={onMenuClick}
-            className="lg:hidden p-2.5 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-xl"
+            className="lg:hidden p-2 -ml-2 text-slate-600 transition-colors hover:bg-slate-100 rounded-lg"
           />
-          <div className="p-3 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600 hidden sm:block">
-            <Database size={24} strokeWidth={2.5} />
-          </div>
           <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Data Import</h2>
-            <p className="mt-1.5 text-sm font-medium text-slate-500">
+            <h2 className="text-2xl font-bold text-slate-900">Data Import</h2>
+            <p className="text-slate-500 text-sm">
               Import student or staff records from files, pasted data, or connected systems.
             </p>
           </div>
         </div>
 
-        <div className="hidden md:flex md:flex-wrap md:items-center md:justify-end md:gap-3 relative z-10 bg-slate-100/80 p-2.5 rounded-2xl shadow-inner border border-slate-200/50">
+        <div className="hidden md:flex md:flex-wrap md:items-center md:justify-end md:gap-2">
           {["Select Source", "Load Data", "Map Columns", "Review"].map((label, idx) => {
             const isActive = currentStepIndex === idx;
             const isCompleted = currentStepIndex > idx;
@@ -754,40 +760,40 @@ export const DataImporter: React.FC<DataImporterProps> = ({
             return (
               <React.Fragment key={label}>
                 <div
-                  className={`flex items-center gap-2.5 ${
+                  className={`flex items-center gap-2 ${
                     isActive
-                      ? "text-indigo-700 font-extrabold"
+                      ? "text-indigo-600 font-bold"
                       : isCompleted
-                        ? "text-emerald-700 font-extrabold"
-                        : "text-slate-400 font-semibold"
+                        ? "text-emerald-600"
+                        : "text-slate-300"
                   }`}
                 >
                   <div
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs shadow-sm transition-all ${
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border ${
                       isActive
-                        ? "border border-indigo-200 bg-white text-indigo-600 shadow-md"
+                        ? "border-indigo-600 bg-indigo-50"
                         : isCompleted
-                          ? "border border-emerald-200 bg-emerald-50 text-emerald-600"
-                          : "border border-slate-200/80 bg-slate-50/50 text-slate-400"
+                          ? "border-emerald-600 bg-emerald-50"
+                          : "border-slate-300"
                     }`}
                   >
-                    {isCompleted ? <CheckCircle2 size={16} strokeWidth={3} /> : idx + 1}
+                    {isCompleted ? <CheckCircle2 size={14} /> : idx + 1}
                   </div>
-                  <span className="text-[11px] uppercase tracking-widest">{label}</span>
+                  <span className="text-sm">{label}</span>
                 </div>
-                {idx < 3 && <div className="w-6 h-px bg-slate-200/80" />}
+                {idx < 3 && <div className="w-8 h-px bg-slate-200" />}
               </React.Fragment>
             );
           })}
         </div>
       </div>
 
-      <div className="border-b border-slate-100/80 px-6 py-3 text-[11px] font-extrabold uppercase tracking-widest text-slate-500 md:hidden bg-slate-50/50">
+      <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-500 md:hidden sm:px-6">
         Step {Math.max(1, currentStepIndex + 1)} of 4
       </div>
 
-      <div className="app-responsive-content flex-1 bg-slate-50/30 p-6 sm:p-8 overflow-y-auto custom-scrollbar relative z-0">
-        <div className="max-w-4xl mx-auto relative z-10">
+      <div className="app-responsive-content flex-1 bg-slate-50/30 p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto">
           {importError && (
             <div className="mb-4 p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-lg text-sm flex items-start gap-2">
               <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -796,31 +802,31 @@ export const DataImporter: React.FC<DataImporterProps> = ({
           )}
 
           {step === "source" && (
-            <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex justify-center mb-6">
-                <div className="bg-slate-100/80 p-1.5 rounded-2xl flex border border-slate-200/50 shadow-inner">
+            <div className="space-y-6">
+              <div className="flex justify-center mb-4">
+                <div className="bg-slate-200 p-1 rounded-xl flex">
                   <button
                     type="button"
                     onClick={() => setDataType("STUDENTS")}
-                    className={`px-6 py-2.5 rounded-xl text-sm font-extrabold flex items-center gap-2.5 transition-all duration-300 ${
+                    className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${
                       dataType === "STUDENTS"
-                        ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50 scale-100"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-white/50 scale-95 hover:scale-100 border border-transparent"
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-slate-600 hover:text-slate-800"
                     }`}
                   >
-                    <LayoutList size={18} strokeWidth={2.5} /> Student Roster
+                    <LayoutList size={16} /> Student Roster
                   </button>
                   {canImportStaff && (
                     <button
                       type="button"
                       onClick={() => setDataType("STAFF")}
-                      className={`px-6 py-2.5 rounded-xl text-sm font-extrabold flex items-center gap-2.5 transition-all duration-300 ${
+                      className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${
                         dataType === "STAFF"
-                          ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50 scale-100"
-                          : "text-slate-500 hover:text-slate-700 hover:bg-white/50 scale-95 hover:scale-100 border border-transparent"
+                          ? "bg-white text-indigo-600 shadow-sm"
+                          : "text-slate-600 hover:text-slate-800"
                       }`}
                     >
-                      <Users size={18} strokeWidth={2.5} /> Staff Roster
+                      <Users size={16} /> Staff Roster
                     </button>
                   )}
                 </div>
@@ -832,10 +838,10 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   const optionConnectorStatus = optionConnector ? connectorStatus[optionConnector] : null;
                   const connectorBadgeClasses =
                     optionConnectorStatus === "connected"
-                      ? "bg-emerald-50/80 text-emerald-700 border-emerald-200/80"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                       : optionConnectorStatus === "connecting"
-                        ? "bg-indigo-50/80 text-indigo-700 border-indigo-200/80"
-                        : "bg-slate-50/80 text-slate-500 border-slate-200/80";
+                        ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                        : "bg-indigo-50 text-indigo-700 border-indigo-100";
                   const connectorBadgeText =
                     optionConnectorStatus === "connected"
                       ? "Connected"
@@ -848,20 +854,20 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                       key={option.id}
                       type="button"
                       onClick={() => handleSourceSelect(option.id)}
-                      className="flex flex-col items-center justify-center p-8 bg-white/60 backdrop-blur-sm border border-slate-200/80 rounded-3xl hover:border-indigo-300 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group text-center h-56 shadow-sm"
+                      className="flex flex-col items-center justify-center p-8 bg-white border-2 border-slate-200 rounded-xl hover:border-indigo-500 hover:shadow-lg transition-all group text-center h-52"
                     >
-                      <div className="mb-5 opacity-80 group-hover:opacity-100 transition-all transform group-hover:scale-110 duration-300 drop-shadow-sm">
+                      <div className="mb-4 opacity-80 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 duration-300">
                         {getSourceIcon(option.id)}
                       </div>
-                      <h3 className="text-xl font-extrabold tracking-tight text-slate-800 group-hover:text-indigo-700 transition-colors">
+                      <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-700">
                         {option.label}
                       </h3>
-                      <p className="text-sm font-medium text-slate-500 mt-2 leading-relaxed">{option.desc}</p>
+                      <p className="text-sm text-slate-500 mt-2">{option.desc}</p>
                       {option.isConnector && (
                         <span
-                          className={`mt-4 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest px-3 py-1.5 rounded-lg border shadow-sm ${connectorBadgeClasses}`}
+                          className={`mt-3 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border ${connectorBadgeClasses}`}
                         >
-                          <Link2 size={14} strokeWidth={2.5} /> {connectorBadgeText}
+                          <Link2 size={12} /> {connectorBadgeText}
                         </span>
                       )}
                     </button>
@@ -872,38 +878,36 @@ export const DataImporter: React.FC<DataImporterProps> = ({
           )}
 
           {step === "upload" && (
-            <div className="flex flex-col items-center justify-center py-16 bg-white/80 backdrop-blur-md rounded-3xl border border-slate-200/60 shadow-sm min-h-[440px] relative overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:24px_24px]"></div>
-              
+            <div className="flex flex-col items-center justify-center py-12 bg-white rounded-xl border border-slate-200 shadow-sm min-h-[400px]">
               {sourceType === "FILE" ? (
-                <div className="relative z-10 flex flex-col items-center">
+                <>
                   {isExtracting ? (
-                    <div className="flex flex-col items-center justify-center gap-5 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="flex flex-col items-center justify-center gap-4 animate-in fade-in">
                       <div className="relative">
-                        <div className="w-20 h-20 border-4 border-indigo-100/50 rounded-full animate-pulse shadow-inner"></div>
-                        <div className="absolute inset-0 border-t-4 border-indigo-600 rounded-full animate-spin shadow-[0_0_15px_rgba(79,70,229,0.3)]"></div>
-                        <BrainCircuit size={28} strokeWidth={2.5} className="absolute inset-0 m-auto text-indigo-500 animate-pulse" />
+                        <div className="w-16 h-16 border-4 border-indigo-100 rounded-full animate-pulse"></div>
+                        <div className="absolute inset-0 border-t-4 border-indigo-600 rounded-full animate-spin"></div>
+                        <BrainCircuit size={24} className="absolute inset-0 m-auto text-indigo-500 animate-pulse" />
                       </div>
                       <div className="text-center">
-                        <h3 className="text-xl font-extrabold tracking-tight text-indigo-900 mb-1.5">Extracting Tabular Data</h3>
-                        <p className="text-sm font-semibold text-indigo-600/80 max-w-[240px]">
+                        <h3 className="text-lg font-bold text-indigo-900">Extracting Tabular Data</h3>
+                        <p className="text-sm text-indigo-600">
                           Reading document contents and preparing records...
                         </p>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div className="w-24 h-24 bg-gradient-to-br from-indigo-50 to-white rounded-3xl flex items-center justify-center text-indigo-600 mb-8 shadow-sm border border-indigo-100/50 rotate-3 hover:rotate-6 transition-transform duration-500">
-                        <Upload size={36} strokeWidth={2.5} />
+                      <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mb-6">
+                        <Upload size={32} />
                       </div>
-                      <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-3">
+                      <h3 className="text-xl font-bold text-slate-900 mb-2">
                         Upload {dataType === "STUDENTS" ? "Student" : "Staff"} Data File
                       </h3>
-                      <p className="text-slate-500 mb-10 text-center max-w-sm text-sm font-medium leading-relaxed">
+                      <p className="text-slate-500 mb-8 text-center max-w-sm">
                         Drag and drop or click to browse.
                         <br />
-                        <span className="text-[11px] font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-50/80 border border-indigo-100/50 px-3 py-1.5 rounded-lg mt-3 inline-block shadow-sm">
-                          Supports: CSV, XLSX, PDF, image, DOCX
+                        <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded mt-2 inline-block">
+                          Supports: CSV, XLSX, PDF, image, DOCX, DOC
                         </span>
                       </p>
                       <input
@@ -918,28 +922,26 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="px-10 py-3.5 bg-indigo-600 text-white rounded-xl font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg transition-all hover:-translate-y-1 active:scale-95 text-base tracking-tight"
+                        className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow-md hover:bg-indigo-700 transition-all"
                       >
                         Select File
                       </button>
                     </>
                   )}
-                </div>
+                </>
               ) : sourceType === "PASTE" ? (
-                <div className="w-full max-w-3xl px-8 relative z-10">
-                  <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-3 flex items-center gap-3">
-                    <div className="p-2 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600">
-                      <ClipboardPaste size={24} strokeWidth={2.5} />
-                    </div>
+                <div className="w-full max-w-2xl px-6">
+                  <h3 className="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+                    <ClipboardPaste size={24} className="text-indigo-600" />
                     Paste Data
                   </h3>
-                  <p className="text-slate-500 mb-6 text-sm font-medium">
+                  <p className="text-slate-500 mb-4 text-sm">
                     Paste rows from Excel or Google Sheets. The first row must contain headers.
                   </p>
                   <textarea
                     value={pastedText}
                     onChange={(event) => setPastedText(event.target.value)}
-                    className="w-full h-72 p-5 bg-white/50 border border-slate-200/80 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none mb-6 shadow-inner custom-scrollbar transition-all"
+                    className="w-full h-64 p-4 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none mb-4"
                     placeholder={`Name\tID\tGrade\nJohn Doe\t123\t4th\nJane Smith\t124\t4th`}
                   />
                   <div className="flex justify-end">
@@ -947,29 +949,26 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                       type="button"
                       onClick={handlePasteSubmit}
                       disabled={!pastedText.trim()}
-                      className="px-8 py-3.5 bg-indigo-600 text-white rounded-xl font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg transition-all disabled:opacity-50 active:scale-95 disabled:hover:translate-y-0 hover:-translate-y-1"
+                      className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-semibold shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50"
                     >
                       Process Data
                     </button>
                   </div>
                 </div>
               ) : connectorSource ? (
-                <div className="w-full max-w-xl px-8 relative z-10">
-                  <div className="rounded-3xl border border-slate-200/60 bg-slate-50/50 backdrop-blur-sm p-8 shadow-sm">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-                      <h3 className="text-xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600">
-                          <Link2 size={20} strokeWidth={2.5} />
-                        </div>
-                        {selectedSourceLabel} OAuth Connection
+                <div className="w-full max-w-xl px-6">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Link2 size={18} className="text-indigo-600" /> {selectedSourceLabel} OAuth Connection
                       </h3>
                       <span
-                        className={`text-[10px] font-extrabold uppercase tracking-widest px-3 py-1.5 rounded-lg border shadow-sm ${
+                        className={`text-xs font-semibold px-2 py-1 rounded-full border ${
                           connectorStatus[connectorSource] === "connected"
-                            ? "bg-emerald-50/80 text-emerald-700 border-emerald-200/80"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                             : connectorStatus[connectorSource] === "connecting"
-                              ? "bg-indigo-50/80 text-indigo-700 border-indigo-200/80"
-                              : "bg-slate-50/80 text-slate-500 border-slate-200/80"
+                              ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                              : "bg-slate-100 text-slate-600 border-slate-200"
                         }`}
                       >
                         {connectorStatus[connectorSource] === "connected"
@@ -979,27 +978,27 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                             : "Not connected"}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                    <p className="text-sm text-slate-600">
                       This release includes the connection shell only. Scheduled sync and live data pull are coming
                       soon.
                     </p>
-                    <p className="text-xs font-semibold text-slate-500 mt-3">
+                    <p className="text-xs text-slate-500 mt-2">
                       Use File Upload or Paste Data for immediate imports.
                     </p>
 
-                    <div className="mt-8 flex flex-col sm:flex-row flex-wrap gap-3">
+                    <div className="mt-5 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           void handleConnectorConnect(connectorSource);
                         }}
                         disabled={connectorStatus[connectorSource] === "connecting" || isConnecting}
-                        className="px-5 py-3 bg-indigo-600 text-white rounded-xl text-sm font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed flex flex-1 items-center justify-center gap-2.5 transition-all hover:shadow-lg active:scale-95"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2"
                       >
                         {connectorStatus[connectorSource] === "connecting" ? (
-                          <Loader2 size={16} strokeWidth={2.5} className="animate-spin" />
+                          <Loader2 size={14} className="animate-spin" />
                         ) : (
-                          <Link2 size={16} strokeWidth={2.5} />
+                          <Link2 size={14} />
                         )}
                         {connectorStatus[connectorSource] === "connected"
                           ? "Reconnect Account"
@@ -1011,7 +1010,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                           setSourceType("FILE");
                           setImportError(null);
                         }}
-                        className="px-5 py-3 border border-slate-200/80 text-slate-700 bg-white shadow-sm rounded-xl text-sm font-extrabold hover:bg-slate-50 transition-all active:scale-95 flex-1 text-center"
+                        className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-white"
                       >
                         Upload File Instead
                       </button>
@@ -1021,9 +1020,9 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                           setSourceType("PASTE");
                           setImportError(null);
                         }}
-                        className="px-5 py-3 border border-slate-200/80 text-slate-700 bg-white shadow-sm rounded-xl text-sm font-extrabold hover:bg-slate-50 transition-all active:scale-95 flex-1 text-center"
+                        className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-white"
                       >
-                        Paste Instead
+                        Paste Data Instead
                       </button>
                     </div>
                   </div>
@@ -1038,7 +1037,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                     resetImportData();
                     setStep("source");
                   }}
-                  className="mt-10 text-[11px] font-extrabold uppercase tracking-widest text-slate-400 hover:text-indigo-600 transition-colors relative z-10"
+                  className="mt-8 text-slate-400 hover:text-slate-600 text-sm"
                 >
                   Back to Source Selection
                 </button>
@@ -1047,24 +1046,21 @@ export const DataImporter: React.FC<DataImporterProps> = ({
           )}
 
           {step === "mapping" && (
-            <div className="bg-white/80 backdrop-blur-md rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-              <div className="p-6 sm:p-8 border-b border-slate-200/60 bg-white/50">
-                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Map Columns</h3>
-                <p className="text-sm font-medium text-slate-500 mt-1.5">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-100">
+                <h3 className="text-lg font-bold text-slate-900">Map Columns</h3>
+                <p className="text-sm text-slate-500">
                   Match source fields to BUFSD {dataType === "STUDENTS" ? "student" : "staff"} fields.
                 </p>
-                <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 mt-2">
+                <p className="text-xs text-slate-400 mt-1">
                   Loaded {fullData.length} rows{sourceLabel ? ` from ${sourceLabel}` : ""}.
                 </p>
               </div>
 
               {mappingValidationIssues.length > 0 && (
-                <div className="mx-6 sm:mx-8 mt-6 p-4 rounded-2xl border border-amber-200/80 bg-amber-50/80 text-amber-800 text-sm shadow-sm">
-                  <p className="font-extrabold tracking-tight mb-2 flex items-center gap-2">
-                    <AlertCircle size={16} strokeWidth={2.5} />
-                    Fix these mapping issues before review:
-                  </p>
-                  <ul className="list-disc pl-5 space-y-1 font-medium text-amber-900/90">
+                <div className="mx-6 mt-4 p-3 rounded-lg border border-amber-100 bg-amber-50 text-amber-800 text-sm">
+                  <p className="font-semibold mb-1">Fix these mapping issues before review:</p>
+                  <ul className="list-disc pl-5 space-y-0.5">
                     {mappingValidationIssues.map((issue) => (
                       <li key={issue}>{issue}</li>
                     ))}
@@ -1072,31 +1068,31 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                 </div>
               )}
 
-              <div className="p-6 sm:p-8 space-y-4">
+              <div className="p-6 space-y-4">
                 {mappings.map((mapping, index) => {
                   const isDuplicate = Boolean(mapping.targetField) && duplicateTargetIds.includes(mapping.targetField);
                   return (
                     <div
                       key={`${mapping.sourceHeader}-${index}`}
-                      className={`flex flex-col gap-4 rounded-2xl border p-4 md:flex-row md:items-center md:gap-5 shadow-sm transition-colors ${
-                        isDuplicate ? "border-rose-200/80 bg-rose-50/50" : "border-slate-200/60 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"
+                      className={`flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:gap-4 ${
+                        isDuplicate ? "border-rose-200 bg-rose-50" : "border-slate-100 bg-slate-50"
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-1.5">
+                        <label className="text-xs font-bold text-slate-400 uppercase block mb-1">
                           Source Header
                         </label>
-                        <div className="truncate text-[15px] font-bold text-slate-800 tracking-tight">{mapping.sourceHeader}</div>
+                        <div className="truncate text-sm font-medium text-slate-700">{mapping.sourceHeader}</div>
                       </div>
-                      <ArrowRight size={20} strokeWidth={2.5} className="hidden text-slate-300 md:block" />
+                      <ArrowRight size={16} className="hidden text-slate-300 md:block" />
                       <div className="min-w-0 flex-1">
-                        <label className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest block mb-1.5">
+                        <label className="text-xs font-bold text-indigo-500 uppercase block mb-1">
                           Target Field
                         </label>
                         <select
                           value={mapping.targetField}
                           onChange={(event) => updateMapping(mapping.sourceHeader, event.target.value)}
-                          className="w-full p-2.5 bg-white border border-slate-200/80 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none shadow-sm transition-all cursor-pointer appearance-none"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
                           <option value="">-- Ignore --</option>
                           {targetFields.map((field) => (
@@ -1107,7 +1103,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                           ))}
                         </select>
                         {isDuplicate && (
-                          <p className="mt-2 text-[11px] font-bold text-rose-600 uppercase tracking-wider">
+                          <p className="mt-1 text-xs text-rose-700">
                             This target field is mapped more than once.
                           </p>
                         )}
@@ -1117,7 +1113,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                 })}
               </div>
 
-              <div className="p-6 sm:p-8 bg-slate-50/80 border-t border-slate-200/60 flex flex-wrap justify-end gap-3">
+              <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1125,7 +1121,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                     resetImportData();
                     setStep("source");
                   }}
-                  className="px-6 py-3 text-slate-600 font-extrabold rounded-xl hover:bg-slate-200/50 transition-colors border border-transparent flex-1 sm:flex-none text-center"
+                  className="px-4 py-2 text-slate-600 font-bold"
                 >
                   Cancel
                 </button>
@@ -1133,7 +1129,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   type="button"
                   onClick={() => setStep("preview")}
                   disabled={!canReviewData}
-                  className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex-1 sm:flex-none text-center"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold shadow-sm hover:bg-indigo-700 disabled:opacity-50"
                 >
                   Review Data
                 </button>
@@ -1142,39 +1138,36 @@ export const DataImporter: React.FC<DataImporterProps> = ({
           )}
 
           {step === "preview" && (
-            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-white/80 backdrop-blur-md rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
-                <div className="p-5 sm:p-6 border-b border-slate-200/60 flex justify-between items-center bg-white/50">
-                  <h3 className="font-extrabold text-slate-800 flex items-center gap-3 text-lg tracking-tight">
-                    <div className="p-2 bg-indigo-50/80 rounded-xl shadow-sm border border-indigo-100/50 text-indigo-600">
-                      <LayoutList size={20} strokeWidth={2.5} />
-                    </div>
-                    Data Preview
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <LayoutList size={18} className="text-indigo-500" /> Data Preview
                   </h3>
-                  <span className="text-[11px] font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-50/80 border border-indigo-100/50 px-3 py-1.5 rounded-lg shadow-sm">
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
                     {fullData.length} Rows Ready
                   </span>
                 </div>
-                <div className="overflow-x-auto custom-scrollbar">
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50/80 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 border-b border-slate-200/60">
+                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                       <tr>
                         {mappings
                           .filter((mapping) => mapping.targetField)
                           .map((mapping) => (
-                            <th key={mapping.sourceHeader} className="px-5 py-4 whitespace-nowrap">
+                            <th key={mapping.sourceHeader} className="px-4 py-3 border-b border-slate-200">
                               {mapping.targetField}
                             </th>
                           ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100/80">
+                    <tbody className="divide-y divide-slate-100">
                       {previewData.map((row, rowIndex) => (
-                        <tr key={rowIndex} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={rowIndex} className="hover:bg-slate-50">
                           {mappings
                             .filter((mapping) => mapping.targetField)
                             .map((mapping) => (
-                              <td key={mapping.sourceHeader} className="px-5 py-3.5 text-[13px] font-semibold text-slate-700 whitespace-nowrap">
+                              <td key={mapping.sourceHeader} className="px-4 py-3 text-slate-700">
                                 {String(row[mapping.sourceHeader] ?? "")}
                               </td>
                             ))}
@@ -1182,22 +1175,22 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                       ))}
                     </tbody>
                   </table>
-                  <div className="px-5 py-3 text-[11px] font-extrabold uppercase tracking-widest text-center text-slate-400 bg-slate-50/50 border-t border-slate-100/80">
+                  <div className="px-4 py-2 text-xs text-center text-slate-400 italic bg-slate-50 border-t border-slate-100">
                     Showing first 5 rows only. Import will process all {fullData.length} rows.
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-indigo-50/80 to-white/80 backdrop-blur-md rounded-3xl border border-indigo-200/60 p-6 sm:p-8 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-[0.03] pointer-events-none">
-                  <BrainCircuit size={160} strokeWidth={1} />
+              <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-100 p-6 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <BrainCircuit size={120} />
                 </div>
 
                 <div className="relative z-10">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-6">
+                  <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="text-xl font-extrabold tracking-tight text-indigo-900">Pre-Import AI Analysis</h3>
-                      <p className="text-sm font-semibold text-indigo-700/80 mt-1.5 leading-relaxed max-w-lg">Analyze a sample of this batch to detect anomalies, missing patterns, and formatting issues before commit.</p>
+                      <h3 className="text-lg font-bold text-indigo-900">Pre-Import AI Analysis</h3>
+                      <p className="text-sm text-indigo-700/80">Analyze a sample of this batch before commit.</p>
                     </div>
                     {!analysisResult && (
                       <button
@@ -1206,51 +1199,47 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                           void runAnalysis();
                         }}
                         disabled={isAnalyzing}
-                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-extrabold text-sm shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg disabled:opacity-70 flex items-center justify-center gap-2.5 transition-all active:scale-95 whitespace-nowrap sm:w-auto w-full"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-indigo-700 disabled:opacity-70 flex items-center gap-2"
                       >
-                        {isAnalyzing ? <Loader2 size={18} strokeWidth={2.5} className="animate-spin" /> : <BrainCircuit size={18} strokeWidth={2.5} />}
-                        {isAnalyzing ? "Analyzing..." : "Run Analysis"}
+                        {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <BrainCircuit size={16} />}
+                        Run Analysis
                       </button>
                     )}
                   </div>
 
                   {isAnalyzing && (
-                    <div className="py-10 flex flex-col items-center justify-center text-indigo-600 gap-4">
-                      <div className="p-4 bg-indigo-100/50 rounded-2xl animate-pulse shadow-inner">
-                        <Loader2 size={40} strokeWidth={2.5} className="animate-spin" />
-                      </div>
-                      <p className="text-sm font-extrabold tracking-wide uppercase text-indigo-500">Detecting trends and anomalies...</p>
+                    <div className="py-8 flex flex-col items-center justify-center text-indigo-600 gap-3">
+                      <Loader2 size={32} className="animate-spin" />
+                      <p className="text-sm font-medium">Detecting trends and anomalies...</p>
                     </div>
                   )}
 
                   {analysisResult && (
-                    <div className="animate-in fade-in slide-in-from-bottom-4 space-y-5">
-                      <div className="p-5 bg-white/90 backdrop-blur-sm rounded-2xl border border-indigo-100/50 shadow-sm">
-                        <p className="text-[15px] text-slate-800 leading-relaxed font-semibold">{analysisResult.summary}</p>
+                    <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4">
+                      <div className="p-4 bg-white/80 backdrop-blur-sm rounded-lg border border-indigo-100">
+                        <p className="text-sm text-slate-800 leading-relaxed font-medium">{analysisResult.summary}</p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="p-6 bg-rose-50/80 backdrop-blur-sm rounded-2xl border border-rose-200/80 shadow-sm">
-                          <h4 className="text-[11px] font-extrabold text-rose-700 uppercase tracking-widest mb-4 flex items-center gap-2.5">
-                            <div className="p-1.5 bg-rose-100 rounded-lg"><AlertCircle size={16} strokeWidth={3} /></div>
-                            Anomalies Detected
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 bg-rose-50 rounded-lg border border-rose-100">
+                          <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                            <AlertCircle size={14} /> Anomalies Detected
                           </h4>
-                          <ul className="list-disc pl-5 space-y-2 font-medium text-rose-900/90 text-sm">
+                          <ul className="list-disc pl-4 space-y-1">
                             {analysisResult.anomalies.map((anomaly, index) => (
-                              <li key={index}>
+                              <li key={index} className="text-xs text-rose-800">
                                 {anomaly}
                               </li>
                             ))}
                           </ul>
                         </div>
-                        <div className="p-6 bg-emerald-50/80 backdrop-blur-sm rounded-2xl border border-emerald-200/80 shadow-sm">
-                          <h4 className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-widest mb-4 flex items-center gap-2.5">
-                            <div className="p-1.5 bg-emerald-100 rounded-lg"><CheckCircle2 size={16} strokeWidth={3} /></div>
-                            Recommendations
+                        <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                          <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                            <CheckCircle2 size={14} /> Recommendations
                           </h4>
-                          <ul className="list-disc pl-5 space-y-2 font-medium text-emerald-900/90 text-sm">
+                          <ul className="list-disc pl-4 space-y-1">
                             {analysisResult.recommendations.map((recommendation, index) => (
-                              <li key={index}>
+                              <li key={index} className="text-xs text-emerald-800">
                                 {recommendation}
                               </li>
                             ))}
@@ -1263,19 +1252,19 @@ export const DataImporter: React.FC<DataImporterProps> = ({
               </div>
 
               {commitError && (
-                <div className="p-4 bg-rose-50/80 backdrop-blur-sm text-rose-800 border border-rose-200/80 rounded-2xl text-sm font-semibold flex items-center gap-3 shadow-sm animate-in slide-in-from-top-2">
-                  <div className="p-1.5 bg-rose-100 rounded-lg text-rose-600"><AlertCircle size={18} strokeWidth={2.5} /></div>
+                <div className="p-3 bg-rose-50 text-rose-700 border border-rose-100 rounded-lg text-sm flex items-center gap-2">
+                  <AlertCircle size={16} />
                   {commitError}
                 </div>
               )}
 
-              <div className="flex flex-wrap justify-end gap-3 pt-6 border-t border-slate-200/60">
+              <div className="flex justify-end gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setStep("mapping")}
-                  className="px-6 py-3.5 text-slate-600 font-extrabold bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 hover:shadow transition-all text-sm flex-1 sm:flex-none text-center shadow-sm"
+                  className="px-6 py-2.5 text-slate-600 font-bold bg-white border border-slate-200 rounded-xl hover:bg-slate-50"
                 >
-                  Back to Mapping
+                  Back
                 </button>
                 <button
                   type="button"
@@ -1283,67 +1272,55 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                     void handleFinishImport();
                   }}
                   disabled={isCommitting}
-                  className="px-8 py-3.5 bg-indigo-600 text-white rounded-xl font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-95 text-sm flex-1 sm:flex-none"
+                  className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isCommitting ? (
-                    <>
-                      <Loader2 size={18} strokeWidth={2.5} className="animate-spin" /> Committing {commitPlannedTotal} rows...
-                    </>
-                  ) : (
-                    <>
-                      Confirm Import <ChevronRight size={18} strokeWidth={2.5} />
-                    </>
-                  )}
+                  {isCommitting ? `Committing ${commitPlannedTotal} rows...` : "Confirm Import"}{" "}
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
           )}
 
           {step === "complete" && (
-            <div className="flex flex-col items-center justify-center py-20 bg-white/80 backdrop-blur-md rounded-3xl border border-slate-200/60 shadow-sm text-center animate-in zoom-in-95 duration-500">
+            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 shadow-sm text-center">
               <div
-                className={`w-28 h-28 rounded-3xl flex items-center justify-center mb-8 shadow-sm border rotate-3 hover:rotate-6 transition-transform duration-500 ${
-                  commitResult?.failed 
-                  ? "bg-amber-50/80 border-amber-200 text-amber-600" 
-                  : "bg-emerald-50/80 border-emerald-200 text-emerald-600"
+                className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 animate-in zoom-in duration-300 ${
+                  commitResult?.failed ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"
                 }`}
               >
-                {commitResult?.failed ? <AlertCircle size={56} strokeWidth={2.5} /> : <CheckCircle2 size={64} strokeWidth={2.5} />}
+                {commitResult?.failed ? <AlertCircle size={44} /> : <CheckCircle2 size={48} />}
               </div>
-              <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-3">
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">
                 {commitResult?.failed ? "Import Completed with Issues" : "Import Successful"}
               </h3>
-              <p className="text-slate-500 mb-8 font-semibold text-lg">
-                <span className="text-slate-800 font-extrabold">{commitResult?.succeeded ?? 0}</span> of <span className="text-slate-800 font-extrabold">{commitResult?.total ?? 0}</span> records were imported.
+              <p className="text-slate-500 mb-4">
+                {commitResult?.succeeded ?? 0} of {commitResult?.total ?? 0} records were imported.
               </p>
 
               {commitResult && commitResult.failed > 0 && (
-                <div className="w-full max-w-2xl text-left mb-10 p-6 border border-amber-200/80 bg-amber-50/80 backdrop-blur-sm rounded-2xl shadow-sm">
-                  <p className="text-[11px] font-extrabold uppercase tracking-widest text-amber-700 mb-3 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Failed rows: {commitResult.failed}
-                  </p>
-                  <ul className="space-y-1.5 text-sm font-medium text-amber-900/90 max-h-56 overflow-y-auto custom-scrollbar pr-2 bg-white/50 p-4 rounded-xl border border-amber-100/50">
+                <div className="w-full max-w-2xl text-left mb-8 p-4 border border-amber-100 bg-amber-50 rounded-xl">
+                  <p className="text-sm font-semibold text-amber-800 mb-2">Failed rows: {commitResult.failed}</p>
+                  <ul className="space-y-1 text-sm text-amber-900 max-h-48 overflow-y-auto pr-1">
                     {commitResult.errors.slice(0, 12).map((errorItem) => (
                       <li key={`${errorItem.index}-${errorItem.reason}`}>
-                        <span className="font-bold mr-1">Row {errorItem.index + 1}:</span> {errorItem.reason}
+                        Row {errorItem.index + 1}: {errorItem.reason}
                       </li>
                     ))}
                     {commitResult.errors.length > 12 && (
-                      <li className="text-amber-700 font-bold mt-2 pt-2 border-t border-amber-200/50">+ {commitResult.errors.length - 12} more errors omitted.</li>
+                      <li className="text-amber-700">+ {commitResult.errors.length - 12} more errors.</li>
                     )}
                   </ul>
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-4 justify-center">
+              <div className="flex flex-wrap gap-3 justify-center">
                 <button
                   type="button"
                   onClick={() => {
                     resetImportData();
                     setStep("source");
                   }}
-                  className="px-8 py-3.5 bg-indigo-600 text-white rounded-xl font-extrabold shadow-md shadow-indigo-500/20 hover:bg-indigo-700 hover:shadow-lg transition-all active:scale-95 text-sm"
+                  className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold shadow-md hover:bg-slate-800"
                 >
                   Import Another Batch
                 </button>
@@ -1351,7 +1328,7 @@ export const DataImporter: React.FC<DataImporterProps> = ({
                   <button
                     type="button"
                     onClick={onImportComplete}
-                    className="px-8 py-3.5 bg-white text-slate-700 border border-slate-200/80 rounded-xl font-extrabold hover:bg-slate-50 shadow-sm hover:shadow transition-all active:scale-95 text-sm"
+                    className="px-8 py-3 bg-white text-slate-700 border border-slate-200 rounded-lg font-semibold hover:bg-slate-50"
                   >
                     Back to Dashboard
                   </button>

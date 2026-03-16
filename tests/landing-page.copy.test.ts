@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 describe("Landing copy trust guardrails", () => {
-  it("renders updated WorkOS helper text and footer email placeholder copy", async () => {
+  it("renders workflow steps, hero proof chips, and no fake footer email form", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url =
         typeof input === "string"
@@ -99,10 +99,15 @@ describe("Landing copy trust guardrails", () => {
     const handle = await renderLandingPage();
     const text = handle.container.textContent ?? "";
 
-    const emailInput = handle.container.querySelector('input[type="email"]') as HTMLInputElement | null;
-    expect(emailInput).toBeInstanceOf(HTMLInputElement);
-    expect(emailInput?.getAttribute("placeholder")).toBe("Work email");
-    expect(text.split("Enterprise authentication and session security are powered by WorkOS.").length - 1).toBe(1);
+    const emailInput = handle.container.querySelector('input[type="email"]');
+    expect(emailInput).toBeNull();
+    expect(text).not.toContain("Enterprise authentication and session security are powered by WorkOS.");
+    expect(text).toContain("Attendance + academics");
+    expect(text).toContain("Intervention ownership");
+    expect(text).toContain("Family communication");
+    expect(text).toContain("Identify students needing support");
+    expect(text).toContain("Assign supports and owners");
+    expect(text).toContain("Monitor progress and communicate");
 
     await cleanupRender(handle);
   });

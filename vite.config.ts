@@ -12,6 +12,29 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+
+          if (id.includes("node_modules/lucide-react/")) {
+            return "icons-vendor";
+          }
+
+          if (id.includes("node_modules/read-excel-file/")) {
+            return "excel-vendor";
+          }
+
+          if (id.includes("node_modules/zod/")) {
+            return "data-vendor";
+          }
+
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [
     tailwindcss(),
     devtools(),

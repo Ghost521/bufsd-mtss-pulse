@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { Suspense, lazy, useMemo, useState } from "react";
 import { Clock3, History, Pencil, Plus, Trash2 } from "lucide-react";
 import type { StudentNote } from "../../types";
 import { createStudentNote, softDeleteStudentNote, updateStudentNote } from "../../lib/student-notes";
 import { sanitizeRichTextHtml } from "../../lib/sanitize-rich-text";
-import { StudentNoteEditor } from "./StudentNoteEditor";
+
+const StudentNoteEditor = lazy(() => import("./StudentNoteEditor").then((module) => ({ default: module.StudentNoteEditor })));
 
 type StudentNotesPanelProps = {
   notes: StudentNote[];
@@ -24,11 +25,30 @@ const NotePreview: React.FC<{ note: StudentNote }> = ({ note }) => {
   const safeHtml = useMemo(() => sanitizeRichTextHtml(note.contentHtml), [note.contentHtml]);
   return (
     <div
-      className="prose prose-sm max-w-none text-slate-700 prose-p:my-1 prose-li:my-0.5"
+      className="app-prose text-slate-700"
       dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );
 };
+
+const NoteEditorFallback: React.FC = () => (
+  <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3 animate-pulse" aria-hidden="true">
+    <div className="h-10 rounded-lg bg-slate-200" />
+    <div className="flex gap-1">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="h-8 w-8 rounded-md bg-slate-200" />
+      ))}
+    </div>
+    <div className="h-48 rounded-lg bg-slate-200" />
+    <div className="flex justify-between gap-3">
+      <div className="h-4 w-24 rounded bg-slate-200" />
+      <div className="flex gap-2">
+        <div className="h-8 w-20 rounded-lg bg-slate-200" />
+        <div className="h-8 w-24 rounded-lg bg-slate-200" />
+      </div>
+    </div>
+  </div>
+);
 
 export const StudentNotesPanel: React.FC<StudentNotesPanelProps> = ({
   notes,
@@ -109,7 +129,9 @@ export const StudentNotesPanel: React.FC<StudentNotesPanelProps> = ({
       </div>
 
       {editingState?.mode === "create" ? (
-        <StudentNoteEditor onCancel={() => setEditingState(null)} onSave={applyCreate} saveLabel="Create note" />
+        <Suspense fallback={<NoteEditorFallback />}>
+          <StudentNoteEditor onCancel={() => setEditingState(null)} onSave={applyCreate} saveLabel="Create note" />
+        </Suspense>
       ) : null}
 
       {activeNotes.length === 0 ? (
@@ -170,13 +192,15 @@ export const StudentNotesPanel: React.FC<StudentNotesPanelProps> = ({
                 </div>
 
                 {isEditingNote && editNote ? (
-                  <StudentNoteEditor
-                    initialTitle={editNote.title}
-                    initialContentHtml={editNote.contentHtml}
-                    onCancel={() => setEditingState(null)}
-                    onSave={applyEdit}
-                    saveLabel="Save revision"
-                  />
+                  <Suspense fallback={<NoteEditorFallback />}>
+                    <StudentNoteEditor
+                      initialTitle={editNote.title}
+                      initialContentHtml={editNote.contentHtml}
+                      onCancel={() => setEditingState(null)}
+                      onSave={applyEdit}
+                      saveLabel="Save revision"
+                    />
+                  </Suspense>
                 ) : (
                   <NotePreview note={note} />
                 )}

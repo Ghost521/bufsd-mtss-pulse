@@ -65,8 +65,6 @@ import {
   RECURRENCE_PATTERNS,
   type EventComposerField,
   type EventComposerFormState,
-  type EventComposerErrors,
-  type RecurrencePattern,
 } from '../lib/calendar-event-composer';
 
 // Initial Mock Groups
