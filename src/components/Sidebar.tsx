@@ -12,7 +12,7 @@ import {
 import { UserRole, type NotificationListItem } from "../types";
 import { TenantContextSwitcher } from "./TenantContextSwitcher";
 import type { WorkspacePageId } from "../lib/workspaceRoutes";
-import { buildWorkspacePath } from "../lib/workspaceRoutes";
+import { buildWorkspacePath, DEFAULT_WORKSPACE_PAGE, pageToSlug } from "../lib/workspaceRoutes";
 import type { SidebarGroupState } from "../hooks/useSidebarState";
 import { getRouteIcon, iconSize } from "../lib/ui/icons";
 
@@ -69,6 +69,17 @@ type WorkspaceNavGroup = {
 
 const showSidebarTestControls =
   import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIDEBAR_TEST_CONTROLS === "true";
+
+function getWorkspaceLinkTarget(page: WorkspacePageId) {
+  if (page === DEFAULT_WORKSPACE_PAGE) {
+    return { to: "/app" as const };
+  }
+
+  return {
+    to: "/app/$page" as const,
+    params: { page: pageToSlug(page) },
+  };
+}
 
 const getMenuGroups = (role: UserRole): WorkspaceNavGroup[] => {
   const dashboardByRole: Record<UserRole, WorkspaceNavItem> = {
@@ -587,7 +598,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       return (
                         <Link
                           key={item.id}
-                          to={buildWorkspacePath(item.id)}
+                          {...getWorkspaceLinkTarget(item.id)}
                           activeOptions={{ exact: true }}
                           onClick={onClose}
                           className={itemClasses}
@@ -643,7 +654,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               )}
             </button>
             <Link
-              to={buildWorkspacePath("settings")}
+              {...getWorkspaceLinkTarget("settings")}
               activeOptions={{ exact: true }}
               onClick={onClose}
               className={`flex items-center justify-center rounded-lg p-2 transition-colors ${
@@ -702,7 +713,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               ) : null}
 
               <Link
-                to={buildWorkspacePath("settings")}
+                {...getWorkspaceLinkTarget("settings")}
                 activeOptions={{ exact: true }}
                 onClick={onClose}
                 className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
@@ -782,7 +793,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [filteredItems]);
 
   const navigateToItem = (id: WorkspacePageId) => {
-    void navigate({ to: buildWorkspacePath(id) });
+    void navigate({ href: buildWorkspacePath(id) });
     onMobileClose();
   };
 

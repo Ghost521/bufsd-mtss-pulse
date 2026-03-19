@@ -357,7 +357,7 @@ const App: React.FC<AppProps> = ({ initialRouteAuth = null }) => {
     closeMobileMenu();
 
     if (requestedPage !== normalizedPage) {
-      void navigate({ to: buildWorkspacePath(normalizedPage), replace: true });
+      void navigate({ href: buildWorkspacePath(normalizedPage), replace: true });
     }
   }, [closeMobileMenu, currentRole, navigate, routePage]);
 
@@ -592,7 +592,7 @@ const App: React.FC<AppProps> = ({ initialRouteAuth = null }) => {
     }
     setActivePage(nextPage);
     closeMobileMenu();
-    void navigate({ to: buildWorkspacePath(nextPage) });
+    void navigate({ href: buildWorkspacePath(nextPage) });
   };
 
   const handleRoleChange = (nextRole: UserRole) => {
@@ -604,7 +604,7 @@ const App: React.FC<AppProps> = ({ initialRouteAuth = null }) => {
     setActivePage(targetPage);
     setProfileStudent(null);
     closeMobileMenu();
-    void navigate({ to: buildWorkspacePath(targetPage) });
+    void navigate({ href: buildWorkspacePath(targetPage) });
   };
 
   useEffect(() => {

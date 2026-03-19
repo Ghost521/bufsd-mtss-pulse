@@ -54,7 +54,7 @@ export function enforceWorkspacePageAccess(activeRole: UserRole, page: Workspace
   const normalizedPage = normalizePageForRole(activeRole, page);
   if (normalizedPage !== page) {
     throw redirect({
-      to: buildWorkspacePath(normalizedPage),
+      href: buildWorkspacePath(normalizedPage),
     });
   }
 }
