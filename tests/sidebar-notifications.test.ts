@@ -10,16 +10,24 @@ vi.mock("@tanstack/react-router", async () => {
   const ReactModule = await import("react");
   type LinkMockProps = {
     to?: string;
+    href?: string;
+    params?: { page?: string };
     className?: string;
     onClick?: React.MouseEventHandler<HTMLAnchorElement>;
     children?: React.ReactNode;
   } & Record<string, unknown>;
   return {
-    Link: ({ to, className, onClick, children, activeOptions: _activeOptions, ...rest }: LinkMockProps) =>
+    Link: ({ to, href, params, className, onClick, children, activeOptions: _activeOptions, ...rest }: LinkMockProps) =>
       ReactModule.createElement(
         "a",
         {
-          href: typeof to === "string" ? to : "#",
+          href: typeof href === "string"
+            ? href
+            : to === "/app/$page" && typeof params?.page === "string"
+              ? `/app/${params.page}`
+              : typeof to === "string"
+                ? to
+                : "#",
           className,
           onClick,
           ...rest,

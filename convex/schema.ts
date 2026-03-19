@@ -26,6 +26,15 @@ export default defineSchema({
   })
     .index("by_tenant", ["tenantKey"])
     .index("by_tenant_event", ["tenantKey", "eventId"]),
+  tenantNotificationRecords: defineTable({
+    tenantKey: v.string(),
+    notificationId: v.string(),
+    row: v.any(),
+    position: v.number(),
+    updatedAt: v.string(),
+  })
+    .index("by_tenant", ["tenantKey"])
+    .index("by_tenant_notification", ["tenantKey", "notificationId"]),
   tenantReferralRecords: defineTable({
     tenantKey: v.string(),
     referralId: v.string(),
