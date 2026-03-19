@@ -5,6 +5,7 @@ import {
   getSessionAuthFailureReason,
   getSessionFromRequest,
   getSessionSummary,
+  isDevAuthBypassEnabled,
   resolveSessionChange,
 } from "../../lib/server/auth-context";
 import { getAuditCount, newRequestId } from "../../lib/server/audit-log";
@@ -36,6 +37,7 @@ export const Route = createFileRoute("/api/health")({
             signedIn: Boolean(summary),
             reason: !summary && authReason ? authReason : undefined,
             canSwitchUsers,
+            devAuthBypassEnabled: isDevAuthBypassEnabled(),
             autoProvisionEnabled: isWorkOSAutoProvisionEnabled(),
             workos: getWorkOSConfigSummary(),
           },

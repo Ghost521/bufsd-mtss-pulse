@@ -1,4 +1,10 @@
-import { appendAuditEntryByTenant, countAuditEntriesByTenant, toTenantKey } from "./persistence";
+import {
+  appendAuditEntryByTenant,
+  countAuditEntriesByTenant,
+  listAuditEntriesByTenant,
+  toTenantKey,
+  type AuditEntryListFilters,
+} from "./persistence";
 import type { TenantContext } from "./tenant-types";
 
 export type AuditLogEntry = {
@@ -16,24 +22,25 @@ export type AuditLogEntry = {
   timestamp: string;
 };
 
-const auditLogStore: AuditLogEntry[] = [];
-
 const newAuditId = (): string => `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 export const newRequestId = (): string => `req-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-export const writeAuditLog = (entry: Omit<AuditLogEntry, "id" | "timestamp">): AuditLogEntry => {
+export const writeAuditLog = async (entry: Omit<AuditLogEntry, "id" | "timestamp">): Promise<AuditLogEntry> => {
   const record: AuditLogEntry = {
     ...entry,
     id: newAuditId(),
     timestamp: new Date().toISOString(),
   };
 
-  auditLogStore.unshift(record);
-  void appendAuditEntryByTenant(toTenantKey(entry.context), record);
+  await appendAuditEntryByTenant(toTenantKey(entry.context), record);
   return { ...record };
 };
 
-export const listAuditLogs = (): AuditLogEntry[] => auditLogStore.map((entry) => ({ ...entry }));
+export const listAuditLogs = async (
+  context: TenantContext,
+  filters: AuditEntryListFilters = {}
+): Promise<AuditLogEntry[]> =>
+  listAuditEntriesByTenant<AuditLogEntry>(toTenantKey(context), filters);
 
 export const getAuditCount = async (context: TenantContext): Promise<number> =>
   countAuditEntriesByTenant(toTenantKey(context));

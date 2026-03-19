@@ -53,6 +53,7 @@ const elevatedRoleGrants: PermissionGrant[] = [
   ...allow("imports", CRUD_ACTIONS, [ALL_FIELDS]),
   ...allow("dashboard", READ_ONLY_ACTIONS, [ALL_FIELDS]),
   ...allow("reports", READ_ONLY_ACTIONS, [ALL_FIELDS]),
+  ...allow("audit", READ_ONLY_ACTIONS, [ALL_FIELDS]),
   ...allow("settings", ["read", "update"], [ALL_FIELDS]),
   ...allow("ai", READ_ONLY_ACTIONS, [ALL_FIELDS]),
 ];

@@ -21,6 +21,7 @@ const DEFAULT_USER_ID = "u-principal-ne";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const COOKIE_SECURE = process.env.NODE_ENV === "production";
 const ALLOW_IMPERSONATION = process.env.MTSS_ALLOW_IMPERSONATION === "true";
+const DEV_AUTH_BYPASS_ENABLED = process.env.MTSS_ENABLE_DEV_AUTH_BYPASS === "true";
 const IDLE_TIMEOUT_MILLISECONDS = IDLE_TIMEOUT_SECONDS * 1000;
 const BYPASS_AUTH_QUERY_KEY = "bypassAuth";
 const BYPASS_AUTH_QUERY_VALUE = "1";
@@ -90,6 +91,7 @@ const resolveUserIdFromWorkOS = async (request: Request): Promise<string | null>
 };
 
 export const canSwitchUsersInSession = (): boolean => !isWorkOSEnabled() || ALLOW_IMPERSONATION;
+export const isDevAuthBypassEnabled = (): boolean => process.env.NODE_ENV !== "production" && DEV_AUTH_BYPASS_ENABLED;
 
 export const getSessionAuthFailureReason = (request: Request): SessionAuthFailureReason | null =>
   sessionFailureReasonByRequest.get(request) ?? null;
@@ -138,7 +140,7 @@ const hasDevBypassFlag = (value: string | null | undefined): boolean => {
 };
 
 const shouldBypassApiAuth = (request: Request): boolean => {
-  if (process.env.NODE_ENV === "production") return false;
+  if (!isDevAuthBypassEnabled()) return false;
   if (request.headers.get("x-mtss-bypass-auth") === BYPASS_AUTH_QUERY_VALUE) return true;
   if (hasDevBypassFlag(request.url)) return true;
   return hasDevBypassFlag(request.headers.get("referer"));
@@ -163,7 +165,7 @@ export const getSessionFromRequest = async (request: Request): Promise<SessionCo
 
   const userId = isWorkOSEnabled()
     ? await resolveUserIdFromWorkOS(request)
-    : request.headers.get("x-mtss-user-id") || cookies[USER_COOKIE] || DEFAULT_USER_ID;
+    : cookies[USER_COOKIE] || DEFAULT_USER_ID;
 
   if (!userId) return null;
   return buildSession(userId, requestedContext);

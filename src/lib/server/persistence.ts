@@ -40,11 +40,22 @@ const FN_GET_COLLECTION = process.env.CONVEX_FN_GET_COLLECTION ?? "phase3:getTen
 const FN_SET_COLLECTION = process.env.CONVEX_FN_SET_COLLECTION ?? "phase3:setTenantCollection";
 const FN_APPEND_AUDIT = process.env.CONVEX_FN_APPEND_AUDIT ?? "phase3:appendAuditEntry";
 const FN_COUNT_AUDIT = process.env.CONVEX_FN_COUNT_AUDIT ?? "phase3:countAuditEntries";
+const FN_LIST_AUDIT = process.env.CONVEX_FN_LIST_AUDIT ?? "phase3:listAuditEntries";
 
 const localCollections = new Map<string, unknown[]>();
 const localAuditByTenant = new Map<string, unknown[]>();
 
 let lastConvexError: string | null = null;
+
+export type AuditEntryListFilters = {
+  actorUserId?: string;
+  resourceType?: string;
+  resourceId?: string;
+  action?: "create" | "update" | "delete" | "read";
+  from?: string;
+  to?: string;
+  limit?: number;
+};
 
 export class PersistenceUnavailableError extends Error {
   constructor(message: string) {
@@ -61,6 +72,39 @@ const getCollectionKey = (tenantKey: string, domain: TenantDomain): string => `$
 const isConvexEnabled = (): boolean => CONVEX_USE_BACKEND && Boolean(CONVEX_CLOUD_URL);
 
 const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+const filterAuditEntries = <T>(entries: T[], filters: AuditEntryListFilters = {}): T[] => {
+  const fromTime = filters.from ? Date.parse(filters.from) : Number.NEGATIVE_INFINITY;
+  const toTime = filters.to ? Date.parse(filters.to) : Number.POSITIVE_INFINITY;
+
+  const filtered = entries.filter((entry) => {
+    const record = asRecord(entry);
+    if (!record) return false;
+    if (filters.actorUserId && record.actorUserId !== filters.actorUserId) return false;
+    if (filters.resourceType && record.resourceType !== filters.resourceType) return false;
+    if (filters.resourceId && record.resourceId !== filters.resourceId) return false;
+    if (filters.action && record.action !== filters.action) return false;
+
+    const timestamp = typeof record.timestamp === "string" ? Date.parse(record.timestamp) : Number.NaN;
+    if (Number.isFinite(fromTime) && Number.isFinite(timestamp) && timestamp < fromTime) return false;
+    if (Number.isFinite(toTime) && Number.isFinite(timestamp) && timestamp > toTime) return false;
+    return true;
+  });
+
+  filtered.sort((left, right) => {
+    const leftRecord = asRecord(left);
+    const rightRecord = asRecord(right);
+    const leftTimestamp = typeof leftRecord?.timestamp === "string" ? Date.parse(leftRecord.timestamp) : 0;
+    const rightTimestamp = typeof rightRecord?.timestamp === "string" ? Date.parse(rightRecord.timestamp) : 0;
+    return rightTimestamp - leftTimestamp;
+  });
+
+  const limit = filters.limit && Number.isFinite(filters.limit) ? Math.max(1, Math.floor(filters.limit)) : null;
+  return limit ? filtered.slice(0, limit) : filtered;
+};
 
 async function convexCall<T>(kind: "query" | "mutation", path: string, args: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${CONVEX_CLOUD_URL}/api/${kind}`, {
@@ -147,14 +191,14 @@ export async function appendAuditEntryByTenant(tenantKey: string, entry: unknown
       throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
     }
     const existing = localAuditByTenant.get(tenantKey) ?? [];
-    localAuditByTenant.set(tenantKey, [...existing, entry]);
+    localAuditByTenant.set(tenantKey, [entry, ...existing]);
     return;
   }
 
   try {
     await convexCall("mutation", FN_APPEND_AUDIT, { tenantKey, entry });
     const existing = localAuditByTenant.get(tenantKey) ?? [];
-    localAuditByTenant.set(tenantKey, [...existing, entry]);
+    localAuditByTenant.set(tenantKey, [entry, ...existing]);
     lastConvexError = null;
   } catch (error) {
     lastConvexError = getErrorMessage(error);
@@ -162,7 +206,7 @@ export async function appendAuditEntryByTenant(tenantKey: string, entry: unknown
       throw new PersistenceUnavailableError(lastConvexError);
     }
     const existing = localAuditByTenant.get(tenantKey) ?? [];
-    localAuditByTenant.set(tenantKey, [...existing, entry]);
+    localAuditByTenant.set(tenantKey, [entry, ...existing]);
   }
 }
 
@@ -185,6 +229,36 @@ export async function countAuditEntriesByTenant(tenantKey: string): Promise<numb
   }
 
   return (localAuditByTenant.get(tenantKey) ?? []).length;
+}
+
+export async function listAuditEntriesByTenant<T>(tenantKey: string, filters: AuditEntryListFilters = {}): Promise<T[]> {
+  if (!isConvexEnabled() && !MEMORY_FALLBACK_ENABLED) {
+    throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+  }
+
+  if (isConvexEnabled()) {
+    try {
+      const rows = await convexCall<T[]>("query", FN_LIST_AUDIT, {
+        tenantKey,
+        actorUserId: filters.actorUserId,
+        resourceType: filters.resourceType,
+        resourceId: filters.resourceId,
+        action: filters.action,
+        from: filters.from,
+        to: filters.to,
+        limit: filters.limit,
+      });
+      lastConvexError = null;
+      return Array.isArray(rows) ? structuredClone(rows) : [];
+    } catch (error) {
+      lastConvexError = getErrorMessage(error);
+      if (!MEMORY_FALLBACK_ENABLED) {
+        throw new PersistenceUnavailableError(lastConvexError);
+      }
+    }
+  }
+
+  return structuredClone(filterAuditEntries(localAuditByTenant.get(tenantKey) ?? [], filters) as T[]);
 }
 
 export function getPersistenceDiagnostics() {

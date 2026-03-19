@@ -11,7 +11,7 @@ import {
 import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
 import type { AppResource } from "../../../lib/server/tenant-types";
-import { newRequestId } from "../../../lib/server/audit-log";
+import { newRequestId, writeAuditLog } from "../../../lib/server/audit-log";
 import {
   BrandingStoreError,
   getOrCreateDistrictBranding,
@@ -152,7 +152,20 @@ export const Route = createFileRoute("/api/data/$domain")({
         }
 
         try {
+          const previousRows = await listDomainRows<Record<string, unknown>>(session, domain);
           const next = await replaceDomainRows(session, domain, rows);
+          await writeAuditLog({
+            actorUserId: session.user.id,
+            actorName: session.user.name,
+            context: session.activeContext,
+            resourceType: domain,
+            resourceId: domain,
+            action: "update",
+            changedFields: fieldNamesFromRows(rows),
+            before: previousRows,
+            after: next,
+            requestId,
+          });
           return appendActivityCookie(Response.json({ ok: true, rows: next, total: next.length, requestId }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
@@ -223,6 +236,18 @@ export const Route = createFileRoute("/api/data/$domain")({
             try {
               const created = await createDomainRow(session, domain, row);
               createdRows.push(created as Record<string, unknown>);
+              await writeAuditLog({
+                actorUserId: session.user.id,
+                actorName: session.user.name,
+                context: session.activeContext,
+                resourceType: domain,
+                resourceId: String((created as Record<string, unknown>).id ?? index),
+                action: "create",
+                changedFields: fieldNamesFromRecord(created as Record<string, unknown>),
+                before: null,
+                after: created,
+                requestId,
+              });
             } catch (error) {
               if (error instanceof CollectionStoreError) {
                 errors.push({ index, reason: error.message });
@@ -257,6 +282,18 @@ export const Route = createFileRoute("/api/data/$domain")({
 
         try {
           const created = await createDomainRow(session, domain, row);
+          await writeAuditLog({
+            actorUserId: session.user.id,
+            actorName: session.user.name,
+            context: session.activeContext,
+            resourceType: domain,
+            resourceId: String((created as Record<string, unknown>).id ?? ""),
+            action: "create",
+            changedFields: fieldNamesFromRecord(created as Record<string, unknown>),
+            before: null,
+            after: created,
+            requestId,
+          });
           return appendActivityCookie(Response.json({ ok: true, row: created, requestId }, { status: 201 }));
         } catch (error) {
           if (error instanceof CollectionStoreError) {
@@ -307,7 +344,20 @@ export const Route = createFileRoute("/api/data/$domain")({
           }
 
           try {
+            const before = await getOrCreateUserSettings(session);
             const updated = await updateUserSettingsSection(session, parsed.data.section, parsed.data.data);
+            await writeAuditLog({
+              actorUserId: session.user.id,
+              actorName: session.user.name,
+              context: session.activeContext,
+              resourceType: domain,
+              resourceId: updated.id,
+              action: "update",
+              changedFields: [parsed.data.section],
+              before,
+              after: updated,
+              requestId,
+            });
             return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
           } catch (error) {
             if (error instanceof SettingsStoreError) {
@@ -332,7 +382,20 @@ export const Route = createFileRoute("/api/data/$domain")({
           }
 
           try {
+            const before = await getOrCreateDistrictBranding(session);
             const updated = await updateDistrictBranding(session, parsed.data);
+            await writeAuditLog({
+              actorUserId: session.user.id,
+              actorName: session.user.name,
+              context: session.activeContext,
+              resourceType: domain,
+              resourceId: updated.id,
+              action: "update",
+              changedFields: Object.keys(parsed.data),
+              before,
+              after: updated,
+              requestId,
+            });
             return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
           } catch (error) {
             if (error instanceof BrandingStoreError) {
@@ -360,8 +423,22 @@ export const Route = createFileRoute("/api/data/$domain")({
         }
 
         try {
+          const existingRows = await listDomainRows<Record<string, unknown>>(session, domain);
+          const before = existingRows.find((row) => row.id === id) ?? null;
           const updated = await updateDomainRow(session, domain, id, patch);
           if (!updated) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
+          await writeAuditLog({
+            actorUserId: session.user.id,
+            actorName: session.user.name,
+            context: session.activeContext,
+            resourceType: domain,
+            resourceId: id,
+            action: "update",
+            changedFields: fieldNamesFromRecord(patch),
+            before,
+            after: updated,
+            requestId,
+          });
 
           return appendActivityCookie(Response.json({ ok: true, row: updated, requestId }));
         } catch (error) {
@@ -405,8 +482,22 @@ export const Route = createFileRoute("/api/data/$domain")({
         if (!id) return Response.json({ ok: false, error: "Missing id query parameter.", requestId }, { status: 400 });
 
         try {
+          const existingRows = await listDomainRows<Record<string, unknown>>(session, domain);
+          const before = existingRows.find((row) => row.id === id) ?? null;
           const deleted = await deleteDomainRow(session, domain, id);
           if (!deleted) return Response.json({ ok: false, error: "Record not found.", requestId }, { status: 404 });
+          await writeAuditLog({
+            actorUserId: session.user.id,
+            actorName: session.user.name,
+            context: session.activeContext,
+            resourceType: domain,
+            resourceId: id,
+            action: "delete",
+            changedFields: [],
+            before,
+            after: null,
+            requestId,
+          });
 
           return appendActivityCookie(Response.json({ ok: true, row: deleted, requestId }));
         } catch (error) {

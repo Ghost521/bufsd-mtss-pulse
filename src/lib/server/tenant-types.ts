@@ -26,6 +26,7 @@ export type AppResource =
   | "reports"
   | "settings"
   | "imports"
+  | "audit"
   | "ai";
 
 export type PermissionGrant = {

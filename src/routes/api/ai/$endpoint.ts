@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { InterventionAgent } from "../../../services/agents/InterventionAgent";
 import { KnowledgeAgent } from "../../../services/agents/KnowledgeAgent";
 import { OrchestratorAgent } from "../../../services/agents/OrchestratorAgent";
@@ -16,6 +17,24 @@ import type {
 import { newRequestId } from "../../../lib/server/audit-log";
 import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromRequest } from "../../../lib/server/auth-context";
 import { requirePermission } from "../../../lib/server/rbac";
+import {
+  AI_REQUEST_LIMITS,
+  actionItemPlanRequestSchema,
+  analyzeUploadedDocumentRequestSchema,
+  dashboardBriefingRequestSchema,
+  extractDataFromDocumentRequestSchema,
+  fileSummaryRequestSchema,
+  importBatchAnalysisRequestSchema,
+  meetingTimesRequestSchema,
+  notesSummaryRequestSchema,
+  parentMessageRequestSchema,
+  ragChatRequestSchema,
+  refineDraftNoteRequestSchema,
+  resourceSummaryRequestSchema,
+  structuredInterventionRequestSchema,
+  studentProfileSummaryRequestSchema,
+  suggestTagsRequestSchema,
+} from "../../../lib/schemas/ai";
 import type { CalendarEvent } from "../../../types";
 
 type Agents = {
@@ -43,8 +62,6 @@ const DEBUG_STREAM = process.env.MTSS_DEBUG_STREAM === "true";
 let cachedAgents: Agents | null = null;
 let initError: Error | null = null;
 
-const isString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
-
 const getAgents = (): Agents | null => {
   if (cachedAgents) return cachedAgents;
   if (initError) return null;
@@ -60,14 +77,6 @@ const getAgents = (): Agents | null => {
   } catch (error) {
     initError = error instanceof Error ? error : new Error("Unknown AI agent initialization error.");
     console.error(initError);
-    return null;
-  }
-};
-
-const parseJsonBody = async <T>(request: Request): Promise<T | null> => {
-  try {
-    return (await request.json()) as T;
-  } catch {
     return null;
   }
 };
@@ -119,6 +128,84 @@ const aiError = (
     },
     { status }
   );
+
+type ParsedAiRequest<T> = { ok: true; data: T } | { ok: false; response: Response };
+
+const parseAiRequest = async <TSchema extends z.ZodTypeAny>(input: {
+  request: Request;
+  requestId: string;
+  endpoint: string;
+  schema: TSchema;
+  maxBytes?: number;
+}): Promise<ParsedAiRequest<z.infer<TSchema>>> => {
+  const maxBytes = input.maxBytes ?? AI_REQUEST_LIMITS.default;
+  const declaredLength = Number(input.request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    return {
+      ok: false,
+      response: aiError(
+        input.requestId,
+        input.endpoint,
+        `Request payload exceeds the ${maxBytes} byte limit.`,
+        413,
+        "PAYLOAD_TOO_LARGE",
+        false
+      ),
+    };
+  }
+
+  let raw = "";
+  try {
+    raw = await input.request.text();
+  } catch {
+    return {
+      ok: false,
+      response: aiError(input.requestId, input.endpoint, "Invalid request body.", 400, "BAD_REQUEST", false),
+    };
+  }
+
+  const actualLength = new TextEncoder().encode(raw).length;
+  if (actualLength > maxBytes) {
+    return {
+      ok: false,
+      response: aiError(
+        input.requestId,
+        input.endpoint,
+        `Request payload exceeds the ${maxBytes} byte limit.`,
+        413,
+        "PAYLOAD_TOO_LARGE",
+        false
+      ),
+    };
+  }
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = raw.trim().length === 0 ? null : (JSON.parse(raw) as unknown);
+  } catch {
+    return {
+      ok: false,
+      response: aiError(input.requestId, input.endpoint, "Invalid request body.", 400, "BAD_REQUEST", false),
+    };
+  }
+
+  const parsed = input.schema.safeParse(parsedJson);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      response: aiError(
+        input.requestId,
+        input.endpoint,
+        parsed.error.issues[0]?.message ?? "Invalid request body.",
+        400,
+        "BAD_REQUEST",
+        false
+      ),
+    };
+  }
+
+  return { ok: true, data: parsed.data };
+};
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error && error.message.trim().length > 0) return error.message;
@@ -355,15 +442,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         const wantsStream = requestWantsStream(request);
 
         if (endpoint === "rag-chat") {
-          const body = await parseJsonBody<{
-            query: string;
-            history: unknown[];
-            contextDocuments: unknown[];
-          }>(request);
-
-          if (!body || !isString(body.query) || !Array.isArray(body.history) || !Array.isArray(body.contextDocuments)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: ragChatRequestSchema,
+            maxBytes: AI_REQUEST_LIMITS.ragChat,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           if (wantsStream) {
             return appendActivityCookie(streamTextEndpoint({
@@ -410,10 +497,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "dashboard-briefing") {
-          const body = await parseJsonBody<{ data: unknown; previousFeedback: string[] }>(request);
-          if (!body || !body.data || !Array.isArray(body.previousFeedback)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: dashboardBriefingRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           if (wantsStream) {
             return appendActivityCookie(streamTextEndpoint({
@@ -440,10 +531,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "student-profile-summary") {
-          const body = await parseJsonBody<{ student: unknown; previousFeedback: string[] }>(request);
-          if (!body || !body.student || !Array.isArray(body.previousFeedback)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: studentProfileSummaryRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           if (wantsStream) {
             return appendActivityCookie(streamTextEndpoint({
@@ -470,8 +565,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "notes-summary") {
-          const body = await parseJsonBody<{ notes: unknown[] }>(request);
-          if (!body || !Array.isArray(body.notes)) return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: notesSummaryRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           if (wantsStream) {
             return appendActivityCookie(streamTextEndpoint({
@@ -498,10 +599,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "refine-draft-note") {
-          const body = await parseJsonBody<{ draft: string; category: string }>(request);
-          if (!body || !isString(body.draft) || !isString(body.category)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: refineDraftNoteRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           if (wantsStream) {
             return appendActivityCookie(streamTextEndpoint({
@@ -524,8 +629,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "suggest-tags") {
-          const body = await parseJsonBody<{ note: string }>(request);
-          if (!body || !isString(body.note)) return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: suggestTagsRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -536,10 +647,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "action-item-plan") {
-          const body = await parseJsonBody<{ studentName: string; grade: string; category: string; insight: string }>(request);
-          if (!body || !isString(body.studentName) || !isString(body.grade) || !isString(body.category) || !isString(body.insight)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: actionItemPlanRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -551,19 +666,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "structured-intervention") {
-          const body = await parseJsonBody<{
-            studentName: string;
-            grade: string;
-            tier: string;
-            focusArea: string;
-            additionalContext?: string;
-            duration?: string;
-            frequency?: string;
-          }>(request);
-
-          if (!body || !isString(body.studentName) || !isString(body.grade) || !isString(body.tier) || !isString(body.focusArea)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: structuredInterventionRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -574,9 +684,9 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
                 body.grade,
                 body.tier,
                 body.focusArea,
-                isString(body.additionalContext) ? body.additionalContext : "",
-                isString(body.duration) ? body.duration : "30 min",
-                isString(body.frequency) ? body.frequency : "Daily"
+                body.additionalContext ?? "",
+                body.duration ?? "30 min",
+                body.frequency ?? "Daily"
               ),
             }),
             failureMessage: "Failed to generate intervention plan.",
@@ -585,10 +695,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "parent-message") {
-          const body = await parseJsonBody<{ studentName: string; assignmentTitle: string; parentName: string }>(request);
-          if (!body || !isString(body.studentName) || !isString(body.assignmentTitle) || !isString(body.parentName)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: parentMessageRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           if (wantsStream) {
             return appendActivityCookie(streamTextEndpoint({
@@ -611,10 +725,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "analyze-uploaded-document") {
-          const body = await parseJsonBody<{ base64: string; mime: string; name: string }>(request);
-          if (!body || !isString(body.base64) || !isString(body.mime) || !isString(body.name)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: analyzeUploadedDocumentRequestSchema,
+            maxBytes: AI_REQUEST_LIMITS.document,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -625,10 +744,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "file-summary") {
-          const body = await parseJsonBody<{ base64: string; mime: string }>(request);
-          if (!body || !isString(body.base64) || !isString(body.mime)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: fileSummaryRequestSchema,
+            maxBytes: AI_REQUEST_LIMITS.document,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -639,10 +763,14 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "resource-summary") {
-          const body = await parseJsonBody<{ url: string; type: "WEBSITE" | "YOUTUBE" }>(request);
-          if (!body || !isString(body.url) || (body.type !== "WEBSITE" && body.type !== "YOUTUBE")) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: resourceSummaryRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -653,10 +781,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "extract-data-from-document") {
-          const body = await parseJsonBody<{ base64: string; mime: string }>(request);
-          if (!body || !isString(body.base64) || !isString(body.mime)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: extractDataFromDocumentRequestSchema,
+            maxBytes: AI_REQUEST_LIMITS.document,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -667,10 +800,15 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "import-batch-analysis") {
-          const body = await parseJsonBody<{ data: unknown[]; source: string }>(request);
-          if (!body || !Array.isArray(body.data) || !isString(body.source)) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: importBatchAnalysisRequestSchema,
+            maxBytes: AI_REQUEST_LIMITS.importBatchAnalysis,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
@@ -682,27 +820,24 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
         }
 
         if (endpoint === "meeting-times") {
-          const body = await parseJsonBody<{ attendees: unknown[]; duration: number; date: string; existing: CalendarEvent[] }>(request);
-          if (
-            !body ||
-            !Array.isArray(body.attendees) ||
-            typeof body.duration !== "number" ||
-            !Number.isFinite(body.duration) ||
-            !isString(body.date) ||
-            !Array.isArray(body.existing)
-          ) {
-            return aiError(requestId, endpoint, "Invalid request body.", 400, "BAD_REQUEST", false);
-          }
+          const parsed = await parseAiRequest({
+            request,
+            requestId,
+            endpoint,
+            schema: meetingTimesRequestSchema,
+          });
+          if (!parsed.ok) return parsed.response;
+          const body = parsed.data;
 
           return withEndpoint({
             requestId,
             endpoint,
             run: async () => ({
               suggestions: suggestMeetingSlots(
-                body.attendees.filter((attendee): attendee is string => typeof attendee === "string"),
+                body.attendees,
                 Math.max(15, Math.round(body.duration)),
                 body.date,
-                body.existing
+                body.existing as unknown as CalendarEvent[]
               ),
             }),
             failureMessage: "Failed to suggest meeting times.",

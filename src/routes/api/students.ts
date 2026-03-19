@@ -192,7 +192,7 @@ export const Route = createFileRoute("/api/students")({
             }
 
             createdRows.push(created);
-            writeAuditLog({
+            await writeAuditLog({
               actorUserId: session.user.id,
               actorName: session.user.name,
               context: session.activeContext,
@@ -243,7 +243,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: "Could not resolve target school for create.", requestId }, { status: 400 });
         }
 
-        writeAuditLog({
+        await writeAuditLog({
           actorUserId: session.user.id,
           actorName: session.user.name,
           context: session.activeContext,
@@ -311,7 +311,7 @@ export const Route = createFileRoute("/api/students")({
           const updatedRows = await archiveMasterStudents(parsed.data.ids, session.activeContext, parsed.data.isArchived);
 
           for (const row of updatedRows) {
-            writeAuditLog({
+            await writeAuditLog({
               actorUserId: session.user.id,
               actorName: session.user.name,
               context: session.activeContext,
@@ -370,7 +370,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: "Student is outside active tenant context.", requestId }, { status: 403 });
         }
 
-        writeAuditLog({
+        await writeAuditLog({
           actorUserId: session.user.id,
           actorName: session.user.name,
           context: session.activeContext,
@@ -418,7 +418,7 @@ export const Route = createFileRoute("/api/students")({
           return Response.json({ ok: false, error: "Student is outside active tenant context.", requestId }, { status: 403 });
         }
 
-        writeAuditLog({
+        await writeAuditLog({
           actorUserId: session.user.id,
           actorName: session.user.name,
           context: session.activeContext,

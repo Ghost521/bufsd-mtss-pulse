@@ -32,6 +32,7 @@ export interface ImportAnalysisResult {
 
 export type AiErrorCode =
   | "BAD_REQUEST"
+  | "PAYLOAD_TOO_LARGE"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
