@@ -151,38 +151,43 @@ async function convexCall<T>(kind: "query" | "mutation", path: string, args: Rec
 
 export async function readTenantCollection<T>(tenantKey: string, domain: TenantDomain, seedFactory: () => T[]): Promise<T[]> {
   const collectionKey = getCollectionKey(tenantKey, domain);
-  const cached = localCollections.get(collectionKey);
-  if (cached) return structuredClone(cached as T[]);
-
-  if (!isConvexEnabled() && !MEMORY_FALLBACK_ENABLED) {
-    throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
-  }
-
-  if (isConvexEnabled()) {
-    try {
-      const remoteRows = await convexCall<T[] | null>("query", FN_GET_COLLECTION, { tenantKey, domain });
-      if (Array.isArray(remoteRows)) {
-        localCollections.set(collectionKey, structuredClone(remoteRows) as unknown[]);
-        lastConvexError = null;
-        return structuredClone(remoteRows);
-      }
-
-      const seeded = seedFactory();
-      localCollections.set(collectionKey, structuredClone(seeded) as unknown[]);
-      await convexCall("mutation", FN_SET_COLLECTION, { tenantKey, domain, rows: seeded });
-      lastConvexError = null;
-      return structuredClone(seeded);
-    } catch (error) {
-      lastConvexError = getErrorMessage(error);
-      if (!MEMORY_FALLBACK_ENABLED) {
-        throw new PersistenceUnavailableError(lastConvexError);
-      }
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
     }
+    const cached = localCollections.get(collectionKey);
+    if (cached) return structuredClone(cached as T[]);
+    const seeded = seedFactory();
+    localCollections.set(collectionKey, structuredClone(seeded) as unknown[]);
+    return structuredClone(seeded);
   }
 
-  const seeded = seedFactory();
-  localCollections.set(collectionKey, structuredClone(seeded) as unknown[]);
-  return structuredClone(seeded);
+  try {
+    const remoteRows = await convexCall<T[] | null>("query", FN_GET_COLLECTION, { tenantKey, domain });
+    if (Array.isArray(remoteRows)) {
+      localCollections.set(collectionKey, structuredClone(remoteRows) as unknown[]);
+      lastConvexError = null;
+      return structuredClone(remoteRows);
+    }
+
+    const seeded = seedFactory();
+    localCollections.set(collectionKey, structuredClone(seeded) as unknown[]);
+    await convexCall("mutation", FN_SET_COLLECTION, { tenantKey, domain, rows: seeded });
+    lastConvexError = null;
+    return structuredClone(seeded);
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+
+    const cached = localCollections.get(collectionKey);
+    if (cached) return structuredClone(cached as T[]);
+
+    const seeded = seedFactory();
+    localCollections.set(collectionKey, structuredClone(seeded) as unknown[]);
+    return structuredClone(seeded);
+  }
 }
 
 export async function writeTenantCollection<T>(tenantKey: string, domain: TenantDomain, rows: T[]): Promise<void> {
@@ -621,6 +626,7 @@ export async function deleteStudentRowByTenant(
 export function getPersistenceDiagnostics() {
   return {
     mode: isConvexEnabled() ? "convex" : "memory",
+    collectionReadStrategy: isConvexEnabled() ? "backend-first-with-memory-fallback" : "memory-only",
     memoryFallbackEnabled: MEMORY_FALLBACK_ENABLED,
     convexCloudUrl: CONVEX_CLOUD_URL || null,
     convexActionsUrl: CONVEX_ACTIONS_URL || null,

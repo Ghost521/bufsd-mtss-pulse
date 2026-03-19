@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildSessionForUser, createSessionCookieHeaders } from "../../../lib/server/auth-context";
 import { clearCookie, parseCookieHeader, serializeCookie } from "../../../lib/server/cookies";
-import { ensureTenantStoreHydrated, findUserByEmail, isWorkOSAutoProvisionEnabled, provisionUserFromWorkOSEmail } from "../../../lib/server/tenant-store";
+import { findUserByEmail, isWorkOSAutoProvisionEnabled, provisionUserFromWorkOSEmail, refreshTenantStore } from "../../../lib/server/tenant-store";
 import {
   WORKOS_OAUTH_STATE_COOKIE,
   WORKOS_RETURN_TO_COOKIE,
@@ -59,7 +59,7 @@ export const Route = createFileRoute("/api/auth/callback")({
           return Response.json({ ok: false, error: "WorkOS authentication failed." }, { status: 401 });
         }
 
-        await ensureTenantStoreHydrated();
+        await refreshTenantStore();
         let mappedUser = findUserByEmail(auth.user.email);
         if (!mappedUser) {
           const fullName = [auth.user.firstName, auth.user.lastName].filter((part): part is string => Boolean(part && part.trim())).join(" ");

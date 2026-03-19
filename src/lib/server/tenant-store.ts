@@ -208,6 +208,7 @@ const seedState = (): TenantStoreState => ({
 let tenantStoreState: TenantStoreState = seedState();
 let isHydrated = false;
 let hydrationPromise: Promise<void> | null = null;
+let refreshPromise: Promise<void> | null = null;
 const workosProvisionLocks = new Map<string, Promise<WorkOSProvisionResult>>();
 
 const readDomain = async <T>(domain: TenantAuthDomain, seedFactory: () => T[]): Promise<T[]> =>
@@ -244,6 +245,15 @@ export const ensureTenantStoreHydrated = async (): Promise<void> => {
     });
   }
   await hydrationPromise;
+};
+
+export const refreshTenantStore = async (): Promise<void> => {
+  if (!refreshPromise) {
+    refreshPromise = hydrateState().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  await refreshPromise;
 };
 
 const persistDomain = async <T>(domain: TenantAuthDomain, rows: T[]): Promise<void> => {

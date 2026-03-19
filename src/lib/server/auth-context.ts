@@ -1,6 +1,5 @@
 import {
   canUserAccessContext,
-  ensureTenantStoreHydrated,
   findUserByEmail,
   findUserById,
   getAccessibleContextsForMemberships,
@@ -8,6 +7,7 @@ import {
   getUserMemberships,
   normalizeContext,
   provisionUserFromWorkOSEmail,
+  refreshTenantStore,
 } from "./tenant-store";
 import { clearCookie, parseCookieHeader, serializeCookie } from "./cookies";
 import { authenticateSealedWorkOSSession, isWorkOSEnabled, WORKOS_SESSION_COOKIE } from "./workos";
@@ -147,7 +147,7 @@ const shouldBypassApiAuth = (request: Request): boolean => {
 };
 
 export const getSessionFromRequest = async (request: Request): Promise<SessionContext | null> => {
-  await ensureTenantStoreHydrated();
+  await refreshTenantStore();
   setSessionAuthFailureReason(request, null);
   const cookies = parseCookieHeader(request.headers.get("cookie"));
   const requestedContext = parseTenantContext(request.headers.get("x-mtss-context") ?? cookies[CONTEXT_COOKIE]);
