@@ -8,6 +8,15 @@ export default defineSchema({
     rows: v.array(v.any()),
     updatedAt: v.string(),
   }).index("by_tenant_domain", ["tenantKey", "domain"]),
+  tenantInterventionRecords: defineTable({
+    tenantKey: v.string(),
+    interventionId: v.string(),
+    row: v.any(),
+    position: v.number(),
+    updatedAt: v.string(),
+  })
+    .index("by_tenant", ["tenantKey"])
+    .index("by_tenant_intervention", ["tenantKey", "interventionId"]),
   tenantStudentRecords: defineTable({
     tenantKey: v.string(),
     scope: v.string(),

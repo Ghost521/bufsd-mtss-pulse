@@ -41,6 +41,10 @@ const FN_SET_COLLECTION = process.env.CONVEX_FN_SET_COLLECTION ?? "phase3:setTen
 const FN_APPEND_AUDIT = process.env.CONVEX_FN_APPEND_AUDIT ?? "phase3:appendAuditEntry";
 const FN_COUNT_AUDIT = process.env.CONVEX_FN_COUNT_AUDIT ?? "phase3:countAuditEntries";
 const FN_LIST_AUDIT = process.env.CONVEX_FN_LIST_AUDIT ?? "phase3:listAuditEntries";
+const FN_LIST_INTERVENTION_ROWS = process.env.CONVEX_FN_LIST_INTERVENTION_ROWS ?? "phase3:listInterventionRows";
+const FN_REPLACE_INTERVENTION_ROWS = process.env.CONVEX_FN_REPLACE_INTERVENTION_ROWS ?? "phase3:replaceInterventionRows";
+const FN_UPSERT_INTERVENTION_ROW = process.env.CONVEX_FN_UPSERT_INTERVENTION_ROW ?? "phase3:upsertInterventionRow";
+const FN_DELETE_INTERVENTION_ROW = process.env.CONVEX_FN_DELETE_INTERVENTION_ROW ?? "phase3:deleteInterventionRow";
 const FN_LIST_STUDENT_ROWS = process.env.CONVEX_FN_LIST_STUDENT_ROWS ?? "phase3:listStudentRows";
 const FN_REPLACE_STUDENT_ROWS = process.env.CONVEX_FN_REPLACE_STUDENT_ROWS ?? "phase3:replaceStudentRows";
 const FN_UPSERT_STUDENT_ROW = process.env.CONVEX_FN_UPSERT_STUDENT_ROW ?? "phase3:upsertStudentRow";
@@ -48,6 +52,7 @@ const FN_DELETE_STUDENT_ROW = process.env.CONVEX_FN_DELETE_STUDENT_ROW ?? "phase
 
 const localCollections = new Map<string, unknown[]>();
 const localAuditByTenant = new Map<string, unknown[]>();
+const localInterventionRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentRows = new Map<string, Map<string, unknown>>();
 
 let lastConvexError: string | null = null;
@@ -114,6 +119,10 @@ const filterAuditEntries = <T>(entries: T[], filters: AuditEntryListFilters = {}
 };
 
 const getStudentScopeKey = (tenantKey: string, scope: StudentRowScope): string => `${tenantKey}::${scope}`;
+const getOrderedLocalRows = <T>(bucket: Map<string, { position: number; row: unknown }> | undefined): T[] =>
+  [...(bucket?.values() ?? [])]
+    .sort((left, right) => left.position - right.position)
+    .map((entry) => structuredClone(entry.row) as T);
 
 async function convexCall<T>(kind: "query" | "mutation", path: string, args: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${CONVEX_CLOUD_URL}/api/${kind}`, {
@@ -268,6 +277,115 @@ export async function listAuditEntriesByTenant<T>(tenantKey: string, filters: Au
   }
 
   return structuredClone(filterAuditEntries(localAuditByTenant.get(tenantKey) ?? [], filters) as T[]);
+}
+
+export async function listInterventionRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localInterventionRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_INTERVENTION_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localInterventionRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localInterventionRows.get(tenantKey));
+  }
+}
+
+export async function replaceInterventionRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localInterventionRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_INTERVENTION_ROWS, { tenantKey, rows });
+    localInterventionRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localInterventionRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertInterventionRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localInterventionRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localInterventionRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_INTERVENTION_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteInterventionRowByTenant(tenantKey: string, interventionId: string): Promise<void> {
+  const existing = localInterventionRows.get(tenantKey);
+  existing?.delete(interventionId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_INTERVENTION_ROW, { tenantKey, interventionId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
 }
 
 export async function listStudentRowsByTenant<T>(tenantKey: string, scope: StudentRowScope): Promise<T[]> {
