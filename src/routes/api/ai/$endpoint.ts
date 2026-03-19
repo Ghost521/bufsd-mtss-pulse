@@ -16,6 +16,7 @@ import type {
 } from "../../../services/aiContracts";
 import { newRequestId } from "../../../lib/server/audit-log";
 import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromRequest } from "../../../lib/server/auth-context";
+import { logApiResponse } from "../../../lib/server/request-logging";
 import { requirePermission } from "../../../lib/server/rbac";
 import {
   AI_REQUEST_LIMITS,
@@ -423,25 +424,26 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
     handlers: {
       POST: async ({ params, request }) => {
         const requestId = newRequestId();
+        const startedAt = Date.now();
         const endpoint = params.endpoint;
-
         const session = await getSessionFromRequest(request);
-        if (!session) {
-          const reason = getSessionAuthFailureReason(request);
-          return aiError(requestId, endpoint, "Unauthorized.", 401, "UNAUTHORIZED", false, reason ?? undefined);
-        }
+        const response = await (async () => {
+          if (!session) {
+            const reason = getSessionAuthFailureReason(request);
+            return aiError(requestId, endpoint, "Unauthorized.", 401, "UNAUTHORIZED", false, reason ?? undefined);
+          }
 
-        const permission = requirePermission(session, { resource: "ai", action: "read" });
-        if (!permission.ok) return aiError(requestId, endpoint, permission.error, permission.status, "FORBIDDEN", false);
+          const permission = requirePermission(session, { resource: "ai", action: "read" });
+          if (!permission.ok) return aiError(requestId, endpoint, permission.error, permission.status, "FORBIDDEN", false);
 
-        const agents = getAgents();
-        if (!agents) {
-          return aiError(requestId, endpoint, "AI server not configured. Set GEMINI_API_KEY.", 503, "UNAVAILABLE", true);
-        }
+          const agents = getAgents();
+          if (!agents) {
+            return aiError(requestId, endpoint, "AI server not configured. Set GEMINI_API_KEY.", 503, "UNAVAILABLE", true);
+          }
 
-        const wantsStream = requestWantsStream(request);
+          const wantsStream = requestWantsStream(request);
 
-        if (endpoint === "rag-chat") {
+          if (endpoint === "rag-chat") {
           const parsed = await parseAiRequest({
             request,
             requestId,
@@ -844,7 +846,20 @@ export const Route = createFileRoute("/api/ai/$endpoint")({
           });
         }
 
-        return aiError(requestId, endpoint, `Unknown endpoint: ${endpoint}`, 404, "NOT_FOUND", false);
+          return aiError(requestId, endpoint, `Unknown endpoint: ${endpoint}`, 404, "NOT_FOUND", false);
+        })();
+
+        return logApiResponse({
+          request,
+          requestId,
+          route: `/api/ai/${endpoint}`,
+          startedAt,
+          response,
+          session,
+          details: {
+            endpoint,
+          },
+        });
       },
     },
   },

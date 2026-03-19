@@ -5,6 +5,7 @@ import {
   getSessionAuthFailureReason,
   getSessionFromRequest,
 } from "../../lib/server/auth-context";
+import { logApiResponse } from "../../lib/server/request-logging";
 import { requirePermission } from "../../lib/server/rbac";
 import { geocodeAddress } from "../../lib/server/geocoding";
 import { getDistricts, getMemberships, getSchools, getUsers } from "../../lib/server/tenant-store";
@@ -103,46 +104,59 @@ export const Route = createFileRoute("/api/schools")({
     handlers: {
       GET: async ({ request }) => {
         const requestId = newRequestId();
+        const startedAt = Date.now();
         const session = await getSessionFromRequest(request);
-        if (!session) {
-          const reason = getSessionAuthFailureReason(request);
-          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
-        }
 
-        const permission = requirePermission(session, { resource: "dashboard", action: "read" });
-        if (!permission.ok) {
-          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
-        }
+        const response = await (async () => {
+          if (!session) {
+            const reason = getSessionAuthFailureReason(request);
+            return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+          }
 
-        const scopedSchools = resolveScopedSchools(session);
-        const principals = buildPrincipalMap();
-        const rows: SchoolSummaryRow[] = [];
-        for (const school of scopedSchools) {
-          const coordinates = await fillCoordinates(school);
-          rows.push({
-            id: school.id,
-            districtId: school.districtId,
-            name: school.name,
-            type: schoolTypeFromName(school.name),
-            principalName: principals.get(school.id) ?? "No principal assigned",
-            addressLine1: school.addressLine1 ?? null,
-            city: school.city ?? null,
-            state: school.state ?? null,
-            postalCode: school.postalCode ?? null,
-            latitude: coordinates.latitude,
-            longitude: coordinates.longitude,
-          });
-        }
+          const permission = requirePermission(session, { resource: "dashboard", action: "read" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
 
-        rows.sort((left, right) => left.name.localeCompare(right.name));
-        return appendActivityCookie(
-          Response.json({
-            ok: true,
-            rows,
-            total: rows.length,
-            requestId,
-          })
-        );
+          const scopedSchools = resolveScopedSchools(session);
+          const principals = buildPrincipalMap();
+          const rows: SchoolSummaryRow[] = [];
+          for (const school of scopedSchools) {
+            const coordinates = await fillCoordinates(school);
+            rows.push({
+              id: school.id,
+              districtId: school.districtId,
+              name: school.name,
+              type: schoolTypeFromName(school.name),
+              principalName: principals.get(school.id) ?? "No principal assigned",
+              addressLine1: school.addressLine1 ?? null,
+              city: school.city ?? null,
+              state: school.state ?? null,
+              postalCode: school.postalCode ?? null,
+              latitude: coordinates.latitude,
+              longitude: coordinates.longitude,
+            });
+          }
+
+          rows.sort((left, right) => left.name.localeCompare(right.name));
+          return appendActivityCookie(
+            Response.json({
+              ok: true,
+              rows,
+              total: rows.length,
+              requestId,
+            })
+          );
+        })();
+
+        return logApiResponse({
+          request,
+          requestId,
+          route: "/api/schools",
+          startedAt,
+          response,
+          session,
+        });
       },
     },
   },

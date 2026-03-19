@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { newRequestId } from "../../lib/server/audit-log";
 import { appendActivityCookie, getSessionAuthFailureReason, getSessionFromRequest } from "../../lib/server/auth-context";
+import { logApiResponse } from "../../lib/server/request-logging";
 import { requirePermission } from "../../lib/server/rbac";
 import { listStudents, type TenantStudentRecord } from "../../lib/server/student-store";
 import { getMemberships, getSchools, getUsers } from "../../lib/server/tenant-store";
@@ -152,56 +153,69 @@ export const Route = createFileRoute("/api/students-hierarchy")({
     handlers: {
       GET: async ({ request }) => {
         const requestId = newRequestId();
+        const startedAt = Date.now();
         const session = await getSessionFromRequest(request);
-        if (!session) {
-          const reason = getSessionAuthFailureReason(request);
-          return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
-        }
 
-        const permission = requirePermission(session, { resource: "students", action: "read" });
-        if (!permission.ok) {
-          return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
-        }
+        const response = await (async () => {
+          if (!session) {
+            const reason = getSessionAuthFailureReason(request);
+            return Response.json({ ok: false, error: "Unauthorized.", reason: reason ?? undefined, requestId }, { status: 401 });
+          }
 
-        const roleScope = resolveRoleScope(session.effectiveRoles);
-        const scope = roleScope === "teacher" ? "class" : "master";
-        const rows = await listStudents({
-          scope,
-          context: session.activeContext,
-          requesterUserId: session.user.id,
-          requesterRoles: session.effectiveRoles,
+          const permission = requirePermission(session, { resource: "students", action: "read" });
+          if (!permission.ok) {
+            return Response.json({ ok: false, error: permission.error, requestId }, { status: permission.status });
+          }
+
+          const roleScope = resolveRoleScope(session.effectiveRoles);
+          const scope = roleScope === "teacher" ? "class" : "master";
+          const rows = await listStudents({
+            scope,
+            context: session.activeContext,
+            requesterUserId: session.user.id,
+            requesterRoles: session.effectiveRoles,
+          });
+
+          const bySchool = new Map<string, TenantStudentRecord[]>();
+          for (const row of rows) {
+            const bucket = bySchool.get(row.schoolId);
+            if (bucket) bucket.push(row);
+            else bySchool.set(row.schoolId, [row]);
+          }
+
+          const schoolNames = new Map(getSchools().map((school) => [school.id, school.name]));
+
+          const schools: SchoolNode[] = [...bySchool.entries()]
+            .map(([schoolId, schoolRows]) => {
+              const grades = buildGradeNodes(schoolRows);
+              return {
+                schoolId,
+                schoolName: schoolNames.get(schoolId) ?? schoolId,
+                studentCount: schoolRows.length,
+                grades,
+                principals: buildPrincipalNodes(schoolId, grades),
+              };
+            })
+            .sort((left, right) => left.schoolName.localeCompare(right.schoolName));
+
+          return appendActivityCookie(
+            Response.json({
+              ok: true,
+              roleScope,
+              schools,
+              requestId,
+            })
+          );
+        })();
+
+        return logApiResponse({
+          request,
+          requestId,
+          route: "/api/students-hierarchy",
+          startedAt,
+          response,
+          session,
         });
-
-        const bySchool = new Map<string, TenantStudentRecord[]>();
-        for (const row of rows) {
-          const bucket = bySchool.get(row.schoolId);
-          if (bucket) bucket.push(row);
-          else bySchool.set(row.schoolId, [row]);
-        }
-
-        const schoolNames = new Map(getSchools().map((school) => [school.id, school.name]));
-
-        const schools: SchoolNode[] = [...bySchool.entries()]
-          .map(([schoolId, schoolRows]) => {
-            const grades = buildGradeNodes(schoolRows);
-            return {
-              schoolId,
-              schoolName: schoolNames.get(schoolId) ?? schoolId,
-              studentCount: schoolRows.length,
-              grades,
-              principals: buildPrincipalNodes(schoolId, grades),
-            };
-          })
-          .sort((left, right) => left.schoolName.localeCompare(right.schoolName));
-
-        return appendActivityCookie(
-          Response.json({
-            ok: true,
-            roleScope,
-            schools,
-            requestId,
-          })
-        );
       },
     },
   },
