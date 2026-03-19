@@ -7,7 +7,16 @@ import {
   type TenantStudentRecord,
   type UpdateStudentInput,
 } from "../schemas/students";
-import { readTenantCollection, toTenantKey, writeTenantCollection } from "./persistence";
+import {
+  deleteStudentRowByTenant,
+  listStudentRowsByTenant,
+  readTenantCollection,
+  replaceStudentRowsByTenant,
+  toTenantKey,
+  upsertStudentRowByTenant,
+  writeTenantCollection,
+  type StudentRowScope,
+} from "./persistence";
 import { getDistricts, getMemberships, getSchools, findUserById } from "./tenant-store";
 import type { TenantContext } from "./tenant-types";
 
@@ -33,6 +42,8 @@ export type StudentListFilters = {
 
 const STUDENTS_MASTER_DOMAIN = "students_master";
 const STUDENTS_CLASS_DOMAIN = "students_class";
+const STUDENTS_MASTER_SCOPE: StudentRowScope = "master";
+const STUDENTS_CLASS_SCOPE: StudentRowScope = "class";
 
 const getDistrictById = (districtId: string) => getDistricts().find((district) => district.id === districtId) ?? null;
 const getSchoolById = (schoolId: string) => getSchools().find((school) => school.id === schoolId) ?? null;
@@ -177,22 +188,39 @@ const seedClassRoster = (): TenantStudentRecord[] =>
     };
   });
 
-const readMasterRoster = async (context: TenantContext): Promise<TenantStudentRecord[]> => {
+const parseStoredStudentRows = (rows: unknown): TenantStudentRecord[] => parseStoredRows(rows).map(toCanonicalStudent);
+
+const readStudentScopeRows = async (
+  context: TenantContext,
+  scope: StudentRowScope,
+  legacyDomain: typeof STUDENTS_MASTER_DOMAIN | typeof STUDENTS_CLASS_DOMAIN,
+  seedFactory: () => TenantStudentRecord[]
+): Promise<TenantStudentRecord[]> => {
   const tenantKey = toTenantKey(context);
-  const rows = await readTenantCollection<unknown>(tenantKey, STUDENTS_MASTER_DOMAIN, seedMasterRoster);
-  return sortMasterRoster(parseStoredRows(rows));
+  const rowLevelRows = parseStoredStudentRows(await listStudentRowsByTenant<unknown>(tenantKey, scope));
+  if (rowLevelRows.length > 0) {
+    return scope === STUDENTS_MASTER_SCOPE ? sortMasterRoster(rowLevelRows) : rowLevelRows;
+  }
+
+  const legacyRows = await readTenantCollection<unknown>(tenantKey, legacyDomain, seedFactory);
+  const parsedLegacyRows = parseStoredStudentRows(legacyRows);
+  if (parsedLegacyRows.length > 0) {
+    await replaceStudentRowsByTenant(tenantKey, scope, parsedLegacyRows);
+  }
+  return scope === STUDENTS_MASTER_SCOPE ? sortMasterRoster(parsedLegacyRows) : parsedLegacyRows;
 };
+
+const readMasterRoster = async (context: TenantContext): Promise<TenantStudentRecord[]> =>
+  readStudentScopeRows(context, STUDENTS_MASTER_SCOPE, STUDENTS_MASTER_DOMAIN, seedMasterRoster);
 
 const readClassRoster = async (context: TenantContext): Promise<TenantStudentRecord[]> => {
-  const tenantKey = toTenantKey(context);
-  const rows = await readTenantCollection<unknown>(tenantKey, STUDENTS_CLASS_DOMAIN, seedClassRoster);
-  return parseStoredRows(rows);
+  return readStudentScopeRows(context, STUDENTS_CLASS_SCOPE, STUDENTS_CLASS_DOMAIN, seedClassRoster);
 };
 
-const writeMasterRoster = async (context: TenantContext, rows: TenantStudentRecord[]): Promise<void> => {
+const replaceMasterRoster = async (context: TenantContext, rows: TenantStudentRecord[]): Promise<void> => {
   const tenantKey = toTenantKey(context);
-  const validRows = tenantStudentCollectionSchema.parse(sortMasterRoster(rows));
-  await writeTenantCollection(tenantKey, STUDENTS_MASTER_DOMAIN, validRows);
+  const validRows = tenantStudentCollectionSchema.parse(sortMasterRoster(rows)).map(toCanonicalStudent);
+  await replaceStudentRowsByTenant(tenantKey, STUDENTS_MASTER_SCOPE, validRows);
 };
 
 const makeMasterId = (rows: TenantStudentRecord[]): string => {
@@ -356,7 +384,7 @@ export const createMasterStudent = async (
     guardianUserIds: [],
   };
 
-  await writeMasterRoster(context, [...rows, created]);
+  await upsertStudentRowByTenant(toTenantKey(context), STUDENTS_MASTER_SCOPE, toCanonicalStudent(created));
   return cloneStudent(toCanonicalStudent(created));
 };
 
@@ -378,9 +406,7 @@ export const updateMasterStudent = async (
     avatarSeed: patch.name ? toAvatarSeed(patch.name) : current.avatarSeed,
   };
 
-  const nextRows = [...rows];
-  nextRows[index] = updated;
-  await writeMasterRoster(context, nextRows);
+  await upsertStudentRowByTenant(toTenantKey(context), STUDENTS_MASTER_SCOPE, toCanonicalStudent(updated));
   return cloneStudent(toCanonicalStudent(updated));
 };
 
@@ -400,7 +426,7 @@ export const archiveMasterStudents = async (
     };
   });
 
-  await writeMasterRoster(context, nextRows);
+  await replaceMasterRoster(context, nextRows);
   return nextRows.filter((student) => idSet.has(student.id)).map((student) => cloneStudent(toCanonicalStudent(student)));
 };
 
@@ -410,6 +436,9 @@ export const deleteMasterStudent = async (studentId: string, context: TenantCont
   if (!existing || !contextContainsStudent(context, existing)) return null;
 
   const nextRows = rows.filter((student) => student.id !== studentId);
-  await writeMasterRoster(context, nextRows);
+  await deleteStudentRowByTenant(toTenantKey(context), STUDENTS_MASTER_SCOPE, studentId);
+  if (nextRows.length === 0) {
+    await writeTenantCollection(toTenantKey(context), STUDENTS_MASTER_DOMAIN, []);
+  }
   return cloneStudent(toCanonicalStudent(existing));
 };
