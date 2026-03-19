@@ -45,6 +45,10 @@ const FN_LIST_INTERVENTION_ROWS = process.env.CONVEX_FN_LIST_INTERVENTION_ROWS ?
 const FN_REPLACE_INTERVENTION_ROWS = process.env.CONVEX_FN_REPLACE_INTERVENTION_ROWS ?? "phase3:replaceInterventionRows";
 const FN_UPSERT_INTERVENTION_ROW = process.env.CONVEX_FN_UPSERT_INTERVENTION_ROW ?? "phase3:upsertInterventionRow";
 const FN_DELETE_INTERVENTION_ROW = process.env.CONVEX_FN_DELETE_INTERVENTION_ROW ?? "phase3:deleteInterventionRow";
+const FN_LIST_REFERRAL_ROWS = process.env.CONVEX_FN_LIST_REFERRAL_ROWS ?? "phase3:listReferralRows";
+const FN_REPLACE_REFERRAL_ROWS = process.env.CONVEX_FN_REPLACE_REFERRAL_ROWS ?? "phase3:replaceReferralRows";
+const FN_UPSERT_REFERRAL_ROW = process.env.CONVEX_FN_UPSERT_REFERRAL_ROW ?? "phase3:upsertReferralRow";
+const FN_DELETE_REFERRAL_ROW = process.env.CONVEX_FN_DELETE_REFERRAL_ROW ?? "phase3:deleteReferralRow";
 const FN_LIST_STUDENT_ROWS = process.env.CONVEX_FN_LIST_STUDENT_ROWS ?? "phase3:listStudentRows";
 const FN_REPLACE_STUDENT_ROWS = process.env.CONVEX_FN_REPLACE_STUDENT_ROWS ?? "phase3:replaceStudentRows";
 const FN_UPSERT_STUDENT_ROW = process.env.CONVEX_FN_UPSERT_STUDENT_ROW ?? "phase3:upsertStudentRow";
@@ -53,6 +57,7 @@ const FN_DELETE_STUDENT_ROW = process.env.CONVEX_FN_DELETE_STUDENT_ROW ?? "phase
 const localCollections = new Map<string, unknown[]>();
 const localAuditByTenant = new Map<string, unknown[]>();
 const localInterventionRows = new Map<string, Map<string, { position: number; row: unknown }>>();
+const localReferralRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentRows = new Map<string, Map<string, unknown>>();
 
 let lastConvexError: string | null = null;
@@ -306,6 +311,115 @@ export async function listInterventionRowsByTenant<T>(tenantKey: string): Promis
       throw new PersistenceUnavailableError(lastConvexError);
     }
     return getOrderedLocalRows<T>(localInterventionRows.get(tenantKey));
+  }
+}
+
+export async function listReferralRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localReferralRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_REFERRAL_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localReferralRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localReferralRows.get(tenantKey));
+  }
+}
+
+export async function replaceReferralRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localReferralRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_REFERRAL_ROWS, { tenantKey, rows });
+    localReferralRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localReferralRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertReferralRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localReferralRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localReferralRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_REFERRAL_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteReferralRowByTenant(tenantKey: string, referralId: string): Promise<void> {
+  const existing = localReferralRows.get(tenantKey);
+  existing?.delete(referralId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_REFERRAL_ROW, { tenantKey, referralId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
   }
 }
 
