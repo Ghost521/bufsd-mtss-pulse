@@ -1,12 +1,16 @@
 import {
+  deleteCalendarRowByTenant,
   deleteReferralRowByTenant,
   deleteInterventionRowByTenant,
+  listCalendarRowsByTenant,
   listReferralRowsByTenant,
   listInterventionRowsByTenant,
   readTenantCollection,
+  replaceCalendarRowsByTenant,
   replaceReferralRowsByTenant,
   replaceInterventionRowsByTenant,
   toTenantKey,
+  upsertCalendarRowByTenant,
   upsertReferralRowByTenant,
   upsertInterventionRowByTenant,
   writeTenantCollection,
@@ -65,6 +69,7 @@ const ensureId = (row: Record<string, unknown>): string => {
 };
 
 const formatValidationMessage = (message: string): string => message.replace(/Invalid input:/g, "").trim() || "Invalid payload.";
+const isCalendarDomain = (domain: DataDomain): boolean => domain === "calendar";
 const isInterventionDomain = (domain: DataDomain): boolean => domain === "interventions";
 const isReferralDomain = (domain: DataDomain): boolean => domain === "referrals";
 
@@ -94,6 +99,18 @@ export class CollectionStoreError extends Error {
   }
 }
 
+const readCalendarRows = async <T>(tenantKey: string): Promise<T[]> => {
+  const rowLevelRows = parseRowsForDomain<T>("calendar", await listCalendarRowsByTenant<unknown>(tenantKey), 500);
+  if (rowLevelRows.length > 0) return rowLevelRows;
+
+  const legacyRows = await readTenantCollection<unknown>(tenantKey, "calendar", () => []);
+  const parsedLegacyRows = parseRowsForDomain<T>("calendar", ensureArray<T>(legacyRows), 500);
+  if (parsedLegacyRows.length > 0) {
+    await replaceCalendarRowsByTenant(tenantKey, parsedLegacyRows as Array<T & { id: string }>);
+  }
+  return parsedLegacyRows;
+};
+
 const readInterventionRows = async <T>(tenantKey: string): Promise<T[]> => {
   const rowLevelRows = parseRowsForDomain<T>("interventions", await listInterventionRowsByTenant<unknown>(tenantKey), 500);
   if (rowLevelRows.length > 0) return rowLevelRows;
@@ -120,6 +137,9 @@ const readReferralRows = async <T>(tenantKey: string): Promise<T[]> => {
 
 export const listDomainRows = async <T>(session: SessionContext, domain: DataDomain): Promise<T[]> => {
   const tenantKey = toTenantKey(session.activeContext);
+  if (isCalendarDomain(domain)) {
+    return readCalendarRows<T>(tenantKey);
+  }
   if (isInterventionDomain(domain)) {
     return readInterventionRows<T>(tenantKey);
   }
@@ -133,6 +153,13 @@ export const listDomainRows = async <T>(session: SessionContext, domain: DataDom
 export const replaceDomainRows = async <T>(session: SessionContext, domain: DataDomain, rows: T[]): Promise<T[]> => {
   const tenantKey = toTenantKey(session.activeContext);
   const next = parseRowsForDomain<T>(domain, ensureArray<T>(rows));
+  if (isCalendarDomain(domain)) {
+    await replaceCalendarRowsByTenant(tenantKey, next as Array<T & { id: string }>);
+    if (next.length === 0) {
+      await writeTenantCollection(tenantKey, "calendar", []);
+    }
+    return next;
+  }
   if (isInterventionDomain(domain)) {
     await replaceInterventionRowsByTenant(tenantKey, next as Array<T & { id: string }>);
     if (next.length === 0) {
@@ -158,6 +185,10 @@ export const createDomainRow = async <T extends object>(
 ): Promise<T> => {
   const sourceRow = row as Record<string, unknown>;
   const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...sourceRow, id: ensureId(sourceRow) });
+  if (isCalendarDomain(domain)) {
+    await upsertCalendarRowByTenant(toTenantKey(session.activeContext), nextRow as Record<string, unknown> & { id: string }, -Date.now());
+    return nextRow as unknown as T;
+  }
   if (isInterventionDomain(domain)) {
     await upsertInterventionRowByTenant(toTenantKey(session.activeContext), nextRow as Record<string, unknown> & { id: string }, -Date.now());
     return nextRow as unknown as T;
@@ -179,6 +210,20 @@ export const updateDomainRow = async <T extends object>(
   patch: Partial<T>
 ): Promise<T | null> => {
   const tenantKey = toTenantKey(session.activeContext);
+  if (isCalendarDomain(domain)) {
+    const rows = await readCalendarRows<Record<string, unknown>>(tenantKey);
+    const current = rows.find((row) => row.id === id);
+    if (!current) return null;
+    const currentRecord = asRecord(current);
+    const patchRecord = asRecord(patch);
+    if (!currentRecord) return null;
+    if (!patchRecord) {
+      throw new CollectionStoreError("Patch payload must be an object.");
+    }
+    const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...currentRecord, ...patchRecord, id });
+    await upsertCalendarRowByTenant(tenantKey, nextRow as Record<string, unknown> & { id: string });
+    return nextRow as unknown as T;
+  }
   if (isInterventionDomain(domain)) {
     const rows = await readInterventionRows<Record<string, unknown>>(tenantKey);
     const current = rows.find((row) => row.id === id);
@@ -230,6 +275,17 @@ export const deleteDomainRow = async <T extends object>(
   id: string
 ): Promise<T | null> => {
   const tenantKey = toTenantKey(session.activeContext);
+  if (isCalendarDomain(domain)) {
+    const rows = await readCalendarRows<Record<string, unknown>>(tenantKey);
+    const target = rows.find((row) => row.id === id);
+    if (!target) return null;
+    const nextRows = rows.filter((row) => row.id !== id);
+    await deleteCalendarRowByTenant(tenantKey, id);
+    if (nextRows.length === 0) {
+      await writeTenantCollection(tenantKey, "calendar", []);
+    }
+    return target as unknown as T;
+  }
   if (isInterventionDomain(domain)) {
     const rows = await readInterventionRows<Record<string, unknown>>(tenantKey);
     const target = rows.find((row) => row.id === id);
