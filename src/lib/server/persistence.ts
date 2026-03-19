@@ -61,6 +61,14 @@ const FN_LIST_DOCUMENT_ROWS = process.env.CONVEX_FN_LIST_DOCUMENT_ROWS ?? "phase
 const FN_REPLACE_DOCUMENT_ROWS = process.env.CONVEX_FN_REPLACE_DOCUMENT_ROWS ?? "phase3:replaceDocumentRows";
 const FN_UPSERT_DOCUMENT_ROW = process.env.CONVEX_FN_UPSERT_DOCUMENT_ROW ?? "phase3:upsertDocumentRow";
 const FN_DELETE_DOCUMENT_ROW = process.env.CONVEX_FN_DELETE_DOCUMENT_ROW ?? "phase3:deleteDocumentRow";
+const FN_LIST_GRADEBOOK_ASSIGNMENT_ROWS = process.env.CONVEX_FN_LIST_GRADEBOOK_ASSIGNMENT_ROWS ?? "phase3:listGradebookAssignmentRows";
+const FN_REPLACE_GRADEBOOK_ASSIGNMENT_ROWS = process.env.CONVEX_FN_REPLACE_GRADEBOOK_ASSIGNMENT_ROWS ?? "phase3:replaceGradebookAssignmentRows";
+const FN_UPSERT_GRADEBOOK_ASSIGNMENT_ROW = process.env.CONVEX_FN_UPSERT_GRADEBOOK_ASSIGNMENT_ROW ?? "phase3:upsertGradebookAssignmentRow";
+const FN_DELETE_GRADEBOOK_ASSIGNMENT_ROW = process.env.CONVEX_FN_DELETE_GRADEBOOK_ASSIGNMENT_ROW ?? "phase3:deleteGradebookAssignmentRow";
+const FN_LIST_GRADEBOOK_GRADE_ROWS = process.env.CONVEX_FN_LIST_GRADEBOOK_GRADE_ROWS ?? "phase3:listGradebookGradeRows";
+const FN_REPLACE_GRADEBOOK_GRADE_ROWS = process.env.CONVEX_FN_REPLACE_GRADEBOOK_GRADE_ROWS ?? "phase3:replaceGradebookGradeRows";
+const FN_UPSERT_GRADEBOOK_GRADE_ROW = process.env.CONVEX_FN_UPSERT_GRADEBOOK_GRADE_ROW ?? "phase3:upsertGradebookGradeRow";
+const FN_DELETE_GRADEBOOK_GRADE_ROW = process.env.CONVEX_FN_DELETE_GRADEBOOK_GRADE_ROW ?? "phase3:deleteGradebookGradeRow";
 const FN_LIST_REFERRAL_ROWS = process.env.CONVEX_FN_LIST_REFERRAL_ROWS ?? "phase3:listReferralRows";
 const FN_REPLACE_REFERRAL_ROWS = process.env.CONVEX_FN_REPLACE_REFERRAL_ROWS ?? "phase3:replaceReferralRows";
 const FN_UPSERT_REFERRAL_ROW = process.env.CONVEX_FN_UPSERT_REFERRAL_ROW ?? "phase3:upsertReferralRow";
@@ -77,6 +85,8 @@ const localCalendarRows = new Map<string, Map<string, { position: number; row: u
 const localNotificationRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localMessageRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localDocumentRows = new Map<string, Map<string, { position: number; row: unknown }>>();
+const localGradebookAssignmentRows = new Map<string, Map<string, { position: number; row: unknown }>>();
+const localGradebookGradeRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localReferralRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentRows = new Map<string, Map<string, unknown>>();
 
@@ -766,6 +776,224 @@ export async function deleteDocumentRowByTenant(tenantKey: string, documentId: s
 
   try {
     await convexCall("mutation", FN_DELETE_DOCUMENT_ROW, { tenantKey, documentId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function listGradebookAssignmentRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localGradebookAssignmentRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_GRADEBOOK_ASSIGNMENT_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localGradebookAssignmentRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localGradebookAssignmentRows.get(tenantKey));
+  }
+}
+
+export async function replaceGradebookAssignmentRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localGradebookAssignmentRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_GRADEBOOK_ASSIGNMENT_ROWS, { tenantKey, rows });
+    localGradebookAssignmentRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localGradebookAssignmentRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertGradebookAssignmentRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localGradebookAssignmentRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localGradebookAssignmentRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_GRADEBOOK_ASSIGNMENT_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteGradebookAssignmentRowByTenant(tenantKey: string, assignmentId: string): Promise<void> {
+  const existing = localGradebookAssignmentRows.get(tenantKey);
+  existing?.delete(assignmentId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_GRADEBOOK_ASSIGNMENT_ROW, { tenantKey, assignmentId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function listGradebookGradeRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localGradebookGradeRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_GRADEBOOK_GRADE_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localGradebookGradeRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localGradebookGradeRows.get(tenantKey));
+  }
+}
+
+export async function replaceGradebookGradeRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localGradebookGradeRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_GRADEBOOK_GRADE_ROWS, { tenantKey, rows });
+    localGradebookGradeRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localGradebookGradeRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertGradebookGradeRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localGradebookGradeRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localGradebookGradeRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_GRADEBOOK_GRADE_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteGradebookGradeRowByTenant(tenantKey: string, gradeId: string): Promise<void> {
+  const existing = localGradebookGradeRows.get(tenantKey);
+  existing?.delete(gradeId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_GRADEBOOK_GRADE_ROW, { tenantKey, gradeId });
     lastConvexError = null;
   } catch (error) {
     lastConvexError = getErrorMessage(error);

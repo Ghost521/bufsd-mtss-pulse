@@ -285,6 +285,46 @@ export const listDocumentRows = query({
   },
 });
 
+export const listGradebookAssignmentRows = query({
+  args: {
+    tenantKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("tenantGradebookAssignmentRecords")
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+      .collect();
+
+    return rows
+      .sort((left, right) => {
+        if (left.position !== right.position) return left.position - right.position;
+        return right.updatedAt.localeCompare(left.updatedAt);
+      })
+      .map((record) => record.row);
+  },
+});
+
+export const listGradebookGradeRows = query({
+  args: {
+    tenantKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("tenantGradebookGradeRecords")
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+      .collect();
+
+    return rows
+      .sort((left, right) => {
+        if (left.position !== right.position) return left.position - right.position;
+        return right.updatedAt.localeCompare(left.updatedAt);
+      })
+      .map((record) => record.row);
+  },
+});
+
 export const replaceNotificationRows = mutation({
   args: {
     tenantKey: v.string(),
@@ -309,6 +349,74 @@ export const replaceNotificationRows = mutation({
       await ctx.db.insert("tenantNotificationRecords", {
         tenantKey: args.tenantKey,
         notificationId: candidate.id,
+        row,
+        position: index,
+        updatedAt: now,
+      });
+    }
+
+    return args.rows.length;
+  },
+});
+
+export const replaceGradebookAssignmentRows = mutation({
+  args: {
+    tenantKey: v.string(),
+    rows: v.array(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("tenantGradebookAssignmentRecords")
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+      .collect();
+
+    for (const record of existing) {
+      await ctx.db.delete(record._id);
+    }
+
+    const now = new Date().toISOString();
+    for (let index = 0; index < args.rows.length; index += 1) {
+      const row = args.rows[index];
+      const candidate = row as Record<string, unknown>;
+      if (typeof candidate.id !== "string" || candidate.id.trim().length === 0) continue;
+      await ctx.db.insert("tenantGradebookAssignmentRecords", {
+        tenantKey: args.tenantKey,
+        assignmentId: candidate.id,
+        row,
+        position: index,
+        updatedAt: now,
+      });
+    }
+
+    return args.rows.length;
+  },
+});
+
+export const replaceGradebookGradeRows = mutation({
+  args: {
+    tenantKey: v.string(),
+    rows: v.array(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("tenantGradebookGradeRecords")
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+      .collect();
+
+    for (const record of existing) {
+      await ctx.db.delete(record._id);
+    }
+
+    const now = new Date().toISOString();
+    for (let index = 0; index < args.rows.length; index += 1) {
+      const row = args.rows[index];
+      const candidate = row as Record<string, unknown>;
+      if (typeof candidate.id !== "string" || candidate.id.trim().length === 0) continue;
+      await ctx.db.insert("tenantGradebookGradeRecords", {
+        tenantKey: args.tenantKey,
+        gradeId: candidate.id,
         row,
         position: index,
         updatedAt: now,
@@ -552,6 +660,116 @@ export const upsertDocumentRow = mutation({
   },
 });
 
+export const upsertGradebookAssignmentRow = mutation({
+  args: {
+    tenantKey: v.string(),
+    row: v.any(),
+    position: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const candidate = args.row as Record<string, unknown>;
+    if (typeof candidate.id !== "string" || candidate.id.trim().length === 0) {
+      throw new Error("Gradebook assignment row must include a string id.");
+    }
+    const assignmentId = candidate.id;
+
+    const existing = await ctx.db
+      .query("tenantGradebookAssignmentRecords")
+      .withIndex("by_tenant_assignment")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("assignmentId"), assignmentId),
+        )
+      )
+      .unique();
+
+    let position = typeof args.position === "number" && Number.isFinite(args.position)
+      ? Math.floor(args.position)
+      : existing?.position;
+
+    if (position === undefined) {
+      const siblings = await ctx.db
+        .query("tenantGradebookAssignmentRecords")
+        .withIndex("by_tenant")
+        .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+        .collect();
+      const minPosition = siblings.reduce((minimum, row) => Math.min(minimum, row.position), 0);
+      position = siblings.length > 0 ? minPosition - 1 : 0;
+    }
+
+    const next = {
+      tenantKey: args.tenantKey,
+      assignmentId,
+      row: args.row,
+      position,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, next);
+      return existing._id;
+    }
+
+    return await ctx.db.insert("tenantGradebookAssignmentRecords", next);
+  },
+});
+
+export const upsertGradebookGradeRow = mutation({
+  args: {
+    tenantKey: v.string(),
+    row: v.any(),
+    position: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const candidate = args.row as Record<string, unknown>;
+    if (typeof candidate.id !== "string" || candidate.id.trim().length === 0) {
+      throw new Error("Gradebook grade row must include a string id.");
+    }
+    const gradeId = candidate.id;
+
+    const existing = await ctx.db
+      .query("tenantGradebookGradeRecords")
+      .withIndex("by_tenant_grade")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("gradeId"), gradeId),
+        )
+      )
+      .unique();
+
+    let position = typeof args.position === "number" && Number.isFinite(args.position)
+      ? Math.floor(args.position)
+      : existing?.position;
+
+    if (position === undefined) {
+      const siblings = await ctx.db
+        .query("tenantGradebookGradeRecords")
+        .withIndex("by_tenant")
+        .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+        .collect();
+      const minPosition = siblings.reduce((minimum, row) => Math.min(minimum, row.position), 0);
+      position = siblings.length > 0 ? minPosition - 1 : 0;
+    }
+
+    const next = {
+      tenantKey: args.tenantKey,
+      gradeId,
+      row: args.row,
+      position,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, next);
+      return existing._id;
+    }
+
+    return await ctx.db.insert("tenantGradebookGradeRecords", next);
+  },
+});
+
 export const deleteNotificationRow = mutation({
   args: {
     tenantKey: v.string(),
@@ -565,6 +783,52 @@ export const deleteNotificationRow = mutation({
         q.and(
           q.eq(q.field("tenantKey"), args.tenantKey),
           q.eq(q.field("notificationId"), args.notificationId),
+        )
+      )
+      .unique();
+
+    if (!existing) return false;
+    await ctx.db.delete(existing._id);
+    return true;
+  },
+});
+
+export const deleteGradebookAssignmentRow = mutation({
+  args: {
+    tenantKey: v.string(),
+    assignmentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("tenantGradebookAssignmentRecords")
+      .withIndex("by_tenant_assignment")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("assignmentId"), args.assignmentId),
+        )
+      )
+      .unique();
+
+    if (!existing) return false;
+    await ctx.db.delete(existing._id);
+    return true;
+  },
+});
+
+export const deleteGradebookGradeRow = mutation({
+  args: {
+    tenantKey: v.string(),
+    gradeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("tenantGradebookGradeRecords")
+      .withIndex("by_tenant_grade")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("gradeId"), args.gradeId),
         )
       )
       .unique();

@@ -53,6 +53,24 @@ export default defineSchema({
   })
     .index("by_tenant", ["tenantKey"])
     .index("by_tenant_document", ["tenantKey", "documentId"]),
+  tenantGradebookAssignmentRecords: defineTable({
+    tenantKey: v.string(),
+    assignmentId: v.string(),
+    row: v.any(),
+    position: v.number(),
+    updatedAt: v.string(),
+  })
+    .index("by_tenant", ["tenantKey"])
+    .index("by_tenant_assignment", ["tenantKey", "assignmentId"]),
+  tenantGradebookGradeRecords: defineTable({
+    tenantKey: v.string(),
+    gradeId: v.string(),
+    row: v.any(),
+    position: v.number(),
+    updatedAt: v.string(),
+  })
+    .index("by_tenant", ["tenantKey"])
+    .index("by_tenant_grade", ["tenantKey", "gradeId"]),
   tenantReferralRecords: defineTable({
     tenantKey: v.string(),
     referralId: v.string(),

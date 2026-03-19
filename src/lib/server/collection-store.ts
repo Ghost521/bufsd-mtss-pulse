@@ -1,12 +1,16 @@
 import {
   deleteCalendarRowByTenant,
   deleteDocumentRowByTenant,
+  deleteGradebookAssignmentRowByTenant,
+  deleteGradebookGradeRowByTenant,
   deleteReferralRowByTenant,
   deleteInterventionRowByTenant,
   deleteMessageRowByTenant,
   deleteNotificationRowByTenant,
   listCalendarRowsByTenant,
   listDocumentRowsByTenant,
+  listGradebookAssignmentRowsByTenant,
+  listGradebookGradeRowsByTenant,
   listMessageRowsByTenant,
   listReferralRowsByTenant,
   listInterventionRowsByTenant,
@@ -14,6 +18,8 @@ import {
   readTenantCollection,
   replaceCalendarRowsByTenant,
   replaceDocumentRowsByTenant,
+  replaceGradebookAssignmentRowsByTenant,
+  replaceGradebookGradeRowsByTenant,
   replaceMessageRowsByTenant,
   replaceReferralRowsByTenant,
   replaceInterventionRowsByTenant,
@@ -21,6 +27,8 @@ import {
   toTenantKey,
   upsertCalendarRowByTenant,
   upsertDocumentRowByTenant,
+  upsertGradebookAssignmentRowByTenant,
+  upsertGradebookGradeRowByTenant,
   upsertMessageRowByTenant,
   upsertReferralRowByTenant,
   upsertInterventionRowByTenant,
@@ -83,6 +91,8 @@ const ensureId = (row: Record<string, unknown>): string => {
 const formatValidationMessage = (message: string): string => message.replace(/Invalid input:/g, "").trim() || "Invalid payload.";
 const isCalendarDomain = (domain: DataDomain): boolean => domain === "calendar";
 const isDocumentDomain = (domain: DataDomain): boolean => domain === "documents";
+const isGradebookAssignmentDomain = (domain: DataDomain): boolean => domain === "gradebook-assignments";
+const isGradebookGradeDomain = (domain: DataDomain): boolean => domain === "gradebook-grades";
 const isInterventionDomain = (domain: DataDomain): boolean => domain === "interventions";
 const isMessageDomain = (domain: DataDomain): boolean => domain === "messages";
 const isNotificationDomain = (domain: DataDomain): boolean => domain === "notifications";
@@ -174,6 +184,38 @@ const readDocumentRows = async <T>(tenantKey: string): Promise<T[]> => {
   return parsedLegacyRows;
 };
 
+const readGradebookAssignmentRows = async <T>(tenantKey: string): Promise<T[]> => {
+  const rowLevelRows = parseRowsForDomain<T>(
+    "gradebook-assignments",
+    await listGradebookAssignmentRowsByTenant<unknown>(tenantKey),
+    500,
+  );
+  if (rowLevelRows.length > 0) return rowLevelRows;
+
+  const legacyRows = await readTenantCollection<unknown>(tenantKey, "gradebook_assignments", () => []);
+  const parsedLegacyRows = parseRowsForDomain<T>("gradebook-assignments", ensureArray<T>(legacyRows), 500);
+  if (parsedLegacyRows.length > 0) {
+    await replaceGradebookAssignmentRowsByTenant(tenantKey, parsedLegacyRows as Array<T & { id: string }>);
+  }
+  return parsedLegacyRows;
+};
+
+const readGradebookGradeRows = async <T>(tenantKey: string): Promise<T[]> => {
+  const rowLevelRows = parseRowsForDomain<T>(
+    "gradebook-grades",
+    await listGradebookGradeRowsByTenant<unknown>(tenantKey),
+    500,
+  );
+  if (rowLevelRows.length > 0) return rowLevelRows;
+
+  const legacyRows = await readTenantCollection<unknown>(tenantKey, "gradebook_grades", () => []);
+  const parsedLegacyRows = parseRowsForDomain<T>("gradebook-grades", ensureArray<T>(legacyRows), 500);
+  if (parsedLegacyRows.length > 0) {
+    await replaceGradebookGradeRowsByTenant(tenantKey, parsedLegacyRows as Array<T & { id: string }>);
+  }
+  return parsedLegacyRows;
+};
+
 const readReferralRows = async <T>(tenantKey: string): Promise<T[]> => {
   const rowLevelRows = parseRowsForDomain<T>("referrals", await listReferralRowsByTenant<unknown>(tenantKey), 500);
   if (rowLevelRows.length > 0) return rowLevelRows;
@@ -196,6 +238,12 @@ export const listDomainRows = async <T>(session: SessionContext, domain: DataDom
   }
   if (isDocumentDomain(domain)) {
     return readDocumentRows<T>(tenantKey);
+  }
+  if (isGradebookAssignmentDomain(domain)) {
+    return readGradebookAssignmentRows<T>(tenantKey);
+  }
+  if (isGradebookGradeDomain(domain)) {
+    return readGradebookGradeRows<T>(tenantKey);
   }
   if (isMessageDomain(domain)) {
     return readMessageRows<T>(tenantKey);
@@ -231,6 +279,20 @@ export const replaceDomainRows = async <T>(session: SessionContext, domain: Data
     await replaceDocumentRowsByTenant(tenantKey, next as Array<T & { id: string }>);
     if (next.length === 0) {
       await writeTenantCollection(tenantKey, "documents", []);
+    }
+    return next;
+  }
+  if (isGradebookAssignmentDomain(domain)) {
+    await replaceGradebookAssignmentRowsByTenant(tenantKey, next as Array<T & { id: string }>);
+    if (next.length === 0) {
+      await writeTenantCollection(tenantKey, "gradebook_assignments", []);
+    }
+    return next;
+  }
+  if (isGradebookGradeDomain(domain)) {
+    await replaceGradebookGradeRowsByTenant(tenantKey, next as Array<T & { id: string }>);
+    if (next.length === 0) {
+      await writeTenantCollection(tenantKey, "gradebook_grades", []);
     }
     return next;
   }
@@ -276,6 +338,22 @@ export const createDomainRow = async <T extends object>(
   }
   if (isDocumentDomain(domain)) {
     await upsertDocumentRowByTenant(toTenantKey(session.activeContext), nextRow as Record<string, unknown> & { id: string }, -Date.now());
+    return nextRow as unknown as T;
+  }
+  if (isGradebookAssignmentDomain(domain)) {
+    await upsertGradebookAssignmentRowByTenant(
+      toTenantKey(session.activeContext),
+      nextRow as Record<string, unknown> & { id: string },
+      -Date.now(),
+    );
+    return nextRow as unknown as T;
+  }
+  if (isGradebookGradeDomain(domain)) {
+    await upsertGradebookGradeRowByTenant(
+      toTenantKey(session.activeContext),
+      nextRow as Record<string, unknown> & { id: string },
+      -Date.now(),
+    );
     return nextRow as unknown as T;
   }
   if (isMessageDomain(domain)) {
@@ -343,6 +421,34 @@ export const updateDomainRow = async <T extends object>(
     }
     const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...currentRecord, ...patchRecord, id });
     await upsertDocumentRowByTenant(tenantKey, nextRow as Record<string, unknown> & { id: string });
+    return nextRow as unknown as T;
+  }
+  if (isGradebookAssignmentDomain(domain)) {
+    const rows = await readGradebookAssignmentRows<Record<string, unknown>>(tenantKey);
+    const current = rows.find((row) => row.id === id);
+    if (!current) return null;
+    const currentRecord = asRecord(current);
+    const patchRecord = asRecord(patch);
+    if (!currentRecord) return null;
+    if (!patchRecord) {
+      throw new CollectionStoreError("Patch payload must be an object.");
+    }
+    const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...currentRecord, ...patchRecord, id });
+    await upsertGradebookAssignmentRowByTenant(tenantKey, nextRow as Record<string, unknown> & { id: string });
+    return nextRow as unknown as T;
+  }
+  if (isGradebookGradeDomain(domain)) {
+    const rows = await readGradebookGradeRows<Record<string, unknown>>(tenantKey);
+    const current = rows.find((row) => row.id === id);
+    if (!current) return null;
+    const currentRecord = asRecord(current);
+    const patchRecord = asRecord(patch);
+    if (!currentRecord) return null;
+    if (!patchRecord) {
+      throw new CollectionStoreError("Patch payload must be an object.");
+    }
+    const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...currentRecord, ...patchRecord, id });
+    await upsertGradebookGradeRowByTenant(tenantKey, nextRow as Record<string, unknown> & { id: string });
     return nextRow as unknown as T;
   }
   if (isMessageDomain(domain)) {
@@ -440,6 +546,28 @@ export const deleteDomainRow = async <T extends object>(
     await deleteDocumentRowByTenant(tenantKey, id);
     if (nextRows.length === 0) {
       await writeTenantCollection(tenantKey, "documents", []);
+    }
+    return target as unknown as T;
+  }
+  if (isGradebookAssignmentDomain(domain)) {
+    const rows = await readGradebookAssignmentRows<Record<string, unknown>>(tenantKey);
+    const target = rows.find((row) => row.id === id);
+    if (!target) return null;
+    const nextRows = rows.filter((row) => row.id !== id);
+    await deleteGradebookAssignmentRowByTenant(tenantKey, id);
+    if (nextRows.length === 0) {
+      await writeTenantCollection(tenantKey, "gradebook_assignments", []);
+    }
+    return target as unknown as T;
+  }
+  if (isGradebookGradeDomain(domain)) {
+    const rows = await readGradebookGradeRows<Record<string, unknown>>(tenantKey);
+    const target = rows.find((row) => row.id === id);
+    if (!target) return null;
+    const nextRows = rows.filter((row) => row.id !== id);
+    await deleteGradebookGradeRowByTenant(tenantKey, id);
+    if (nextRows.length === 0) {
+      await writeTenantCollection(tenantKey, "gradebook_grades", []);
     }
     return target as unknown as T;
   }
