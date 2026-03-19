@@ -53,6 +53,10 @@ const FN_LIST_NOTIFICATION_ROWS = process.env.CONVEX_FN_LIST_NOTIFICATION_ROWS ?
 const FN_REPLACE_NOTIFICATION_ROWS = process.env.CONVEX_FN_REPLACE_NOTIFICATION_ROWS ?? "phase3:replaceNotificationRows";
 const FN_UPSERT_NOTIFICATION_ROW = process.env.CONVEX_FN_UPSERT_NOTIFICATION_ROW ?? "phase3:upsertNotificationRow";
 const FN_DELETE_NOTIFICATION_ROW = process.env.CONVEX_FN_DELETE_NOTIFICATION_ROW ?? "phase3:deleteNotificationRow";
+const FN_LIST_MESSAGE_ROWS = process.env.CONVEX_FN_LIST_MESSAGE_ROWS ?? "phase3:listMessageRows";
+const FN_REPLACE_MESSAGE_ROWS = process.env.CONVEX_FN_REPLACE_MESSAGE_ROWS ?? "phase3:replaceMessageRows";
+const FN_UPSERT_MESSAGE_ROW = process.env.CONVEX_FN_UPSERT_MESSAGE_ROW ?? "phase3:upsertMessageRow";
+const FN_DELETE_MESSAGE_ROW = process.env.CONVEX_FN_DELETE_MESSAGE_ROW ?? "phase3:deleteMessageRow";
 const FN_LIST_REFERRAL_ROWS = process.env.CONVEX_FN_LIST_REFERRAL_ROWS ?? "phase3:listReferralRows";
 const FN_REPLACE_REFERRAL_ROWS = process.env.CONVEX_FN_REPLACE_REFERRAL_ROWS ?? "phase3:replaceReferralRows";
 const FN_UPSERT_REFERRAL_ROW = process.env.CONVEX_FN_UPSERT_REFERRAL_ROW ?? "phase3:upsertReferralRow";
@@ -67,6 +71,7 @@ const localAuditByTenant = new Map<string, unknown[]>();
 const localInterventionRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localCalendarRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localNotificationRows = new Map<string, Map<string, { position: number; row: unknown }>>();
+const localMessageRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localReferralRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentRows = new Map<string, Map<string, unknown>>();
 
@@ -538,6 +543,115 @@ export async function deleteNotificationRowByTenant(tenantKey: string, notificat
 
   try {
     await convexCall("mutation", FN_DELETE_NOTIFICATION_ROW, { tenantKey, notificationId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function listMessageRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localMessageRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_MESSAGE_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localMessageRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localMessageRows.get(tenantKey));
+  }
+}
+
+export async function replaceMessageRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localMessageRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_MESSAGE_ROWS, { tenantKey, rows });
+    localMessageRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localMessageRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertMessageRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localMessageRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localMessageRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_MESSAGE_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteMessageRowByTenant(tenantKey: string, conversationId: string): Promise<void> {
+  const existing = localMessageRows.get(tenantKey);
+  existing?.delete(conversationId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_MESSAGE_ROW, { tenantKey, conversationId });
     lastConvexError = null;
   } catch (error) {
     lastConvexError = getErrorMessage(error);

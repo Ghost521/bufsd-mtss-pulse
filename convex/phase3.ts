@@ -245,6 +245,26 @@ export const listNotificationRows = query({
   },
 });
 
+export const listMessageRows = query({
+  args: {
+    tenantKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("tenantMessageRecords")
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+      .collect();
+
+    return rows
+      .sort((left, right) => {
+        if (left.position !== right.position) return left.position - right.position;
+        return right.updatedAt.localeCompare(left.updatedAt);
+      })
+      .map((record) => record.row);
+  },
+});
+
 export const replaceNotificationRows = mutation({
   args: {
     tenantKey: v.string(),
@@ -269,6 +289,40 @@ export const replaceNotificationRows = mutation({
       await ctx.db.insert("tenantNotificationRecords", {
         tenantKey: args.tenantKey,
         notificationId: candidate.id,
+        row,
+        position: index,
+        updatedAt: now,
+      });
+    }
+
+    return args.rows.length;
+  },
+});
+
+export const replaceMessageRows = mutation({
+  args: {
+    tenantKey: v.string(),
+    rows: v.array(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("tenantMessageRecords")
+      .withIndex("by_tenant")
+      .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+      .collect();
+
+    for (const record of existing) {
+      await ctx.db.delete(record._id);
+    }
+
+    const now = new Date().toISOString();
+    for (let index = 0; index < args.rows.length; index += 1) {
+      const row = args.rows[index];
+      const candidate = row as Record<string, unknown>;
+      if (typeof candidate.id !== "string" || candidate.id.trim().length === 0) continue;
+      await ctx.db.insert("tenantMessageRecords", {
+        tenantKey: args.tenantKey,
+        conversationId: candidate.id,
         row,
         position: index,
         updatedAt: now,
@@ -334,6 +388,61 @@ export const upsertNotificationRow = mutation({
   },
 });
 
+export const upsertMessageRow = mutation({
+  args: {
+    tenantKey: v.string(),
+    row: v.any(),
+    position: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const candidate = args.row as Record<string, unknown>;
+    if (typeof candidate.id !== "string" || candidate.id.trim().length === 0) {
+      throw new Error("Message row must include a string id.");
+    }
+    const conversationId = candidate.id;
+
+    const existing = await ctx.db
+      .query("tenantMessageRecords")
+      .withIndex("by_tenant_conversation")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("conversationId"), conversationId),
+        )
+      )
+      .unique();
+
+    let position = typeof args.position === "number" && Number.isFinite(args.position)
+      ? Math.floor(args.position)
+      : existing?.position;
+
+    if (position === undefined) {
+      const siblings = await ctx.db
+        .query("tenantMessageRecords")
+        .withIndex("by_tenant")
+        .filter((q) => q.eq(q.field("tenantKey"), args.tenantKey))
+        .collect();
+      const minPosition = siblings.reduce((minimum, row) => Math.min(minimum, row.position), 0);
+      position = siblings.length > 0 ? minPosition - 1 : 0;
+    }
+
+    const next = {
+      tenantKey: args.tenantKey,
+      conversationId,
+      row: args.row,
+      position,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, next);
+      return existing._id;
+    }
+
+    return await ctx.db.insert("tenantMessageRecords", next);
+  },
+});
+
 export const deleteNotificationRow = mutation({
   args: {
     tenantKey: v.string(),
@@ -347,6 +456,29 @@ export const deleteNotificationRow = mutation({
         q.and(
           q.eq(q.field("tenantKey"), args.tenantKey),
           q.eq(q.field("notificationId"), args.notificationId),
+        )
+      )
+      .unique();
+
+    if (!existing) return false;
+    await ctx.db.delete(existing._id);
+    return true;
+  },
+});
+
+export const deleteMessageRow = mutation({
+  args: {
+    tenantKey: v.string(),
+    conversationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("tenantMessageRecords")
+      .withIndex("by_tenant_conversation")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("tenantKey"), args.tenantKey),
+          q.eq(q.field("conversationId"), args.conversationId),
         )
       )
       .unique();
