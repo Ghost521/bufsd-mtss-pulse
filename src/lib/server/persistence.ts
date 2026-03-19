@@ -73,6 +73,10 @@ const FN_LIST_STUDENT_PROFILE_ROWS = process.env.CONVEX_FN_LIST_STUDENT_PROFILE_
 const FN_REPLACE_STUDENT_PROFILE_ROWS = process.env.CONVEX_FN_REPLACE_STUDENT_PROFILE_ROWS ?? "phase3:replaceStudentProfileRows";
 const FN_UPSERT_STUDENT_PROFILE_ROW = process.env.CONVEX_FN_UPSERT_STUDENT_PROFILE_ROW ?? "phase3:upsertStudentProfileRow";
 const FN_DELETE_STUDENT_PROFILE_ROW = process.env.CONVEX_FN_DELETE_STUDENT_PROFILE_ROW ?? "phase3:deleteStudentProfileRow";
+const FN_LIST_LESSON_PLAN_ROWS = process.env.CONVEX_FN_LIST_LESSON_PLAN_ROWS ?? "phase3:listLessonPlanRows";
+const FN_REPLACE_LESSON_PLAN_ROWS = process.env.CONVEX_FN_REPLACE_LESSON_PLAN_ROWS ?? "phase3:replaceLessonPlanRows";
+const FN_UPSERT_LESSON_PLAN_ROW = process.env.CONVEX_FN_UPSERT_LESSON_PLAN_ROW ?? "phase3:upsertLessonPlanRow";
+const FN_DELETE_LESSON_PLAN_ROW = process.env.CONVEX_FN_DELETE_LESSON_PLAN_ROW ?? "phase3:deleteLessonPlanRow";
 const FN_LIST_REFERRAL_ROWS = process.env.CONVEX_FN_LIST_REFERRAL_ROWS ?? "phase3:listReferralRows";
 const FN_REPLACE_REFERRAL_ROWS = process.env.CONVEX_FN_REPLACE_REFERRAL_ROWS ?? "phase3:replaceReferralRows";
 const FN_UPSERT_REFERRAL_ROW = process.env.CONVEX_FN_UPSERT_REFERRAL_ROW ?? "phase3:upsertReferralRow";
@@ -92,6 +96,7 @@ const localDocumentRows = new Map<string, Map<string, { position: number; row: u
 const localGradebookAssignmentRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localGradebookGradeRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentProfileRows = new Map<string, Map<string, { position: number; row: unknown }>>();
+const localLessonPlanRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localReferralRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentRows = new Map<string, Map<string, unknown>>();
 
@@ -1108,6 +1113,115 @@ export async function deleteStudentProfileRowByTenant(tenantKey: string, student
 
   try {
     await convexCall("mutation", FN_DELETE_STUDENT_PROFILE_ROW, { tenantKey, studentId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function listLessonPlanRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localLessonPlanRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_LESSON_PLAN_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localLessonPlanRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localLessonPlanRows.get(tenantKey));
+  }
+}
+
+export async function replaceLessonPlanRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localLessonPlanRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_LESSON_PLAN_ROWS, { tenantKey, rows });
+    localLessonPlanRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localLessonPlanRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertLessonPlanRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localLessonPlanRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localLessonPlanRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_LESSON_PLAN_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteLessonPlanRowByTenant(tenantKey: string, lessonPlanId: string): Promise<void> {
+  const existing = localLessonPlanRows.get(tenantKey);
+  existing?.delete(lessonPlanId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_LESSON_PLAN_ROW, { tenantKey, lessonPlanId });
     lastConvexError = null;
   } catch (error) {
     lastConvexError = getErrorMessage(error);
