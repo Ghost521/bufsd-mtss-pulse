@@ -8,6 +8,7 @@ import {
   deleteLessonPlanRowByTenant,
   deleteMessageRowByTenant,
   deleteNotificationRowByTenant,
+  deleteStaffRowByTenant,
   deleteStudentProfileRowByTenant,
   listCalendarRowsByTenant,
   listDocumentRowsByTenant,
@@ -18,6 +19,7 @@ import {
   listInterventionRowsByTenant,
   listLessonPlanRowsByTenant,
   listNotificationRowsByTenant,
+  listStaffRowsByTenant,
   listStudentProfileRowsByTenant,
   readTenantCollection,
   replaceCalendarRowsByTenant,
@@ -29,6 +31,7 @@ import {
   replaceInterventionRowsByTenant,
   replaceLessonPlanRowsByTenant,
   replaceNotificationRowsByTenant,
+  replaceStaffRowsByTenant,
   replaceStudentProfileRowsByTenant,
   toTenantKey,
   upsertCalendarRowByTenant,
@@ -40,6 +43,7 @@ import {
   upsertInterventionRowByTenant,
   upsertLessonPlanRowByTenant,
   upsertNotificationRowByTenant,
+  upsertStaffRowByTenant,
   upsertStudentProfileRowByTenant,
   writeTenantCollection,
 } from "./persistence";
@@ -105,6 +109,7 @@ const isInterventionDomain = (domain: DataDomain): boolean => domain === "interv
 const isLessonPlanDomain = (domain: DataDomain): boolean => domain === "lesson-plans";
 const isMessageDomain = (domain: DataDomain): boolean => domain === "messages";
 const isNotificationDomain = (domain: DataDomain): boolean => domain === "notifications";
+const isStaffDomain = (domain: DataDomain): boolean => domain === "staff";
 const isStudentProfileDomain = (domain: DataDomain): boolean => domain === "student-profiles";
 const isReferralDomain = (domain: DataDomain): boolean => domain === "referrals";
 
@@ -250,6 +255,18 @@ const readLessonPlanRows = async <T>(tenantKey: string): Promise<T[]> => {
   return parsedLegacyRows;
 };
 
+const readStaffRows = async <T>(tenantKey: string): Promise<T[]> => {
+  const rowLevelRows = parseRowsForDomain<T>("staff", await listStaffRowsByTenant<unknown>(tenantKey), 500);
+  if (rowLevelRows.length > 0) return rowLevelRows;
+
+  const legacyRows = await readTenantCollection<unknown>(tenantKey, "staff", () => []);
+  const parsedLegacyRows = parseRowsForDomain<T>("staff", ensureArray<T>(legacyRows), 500);
+  if (parsedLegacyRows.length > 0) {
+    await replaceStaffRowsByTenant(tenantKey, parsedLegacyRows as Array<T & { id: string }>);
+  }
+  return parsedLegacyRows;
+};
+
 const readReferralRows = async <T>(tenantKey: string): Promise<T[]> => {
   const rowLevelRows = parseRowsForDomain<T>("referrals", await listReferralRowsByTenant<unknown>(tenantKey), 500);
   if (rowLevelRows.length > 0) return rowLevelRows;
@@ -287,6 +304,9 @@ export const listDomainRows = async <T>(session: SessionContext, domain: DataDom
   }
   if (isNotificationDomain(domain)) {
     return readNotificationRows<T>(tenantKey);
+  }
+  if (isStaffDomain(domain)) {
+    return readStaffRows<T>(tenantKey);
   }
   if (isStudentProfileDomain(domain)) {
     return readStudentProfileRows<T>(tenantKey);
@@ -357,6 +377,13 @@ export const replaceDomainRows = async <T>(session: SessionContext, domain: Data
     }
     return next;
   }
+  if (isStaffDomain(domain)) {
+    await replaceStaffRowsByTenant(tenantKey, next as Array<T & { id: string }>);
+    if (next.length === 0) {
+      await writeTenantCollection(tenantKey, "staff", []);
+    }
+    return next;
+  }
   if (isStudentProfileDomain(domain)) {
     await replaceStudentProfileRowsByTenant(tenantKey, next as Array<T & { id: string }>);
     if (next.length === 0) {
@@ -420,6 +447,10 @@ export const createDomainRow = async <T extends object>(
   }
   if (isNotificationDomain(domain)) {
     await upsertNotificationRowByTenant(toTenantKey(session.activeContext), nextRow as Record<string, unknown> & { id: string }, -Date.now());
+    return nextRow as unknown as T;
+  }
+  if (isStaffDomain(domain)) {
+    await upsertStaffRowByTenant(toTenantKey(session.activeContext), nextRow as Record<string, unknown> & { id: string }, -Date.now());
     return nextRow as unknown as T;
   }
   if (isStudentProfileDomain(domain)) {
@@ -553,6 +584,20 @@ export const updateDomainRow = async <T extends object>(
     }
     const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...currentRecord, ...patchRecord, id });
     await upsertNotificationRowByTenant(tenantKey, nextRow as Record<string, unknown> & { id: string });
+    return nextRow as unknown as T;
+  }
+  if (isStaffDomain(domain)) {
+    const rows = await readStaffRows<Record<string, unknown>>(tenantKey);
+    const current = rows.find((row) => row.id === id);
+    if (!current) return null;
+    const currentRecord = asRecord(current);
+    const patchRecord = asRecord(patch);
+    if (!currentRecord) return null;
+    if (!patchRecord) {
+      throw new CollectionStoreError("Patch payload must be an object.");
+    }
+    const nextRow = parseRowForDomain<Record<string, unknown>>(domain, { ...currentRecord, ...patchRecord, id });
+    await upsertStaffRowByTenant(tenantKey, nextRow as Record<string, unknown> & { id: string });
     return nextRow as unknown as T;
   }
   if (isStudentProfileDomain(domain)) {
@@ -691,6 +736,17 @@ export const deleteDomainRow = async <T extends object>(
     await deleteNotificationRowByTenant(tenantKey, id);
     if (nextRows.length === 0) {
       await writeTenantCollection(tenantKey, "notifications", []);
+    }
+    return target as unknown as T;
+  }
+  if (isStaffDomain(domain)) {
+    const rows = await readStaffRows<Record<string, unknown>>(tenantKey);
+    const target = rows.find((row) => row.id === id);
+    if (!target) return null;
+    const nextRows = rows.filter((row) => row.id !== id);
+    await deleteStaffRowByTenant(tenantKey, id);
+    if (nextRows.length === 0) {
+      await writeTenantCollection(tenantKey, "staff", []);
     }
     return target as unknown as T;
   }
