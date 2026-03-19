@@ -81,6 +81,10 @@ const FN_LIST_STAFF_ROWS = process.env.CONVEX_FN_LIST_STAFF_ROWS ?? "phase3:list
 const FN_REPLACE_STAFF_ROWS = process.env.CONVEX_FN_REPLACE_STAFF_ROWS ?? "phase3:replaceStaffRows";
 const FN_UPSERT_STAFF_ROW = process.env.CONVEX_FN_UPSERT_STAFF_ROW ?? "phase3:upsertStaffRow";
 const FN_DELETE_STAFF_ROW = process.env.CONVEX_FN_DELETE_STAFF_ROW ?? "phase3:deleteStaffRow";
+const FN_LIST_IMPORT_ROWS = process.env.CONVEX_FN_LIST_IMPORT_ROWS ?? "phase3:listImportRows";
+const FN_REPLACE_IMPORT_ROWS = process.env.CONVEX_FN_REPLACE_IMPORT_ROWS ?? "phase3:replaceImportRows";
+const FN_UPSERT_IMPORT_ROW = process.env.CONVEX_FN_UPSERT_IMPORT_ROW ?? "phase3:upsertImportRow";
+const FN_DELETE_IMPORT_ROW = process.env.CONVEX_FN_DELETE_IMPORT_ROW ?? "phase3:deleteImportRow";
 const FN_LIST_REFERRAL_ROWS = process.env.CONVEX_FN_LIST_REFERRAL_ROWS ?? "phase3:listReferralRows";
 const FN_REPLACE_REFERRAL_ROWS = process.env.CONVEX_FN_REPLACE_REFERRAL_ROWS ?? "phase3:replaceReferralRows";
 const FN_UPSERT_REFERRAL_ROW = process.env.CONVEX_FN_UPSERT_REFERRAL_ROW ?? "phase3:upsertReferralRow";
@@ -102,6 +106,7 @@ const localGradebookGradeRows = new Map<string, Map<string, { position: number; 
 const localStudentProfileRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localLessonPlanRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStaffRows = new Map<string, Map<string, { position: number; row: unknown }>>();
+const localImportRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localReferralRows = new Map<string, Map<string, { position: number; row: unknown }>>();
 const localStudentRows = new Map<string, Map<string, unknown>>();
 
@@ -1336,6 +1341,115 @@ export async function deleteStaffRowByTenant(tenantKey: string, staffId: string)
 
   try {
     await convexCall("mutation", FN_DELETE_STAFF_ROW, { tenantKey, staffId });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function listImportRowsByTenant<T>(tenantKey: string): Promise<T[]> {
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return getOrderedLocalRows<T>(localImportRows.get(tenantKey));
+  }
+
+  try {
+    const rows = await convexCall<T[]>("query", FN_LIST_IMPORT_ROWS, { tenantKey });
+    const bucket = new Map<string, { position: number; row: unknown }>();
+    for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index += 1) {
+      const row = rows[index];
+      const record = asRecord(row);
+      if (typeof record?.id === "string") {
+        bucket.set(record.id, { position: index, row: structuredClone(row) });
+      }
+    }
+    localImportRows.set(tenantKey, bucket);
+    lastConvexError = null;
+    return Array.isArray(rows) ? structuredClone(rows) : [];
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    return getOrderedLocalRows<T>(localImportRows.get(tenantKey));
+  }
+}
+
+export async function replaceImportRowsByTenant<T extends { id: string }>(tenantKey: string, rows: T[]): Promise<void> {
+  const bucket = new Map<string, { position: number; row: unknown }>(
+    rows.map((row, index) => [row.id, { position: index, row: structuredClone(row) }]),
+  );
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    localImportRows.set(tenantKey, bucket);
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_REPLACE_IMPORT_ROWS, { tenantKey, rows });
+    localImportRows.set(tenantKey, bucket);
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+    localImportRows.set(tenantKey, bucket);
+  }
+}
+
+export async function upsertImportRowByTenant<T extends { id: string }>(
+  tenantKey: string,
+  row: T,
+  position?: number
+): Promise<void> {
+  const existing = localImportRows.get(tenantKey) ?? new Map<string, { position: number; row: unknown }>();
+  const prior = existing.get(row.id);
+  const nextPosition = typeof position === "number" && Number.isFinite(position)
+    ? Math.floor(position)
+    : prior?.position ?? (existing.size === 0 ? 0 : Math.min(...[...existing.values()].map((entry) => entry.position)) - 1);
+  existing.set(row.id, { position: nextPosition, row: structuredClone(row) });
+  localImportRows.set(tenantKey, existing);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_UPSERT_IMPORT_ROW, { tenantKey, row, position: nextPosition });
+    lastConvexError = null;
+  } catch (error) {
+    lastConvexError = getErrorMessage(error);
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError(lastConvexError);
+    }
+  }
+}
+
+export async function deleteImportRowByTenant(tenantKey: string, importId: string): Promise<void> {
+  const existing = localImportRows.get(tenantKey);
+  existing?.delete(importId);
+
+  if (!isConvexEnabled()) {
+    if (!MEMORY_FALLBACK_ENABLED) {
+      throw new PersistenceUnavailableError("Persistent backend is unavailable and memory fallback is disabled.");
+    }
+    return;
+  }
+
+  try {
+    await convexCall("mutation", FN_DELETE_IMPORT_ROW, { tenantKey, importId });
     lastConvexError = null;
   } catch (error) {
     lastConvexError = getErrorMessage(error);
